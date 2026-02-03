@@ -6,21 +6,8 @@
             "destination": "/server/index.js"
         },
         {
-            "source": "/((?!static|favicon.ico|manifest.json|logo192.png|logo512.png|asset-manifest.json).*)",
-            "destination": "/client/index.html"
-        }
-    ],
-    "builds": [
-        {
-            "src": "server/index.js",
-            "use": "@vercel/node"
-        },
-        {
-            "src": "client/package.json",
-            "use": "@vercel/static-build",
-            "config": {
-                "distDir": "build"
-            }
+            "source": "/(.*)",
+            "destination": "/index.html"
         }
     ]
 }
