@@ -1,0 +1,317 @@
+.sneha-dashboard {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.dashboard-header {
+  margin-bottom: 32px;
+}
+
+.dashboard-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.dashboard-subtitle {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.clients-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+  gap: 24px;
+}
+
+.client-cv-card {
+  background: #FFF8E7;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 4px rgba(212, 175, 55, 0.15);
+  transition: all 0.3s;
+  border: 2px solid transparent;
+}
+
+.client-cv-card:hover {
+  box-shadow: 0 4px 8px rgba(212, 175, 55, 0.25);
+}
+
+.client-cv-card.done {
+  border-color: #86EFAC;
+  background: #F0FDF4;
+}
+
+.cv-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #E5D4A0;
+}
+
+.cv-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #D4AF37 0%, #C9A961 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 28px;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
+}
+
+.cv-name-section {
+  flex: 1;
+}
+
+.cv-name-section h2 {
+  font-size: 24px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 4px 0;
+}
+
+.cv-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.done-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #86EFAC;
+  color: #166534;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cv-section {
+  margin-bottom: 20px;
+}
+
+.cv-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #E5D4A0;
+}
+
+.cv-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.cv-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  min-width: 140px;
+}
+
+.cv-value {
+  font-size: 14px;
+  color: #6b7280;
+  flex: 1;
+}
+
+.cv-input,
+.cv-select {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s;
+}
+
+.cv-input:focus,
+.cv-select:focus {
+  outline: none;
+  border-color: #D4AF37;
+}
+
+.payment-section {
+  background: #FFF4D6;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.fee-status-badge {
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.fee-status-badge.1st-installment-completed {
+  background: #86EFAC;
+  color: #166534;
+}
+
+.fee-status-badge.payment-pending {
+  background: #FCA5A5;
+  color: #991B1B;
+}
+
+.fee-status-badge.pte-fee-paid {
+  background: #93C5FD;
+  color: #1e40af;
+}
+
+.payment-timer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.payment-timer.warning {
+  background: #FEE2E2;
+  color: #991B1B;
+  animation: pulse 2s infinite;
+}
+
+.payment-timer.overdue {
+  background: #FEE2E2;
+  color: #991B1B;
+  font-weight: 600;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.cv-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cv-actions-footer {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #E5D4A0;
+}
+
+.btn-edit-cv,
+.btn-save-cv,
+.btn-cancel-cv,
+.btn-assign-kripa {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-edit-cv {
+  background: #D4AF37;
+  color: #FFF8E7;
+}
+
+.btn-edit-cv:hover {
+  background: #C9A961;
+}
+
+.btn-save-cv {
+  background: #86EFAC;
+  color: #166534;
+}
+
+.btn-save-cv:hover {
+  background: #6EE7B7;
+}
+
+.btn-cancel-cv {
+  background: #F5F1E8;
+  color: #8B6914;
+  border: 1px solid #E5D4A0;
+}
+
+.btn-cancel-cv:hover {
+  background: #E5D4A0;
+}
+
+.btn-assign-kripa {
+  background: #3B82F6;
+  color: white;
+}
+
+.btn-assign-kripa:hover:not(:disabled) {
+  background: #2563EB;
+}
+
+.btn-assign-kripa:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.no-clients {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+
+.sneha-dashboard-loading {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+}
+
+@media (max-width: 768px) {
+  .clients-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cv-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .cv-detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cv-label {
+    min-width: auto;
+  }
+}

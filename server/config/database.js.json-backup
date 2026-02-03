@@ -1,0 +1,812 @@
+const fs = require('fs');
+const path = require('path');
+
+// Ensure data directory exists
+const dataDir = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const dbFile = path.join(dataDir, 'crm.json');
+
+// Initialize database structure
+let db = {
+  users: [],
+  leads: [],
+  clients: [],
+  comments: [],
+  attendance: [],
+  loginLogs: [],
+  activityLogs: [],
+  notifications: [],
+  emailTemplates: [],
+  emailLogs: [],
+  nextId: {
+    users: 1,
+    leads: 1,
+    clients: 1,
+    comments: 1,
+    attendance: 1,
+    notifications: 1,
+    emailTemplates: 1,
+    emailLogs: 1,
+  }
+};
+
+// Load database from file
+function loadDatabase() {
+  if (fs.existsSync(dbFile)) {
+    try {
+      const data = fs.readFileSync(dbFile, 'utf8');
+      db = JSON.parse(data);
+      
+      // Ensure all required arrays exist (fix null values)
+      if (!db.users || db.users === null) db.users = [];
+      if (!db.leads || db.leads === null) db.leads = [];
+      if (!db.clients || db.clients === null) db.clients = [];
+      if (!db.comments || db.comments === null) db.comments = [];
+      if (!db.attendance || db.attendance === null) db.attendance = [];
+      if (!db.loginLogs || db.loginLogs === null) db.loginLogs = [];
+      if (!db.activityLogs || db.activityLogs === null) db.activityLogs = [];
+      if (!db.notifications || db.notifications === null) db.notifications = [];
+      if (!db.emailTemplates || db.emailTemplates === null) db.emailTemplates = [];
+      if (!db.emailLogs || db.emailLogs === null) db.emailLogs = [];
+      
+      // Ensure nextId object exists and has all required fields
+      if (!db.nextId) db.nextId = {};
+      if (typeof db.nextId.users !== 'number') db.nextId.users = Math.max(1, ...(db.users || []).map(u => u.id || 0)) + 1;
+      if (typeof db.nextId.leads !== 'number') db.nextId.leads = Math.max(1, ...(db.leads || []).map(l => l.id || 0)) + 1;
+      if (typeof db.nextId.clients !== 'number') {
+        const maxClientId = db.clients && db.clients.length > 0 
+          ? Math.max(...db.clients.map(c => c.id || 0))
+          : 0;
+        db.nextId.clients = Math.max(1, maxClientId) + 1;
+      }
+      
+      console.log('📊 Database loaded - Clients:', db.clients?.length || 0, 'Next ID:', db.nextId?.clients || 'NOT SET');
+      if (typeof db.nextId.comments !== 'number') db.nextId.comments = Math.max(1, ...db.comments.map(c => c.id || 0)) + 1;
+      if (typeof db.nextId.attendance !== 'number') db.nextId.attendance = Math.max(1, ...db.attendance.map(a => a.id || 0)) + 1;
+      if (typeof db.nextId.notifications !== 'number') {
+        const maxNotifId = db.notifications.length > 0 
+          ? Math.max(...db.notifications.map(n => n.id !== null && n.id !== undefined ? n.id : 0))
+          : 0;
+        db.nextId.notifications = Math.max(1, maxNotifId) + 1;
+      }
+      
+      // Fix any notifications with null IDs
+      db.notifications.forEach((notif, index) => {
+        if (notif.id === null || notif.id === undefined) {
+          notif.id = db.nextId.notifications++;
+        }
+      });
+      
+      // Ensure all IDs are properly set
+      if (db.notifications.length > 0 && db.nextId.notifications <= Math.max(...db.notifications.map(n => n.id || 0))) {
+        db.nextId.notifications = Math.max(...db.notifications.map(n => n.id || 0)) + 1;
+      }
+      
+      // Initialize email templates and logs IDs
+      if (typeof db.nextId.emailTemplates !== 'number') {
+        const maxTemplateId = db.emailTemplates && db.emailTemplates.length > 0 
+          ? Math.max(...db.emailTemplates.map(t => t.id || 0))
+          : 0;
+        db.nextId.emailTemplates = Math.max(1, maxTemplateId) + 1;
+      }
+      
+      if (typeof db.nextId.emailLogs !== 'number') {
+        const maxLogId = db.emailLogs && db.emailLogs.length > 0 
+          ? Math.max(...db.emailLogs.map(l => l.id || 0))
+          : 0;
+        db.nextId.emailLogs = Math.max(1, maxLogId) + 1;
+      }
+    } catch (err) {
+      console.error('Error loading database:', err);
+    }
+  }
+}
+
+// Save database to file with safety checks
+function saveDatabase() {
+  try {
+    // CRITICAL: Verify clients array before saving
+    if (db.clients && db.clients.length > 0) {
+      console.log(`💾 Saving database with ${db.clients.length} clients`);
+    } else if (db.clients && db.clients.length === 0) {
+      console.log('⚠️ WARNING: Saving database with 0 clients! This might indicate data loss.');
+      // Check if file has clients that we're about to overwrite
+      if (fs.existsSync(dbFile)) {
+        try {
+          const fileData = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
+          if (fileData.clients && fileData.clients.length > 0) {
+            console.error('❌ CRITICAL: About to overwrite database with clients! File has', fileData.clients.length, 'clients but memory has 0!');
+            console.error('❌ This would cause data loss! Restoring clients from file...');
+            db.clients = fileData.clients;
+            console.log('✅ Restored', db.clients.length, 'clients from file');
+          }
+        } catch (err) {
+          // File read error, continue with save
+        }
+      }
+    }
+
+    // Create backup before saving (once per hour to avoid too many backups)
+    const now = Date.now();
+    if (!saveDatabase.lastBackupTime || (now - saveDatabase.lastBackupTime) > 3600000) {
+      createHourlyBackup();
+      saveDatabase.lastBackupTime = now;
+    }
+
+    // Write to temporary file first, then rename (atomic write)
+    const tempFile = dbFile + '.tmp';
+    const jsonData = JSON.stringify(db, null, 2);
+    
+    // Validate JSON before writing
+    try {
+      JSON.parse(jsonData);
+    } catch (err) {
+      console.error('❌ CRITICAL: Generated invalid JSON! Not saving to prevent corruption.');
+      return;
+    }
+
+    fs.writeFileSync(tempFile, jsonData);
+    fs.renameSync(tempFile, dbFile);
+  } catch (err) {
+    console.error('❌ Error saving database:', err);
+    // Try to restore from backup if save failed
+    tryRestoreFromBackup();
+  }
+}
+
+// Create hourly backup
+function createHourlyBackup() {
+  try {
+    const backupDir = path.join(dataDir, 'backups');
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(dbFile)) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + 
+                     new Date().toTimeString().split(' ')[0].replace(/:/g, '-').substring(0, 5);
+    const backupFile = path.join(backupDir, `crm_backup_${timestamp}.json`);
+
+    // Copy current database
+    fs.copyFileSync(dbFile, backupFile);
+
+    // Keep only last 24 hourly backups (1 day)
+    const backups = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('crm_backup_') && f.endsWith('.json'))
+      .map(f => ({
+        name: f,
+        path: path.join(backupDir, f),
+        time: fs.statSync(path.join(backupDir, f)).mtime
+      }))
+      .sort((a, b) => b.time - a.time);
+
+    if (backups.length > 24) {
+      backups.slice(24).forEach(backup => {
+        fs.unlinkSync(backup.path);
+      });
+    }
+  } catch (err) {
+    console.error('⚠️ Backup creation failed:', err.message);
+  }
+}
+
+// Try to restore from latest backup if save failed
+function tryRestoreFromBackup() {
+  try {
+    const backupDir = path.join(dataDir, 'backups');
+    if (!fs.existsSync(backupDir)) {
+      return;
+    }
+
+    const backups = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('crm_backup_') && f.endsWith('.json'))
+      .map(f => ({
+        name: f,
+        path: path.join(backupDir, f),
+        time: fs.statSync(path.join(backupDir, f)).mtime
+      }))
+      .sort((a, b) => b.time - a.time);
+
+    if (backups.length > 0) {
+      console.log('🔄 Attempting to restore from latest backup...');
+      const latestBackup = backups[0];
+      const backupData = fs.readFileSync(latestBackup.path, 'utf8');
+      fs.writeFileSync(dbFile, backupData);
+      loadDatabase(); // Reload after restore
+      console.log('✅ Restored from backup:', latestBackup.name);
+    }
+  } catch (err) {
+    console.error('❌ Failed to restore from backup:', err.message);
+  }
+}
+
+// Initialize on load
+loadDatabase();
+
+// CRITICAL: Verify database loaded correctly
+console.log('📊 Database loaded - Clients count:', db.clients?.length || 0);
+console.log('📊 Database loaded - Clients type:', Array.isArray(db.clients) ? 'array' : typeof db.clients);
+if (db.clients && db.clients.length > 0) {
+  console.log('📊 Sample client:', {
+    id: db.clients[0].id,
+    name: db.clients[0].name,
+    processing_staff_id: db.clients[0].processing_staff_id,
+    processing_staff_id_type: typeof db.clients[0].processing_staff_id
+  });
+  // Show all clients with processing_staff_id
+  const kripaClients = db.clients.filter(c => c.processing_staff_id === 8 || Number(c.processing_staff_id) === 8);
+  console.log(`📊 Clients assigned to Kripa (processing_staff_id = 8): ${kripaClients.length}`);
+  kripaClients.forEach(c => {
+    console.log(`  - Client ${c.id}: ${c.name}, processing_staff_id: ${c.processing_staff_id} (type: ${typeof c.processing_staff_id})`);
+  });
+} else {
+  console.log('⚠️ WARNING: No clients loaded from database file!');
+  // Try to reload
+  loadDatabase();
+  console.log('📊 After reload - Clients count:', db.clients?.length || 0);
+}
+
+// Auto-save every 2 seconds
+setInterval(saveDatabase, 2000);
+
+// Save on process exit
+process.on('exit', saveDatabase);
+process.on('SIGINT', () => {
+  saveDatabase();
+  process.exit();
+});
+
+// Database API
+const database = {
+  // Users
+  getUsers: (filter = {}) => {
+    let users = [...db.users];
+    if (filter.id) users = users.filter(u => u.id === filter.id);
+    if (filter.email) users = users.filter(u => u.email === filter.email);
+    if (filter.role) users = users.filter(u => u.role === filter.role);
+    if (filter.team) users = users.filter(u => u.team === filter.team);
+    if (filter.managed_by) users = users.filter(u => u.managed_by === filter.managed_by);
+    return users;
+  },
+  
+  getTeamMembers: (team) => {
+    return db.users.filter(u => u.team === team);
+  },
+  
+  createUser: (userData) => {
+    // Ensure nextId.users exists
+    if (!db.nextId.users) {
+      const maxUserId = db.users.length > 0 
+        ? Math.max(...db.users.map(u => u.id || 0))
+        : 0;
+      db.nextId.users = Math.max(1, maxUserId) + 1;
+    }
+    
+    const user = { 
+      ...userData, 
+      id: db.nextId.users++,
+      created_at: userData.created_at || new Date().toISOString(),
+      updated_at: userData.updated_at || new Date().toISOString(),
+    };
+    db.users.push(user);
+    saveDatabase();
+    return user;
+  },
+  
+  updateUser: (id, updates) => {
+    const index = db.users.findIndex(u => u.id === id);
+    if (index === -1) return null;
+    db.users[index] = { ...db.users[index], ...updates, updated_at: new Date().toISOString() };
+    saveDatabase();
+    return db.users[index];
+  },
+  
+  // Leads
+  getLeads: (filter = {}) => {
+    let leads = [...db.leads];
+    if (filter.id) {
+      const filterId = Number(filter.id);
+      leads = leads.filter(l => Number(l.id) === filterId);
+    }
+    if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
+      const filterStaffId = Number(filter.assigned_staff_id);
+      leads = leads.filter(l => {
+        if (l.assigned_staff_id === null || l.assigned_staff_id === undefined) return false;
+        return Number(l.assigned_staff_id) === filterStaffId;
+      });
+    }
+    if (filter.status) leads = leads.filter(l => l.status === filter.status);
+    if (filter.search) {
+      const search = filter.search.toLowerCase();
+      leads = leads.filter(l => 
+        l.name?.toLowerCase().includes(search) ||
+        l.phone_number?.toLowerCase().includes(search) ||
+        l.email?.toLowerCase().includes(search)
+      );
+    }
+    return leads.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+  },
+  
+  createLead: (leadData) => {
+    // Ensure nextId.leads exists
+    if (!db.nextId.leads) {
+      const maxLeadId = db.leads.length > 0 
+        ? Math.max(...db.leads.map(l => l.id || 0))
+        : 0;
+      db.nextId.leads = Math.max(1, maxLeadId) + 1;
+    }
+    
+    const lead = {
+      ...leadData,
+      id: db.nextId.leads++,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    db.leads.push(lead);
+    saveDatabase();
+    return lead;
+  },
+  
+  updateLead: (id, updates) => {
+    const leadId = Number(id);
+    if (Number.isNaN(leadId)) return null;
+    
+    const index = db.leads.findIndex(l => Number(l.id) === leadId);
+    if (index === -1) return null;
+    
+    // Preserve created_at and id, update other fields
+    const updatedLead = {
+      ...db.leads[index],
+      ...updates,
+      id: db.leads[index].id, // Preserve original ID
+      created_at: db.leads[index].created_at, // Preserve original created_at
+      updated_at: new Date().toISOString(),
+    };
+    
+    db.leads[index] = updatedLead;
+    saveDatabase();
+    return updatedLead;
+  },
+  
+  // Comments
+  getComments: (leadId) => {
+    if (leadId === null || leadId === undefined) {
+      return db.comments.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    }
+    return db.comments
+      .filter(c => c.lead_id === leadId)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  },
+  
+  createComment: (commentData) => {
+    // Ensure nextId.comments exists
+    if (!db.nextId.comments) {
+      const maxCommentId = db.comments.length > 0 
+        ? Math.max(...db.comments.map(c => c.id || 0))
+        : 0;
+      db.nextId.comments = Math.max(1, maxCommentId) + 1;
+    }
+    
+    const comment = {
+      ...commentData,
+      id: db.nextId.comments++,
+      created_at: new Date().toISOString(),
+    };
+    db.comments.push(comment);
+    saveDatabase();
+    return comment;
+  },
+  
+  // Attendance
+  getAttendance: (filter = {}) => {
+    let attendance = [...db.attendance];
+    if (filter.user_id) attendance = attendance.filter(a => a.user_id === filter.user_id);
+    if (filter.date) attendance = attendance.filter(a => a.date === filter.date);
+    if (filter.startDate) attendance = attendance.filter(a => a.date >= filter.startDate);
+    if (filter.endDate) attendance = attendance.filter(a => a.date <= filter.endDate);
+    return attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
+  },
+  
+  createAttendance: (attendanceData) => {
+    // Ensure nextId.attendance exists
+    if (!db.nextId.attendance) {
+      const maxAttendanceId = db.attendance.length > 0 
+        ? Math.max(...db.attendance.map(a => a.id || 0))
+        : 0;
+      db.nextId.attendance = Math.max(1, maxAttendanceId) + 1;
+    }
+    
+    const attendance = {
+      ...attendanceData,
+      id: db.nextId.attendance++,
+      created_at: new Date().toISOString(),
+    };
+    db.attendance.push(attendance);
+    saveDatabase();
+    return attendance;
+  },
+  
+  updateAttendance: (id, updates) => {
+    const index = db.attendance.findIndex(a => a.id === id);
+    if (index === -1) return null;
+    db.attendance[index] = { ...db.attendance[index], ...updates };
+    saveDatabase();
+    return db.attendance[index];
+  },
+  
+  // Helper to get user name
+  getUserName: (userId) => {
+    const user = db.users.find(u => u.id === userId);
+    return user?.name || null;
+  },
+  
+  // Activity Logs
+  getActivityLogs: (filter = {}) => {
+    if (!db.activityLogs) db.activityLogs = [];
+    let logs = [...db.activityLogs];
+    if (filter.user_id) logs = logs.filter(l => l.user_id === filter.user_id);
+    if (filter.type) logs = logs.filter(l => l.type === filter.type);
+    return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  },
+  
+  getLoginLogs: (filter = {}) => {
+    if (!db.loginLogs) db.loginLogs = [];
+    let logs = [...db.loginLogs];
+    if (filter.email) logs = logs.filter(l => l.email === filter.email);
+    if (filter.success !== undefined) logs = logs.filter(l => l.success === filter.success);
+    if (filter.user_id) logs = logs.filter(l => l.user_id === filter.user_id);
+    return logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  },
+  
+  // Notifications
+  getNotifications: (filter = {}) => {
+    if (!db.notifications) db.notifications = [];
+    let notifications = [...db.notifications];
+    if (filter.id) {
+      const filterId = Number(filter.id);
+      notifications = notifications.filter(n => Number(n.id) === filterId);
+    }
+    if (filter.user_id !== undefined && filter.user_id !== null) {
+      const filterUserId = Number(filter.user_id);
+      notifications = notifications.filter(n => Number(n.user_id) === filterUserId);
+    }
+    if (filter.read !== undefined) notifications = notifications.filter(n => n.read === filter.read);
+    return notifications.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  },
+  
+  createNotification: (notificationData) => {
+    if (!db.notifications) db.notifications = [];
+    if (!db.nextId.notifications) {
+      const maxNotifId = db.notifications.length > 0 
+        ? Math.max(...db.notifications.map(n => n.id !== null && n.id !== undefined ? n.id : 0))
+        : 0;
+      db.nextId.notifications = Math.max(1, maxNotifId) + 1;
+    }
+    const notification = {
+      ...notificationData,
+      id: db.nextId.notifications++,
+      read: false,
+      created_at: new Date().toISOString(),
+    };
+    db.notifications.push(notification);
+    saveDatabase();
+    return notification;
+  },
+  
+  markNotificationAsRead: (id) => {
+    if (!db.notifications) db.notifications = [];
+    const index = db.notifications.findIndex(n => n.id === id);
+    if (index === -1) return null;
+    db.notifications[index].read = true;
+    db.notifications[index].read_at = new Date().toISOString();
+    saveDatabase();
+    return db.notifications[index];
+  },
+  
+  markAllNotificationsAsRead: (userId) => {
+    if (!db.notifications) db.notifications = [];
+    const now = new Date().toISOString();
+    db.notifications.forEach(n => {
+      if (n.user_id === userId && !n.read) {
+        n.read = true;
+        n.read_at = now;
+      }
+    });
+    saveDatabase();
+    return db.notifications.filter(n => n.user_id === userId);
+  },
+  
+  // Email Templates
+  getEmailTemplates: (filter = {}) => {
+    if (!db.emailTemplates) db.emailTemplates = [];
+    let templates = [...db.emailTemplates];
+    if (filter.id) templates = templates.filter(t => t.id === filter.id);
+    if (filter.type) templates = templates.filter(t => t.type === filter.type);
+    if (filter.active !== undefined) templates = templates.filter(t => t.active === filter.active);
+    return templates;
+  },
+  
+  createEmailTemplate: (templateData) => {
+    if (!db.emailTemplates) db.emailTemplates = [];
+    if (!db.nextId.emailTemplates) {
+      const maxId = db.emailTemplates.length > 0 
+        ? Math.max(...db.emailTemplates.map(t => t.id || 0))
+        : 0;
+      db.nextId.emailTemplates = Math.max(1, maxId) + 1;
+    }
+    
+    const template = {
+      ...templateData,
+      id: db.nextId.emailTemplates++,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    db.emailTemplates.push(template);
+    saveDatabase();
+    return template;
+  },
+  
+  updateEmailTemplate: (id, updates) => {
+    if (!db.emailTemplates) db.emailTemplates = [];
+    const index = db.emailTemplates.findIndex(t => t.id === id);
+    if (index === -1) return null;
+    db.emailTemplates[index] = { 
+      ...db.emailTemplates[index], 
+      ...updates, 
+      updated_at: new Date().toISOString() 
+    };
+    saveDatabase();
+    return db.emailTemplates[index];
+  },
+  
+  deleteEmailTemplate: (id) => {
+    if (!db.emailTemplates) db.emailTemplates = [];
+    const index = db.emailTemplates.findIndex(t => t.id === id);
+    if (index === -1) return false;
+    db.emailTemplates.splice(index, 1);
+    saveDatabase();
+    return true;
+  },
+  
+  // Email Logs
+  getEmailLogs: (filter = {}) => {
+    if (!db.emailLogs) db.emailLogs = [];
+    let logs = [...db.emailLogs];
+    if (filter.lead_id) logs = logs.filter(l => l.lead_id === filter.lead_id);
+    if (filter.template_id) logs = logs.filter(l => l.template_id === filter.template_id);
+    if (filter.success !== undefined) logs = logs.filter(l => l.success === filter.success);
+    return logs.sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+  },
+  
+  createEmailLog: (logData) => {
+    if (!db.emailLogs) db.emailLogs = [];
+    if (!db.nextId.emailLogs) {
+      const maxId = db.emailLogs.length > 0 
+        ? Math.max(...db.emailLogs.map(l => l.id || 0))
+        : 0;
+      db.nextId.emailLogs = Math.max(1, maxId) + 1;
+    }
+    
+    const log = {
+      ...logData,
+      id: db.nextId.emailLogs++,
+      sent_at: new Date().toISOString(),
+    };
+    db.emailLogs.push(log);
+    saveDatabase();
+    return log;
+  },
+  
+  // Clients
+  getClients: (filter = {}) => {
+    // CRITICAL: Reload database if clients array is empty but file has data
+    // This handles the case where db variable wasn't updated properly
+    if ((!db.clients || db.clients.length === 0) && fs.existsSync(dbFile)) {
+      try {
+        const fileData = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
+        if (fileData.clients && fileData.clients.length > 0) {
+          console.log('⚠️ Database in memory is empty but file has clients! Reloading...');
+          db.clients = Array.isArray(fileData.clients) ? fileData.clients : [];
+          console.log(`✅ Reloaded ${db.clients.length} clients from file`);
+        }
+      } catch (err) {
+        console.error('Error reloading clients from file:', err);
+        // Don't throw, just log the error
+      }
+    }
+    
+    // CRITICAL: Ensure clients is an array, not null
+    if (!db.clients || db.clients === null || !Array.isArray(db.clients)) {
+      console.log('⚠️ Clients array was null or not an array in getClients, initializing to empty array');
+      db.clients = [];
+    }
+    
+    console.log(`🔍 getClients called with filter:`, JSON.stringify(filter));
+    console.log(`🔍 db.clients length: ${db.clients.length}`);
+    console.log(`🔍 db.clients type: ${Array.isArray(db.clients) ? 'array' : typeof db.clients}`);
+    
+    if (db.clients.length > 0) {
+      console.log(`🔍 Sample client in getClients:`, {
+        id: db.clients[0].id,
+        name: db.clients[0].name,
+        processing_staff_id: db.clients[0].processing_staff_id
+      });
+    }
+    
+    let clients = [...db.clients];
+    console.log(`🔍 Copied clients array length: ${clients.length}`);
+    if (filter.id) {
+      const filterId = Number(filter.id);
+      clients = clients.filter(c => Number(c.id) === filterId);
+    }
+    if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
+      const filterStaffId = Number(filter.assigned_staff_id);
+      clients = clients.filter(c => {
+        if (c.assigned_staff_id === null || c.assigned_staff_id === undefined) return false;
+        return Number(c.assigned_staff_id) === filterStaffId;
+      });
+    }
+    if (filter.processing_staff_id !== undefined && filter.processing_staff_id !== null) {
+      const filterStaffId = Number(filter.processing_staff_id);
+      console.log(`🔍 Database: Filtering by processing_staff_id = ${filterStaffId} (type: ${typeof filterStaffId})`);
+      const beforeCount = clients.length;
+      console.log(`🔍 Before filter: ${beforeCount} clients`);
+      
+      clients = clients.filter(c => {
+        // Handle both number and string types
+        const clientProcessingId = c.processing_staff_id !== null && c.processing_staff_id !== undefined 
+          ? Number(c.processing_staff_id) 
+          : null;
+        const matches = clientProcessingId === filterStaffId;
+        
+        if (matches) {
+          console.log(`  ✅ Client ${c.id} (${c.name}) matches - processing_staff_id: ${clientProcessingId} (type: ${typeof clientProcessingId})`);
+        } else if (clientProcessingId !== null) {
+          console.log(`  ❌ Client ${c.id} (${c.name}) does NOT match - has processing_staff_id: ${clientProcessingId} (type: ${typeof clientProcessingId}), looking for: ${filterStaffId}`);
+        }
+        return matches;
+      });
+      console.log(`  📊 Filtered from ${beforeCount} to ${clients.length} clients`);
+      
+      // If no matches, show all clients for debugging
+      if (clients.length === 0 && beforeCount > 0) {
+        console.log(`  ⚠️ WARNING: No clients matched! All clients processing_staff_id values:`);
+        const allClients = db.clients || [];
+        allClients.forEach(c => {
+          const pid = c.processing_staff_id !== null && c.processing_staff_id !== undefined ? Number(c.processing_staff_id) : null;
+          console.log(`    - Client ${c.id}: processing_staff_id = ${pid} (type: ${typeof c.processing_staff_id})`);
+        });
+      }
+    }
+    if (filter.fee_status) clients = clients.filter(c => c.fee_status === filter.fee_status);
+    if (filter.search) {
+      const search = filter.search.toLowerCase();
+      clients = clients.filter(c => 
+        c.name?.toLowerCase().includes(search) ||
+        c.phone_number?.toLowerCase().includes(search) ||
+        c.email?.toLowerCase().includes(search)
+      );
+    }
+    return clients.sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+  },
+  
+  createClient: (clientData) => {
+    // CRITICAL: Ensure clients is an array, not null
+    if (!db.clients || db.clients === null || !Array.isArray(db.clients)) {
+      console.log('⚠️ Clients array was null or not an array, initializing to empty array');
+      db.clients = [];
+    }
+    if (!db.nextId) db.nextId = {};
+    if (!db.nextId.clients || typeof db.nextId.clients !== 'number') {
+      const maxClientId = db.clients && db.clients.length > 0 
+        ? Math.max(...db.clients.map(c => c.id || 0))
+        : 0;
+      db.nextId.clients = Math.max(1, maxClientId) + 1;
+      console.log('📝 Initialized nextId.clients to:', db.nextId.clients);
+    }
+    
+    const client = {
+      ...clientData,
+      id: db.nextId.clients++,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    
+    console.log('💾 Creating client:', JSON.stringify(client, null, 2));
+    console.log('💾 Current clients array length before push:', db.clients.length);
+    
+    db.clients.push(client);
+    
+    console.log('💾 Current clients array length after push:', db.clients.length);
+    console.log('💾 Client ID assigned:', client.id);
+    
+    saveDatabase();
+    
+    // Verify it was saved
+    const verifyClient = db.clients.find(c => c.id === client.id);
+    console.log('💾 Verification - Client in memory:', verifyClient ? 'FOUND' : 'NOT FOUND');
+    console.log('💾 Total clients in memory:', db.clients.length);
+    
+    return client;
+  },
+  
+  updateClient: (id, updates) => {
+    if (!db.clients) db.clients = [];
+    const clientId = Number(id);
+    if (Number.isNaN(clientId)) return null;
+    
+    const index = db.clients.findIndex(c => Number(c.id) === clientId);
+    if (index === -1) return null;
+    
+    // Ensure processing_staff_id is a number if provided
+    if (updates.processing_staff_id !== undefined && updates.processing_staff_id !== null) {
+      updates.processing_staff_id = Number(updates.processing_staff_id);
+      console.log('💾 Converting processing_staff_id to number:', updates.processing_staff_id);
+    }
+    
+    const updatedClient = {
+      ...db.clients[index],
+      ...updates,
+      id: db.clients[index].id,
+      created_at: db.clients[index].created_at,
+      updated_at: new Date().toISOString(),
+    };
+    
+    // Ensure processing_staff_id is a number in the final object
+    if (updatedClient.processing_staff_id !== undefined && updatedClient.processing_staff_id !== null) {
+      updatedClient.processing_staff_id = Number(updatedClient.processing_staff_id);
+    }
+    
+    console.log('💾 Database: Updated client', clientId);
+    console.log('💾 Before update - processing_staff_id:', db.clients[index].processing_staff_id);
+    console.log('💾 After update - processing_staff_id:', updatedClient.processing_staff_id, '(type:', typeof updatedClient.processing_staff_id, ')');
+    
+    db.clients[index] = updatedClient;
+    
+    // CRITICAL: Force immediate save and verify
+    saveDatabase();
+    
+    // Reload from file to verify it was saved
+    const savedData = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
+    const savedClient = savedData.clients?.find(c => Number(c.id) === clientId);
+    console.log('💾 Verification from file - processing_staff_id:', savedClient?.processing_staff_id, '(type:', typeof savedClient?.processing_staff_id, ')');
+    
+    // Verify in memory
+    const verifyAfterSave = db.clients.find(c => Number(c.id) === clientId);
+    console.log('💾 Verification in memory - processing_staff_id:', verifyAfterSave?.processing_staff_id, '(type:', typeof verifyAfterSave?.processing_staff_id, ')');
+    
+    return updatedClient;
+  },
+  
+  deleteClient: (id) => {
+    if (!db.clients) db.clients = [];
+    const clientId = Number(id);
+    if (Number.isNaN(clientId)) return false;
+    
+    const index = db.clients.findIndex(c => Number(c.id) === clientId);
+    if (index === -1) return false;
+    
+    db.clients.splice(index, 1);
+    saveDatabase();
+    return true;
+  },
+  
+  // Expose db object for direct access to logs
+  get db() {
+    return db;
+  },
+  
+  // Save function
+  save: saveDatabase,
+  
+  // Load function - reload database from file
+  loadDatabase: loadDatabase,
+};
+
+module.exports = database;
