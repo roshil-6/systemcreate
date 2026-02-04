@@ -86,11 +86,13 @@ app.use((err, req, res, next) => {
 // Output scheduler status
 console.log('   Email scheduler initialized');
 
-// For Vercel Serverless
-if (process.env.NODE_ENV !== 'production') {
+// Start server if run directly (Render / Local)
+// Vercel imports this file, so this block won't run there
+if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    startEmailScheduler(); // Only run scheduler in persistent server mode
+    console.log(`Environment: ${process.env.NODE_ENV}`);
+    startEmailScheduler(); // Run scheduler in persistent server mode
   });
 }
 
