@@ -63,35 +63,14 @@ router.get('/', authenticate, async (req, res) => {
       const userName = req.user.name || '';
       const userEmail = req.user.email || '';
       const isKripa = userName === 'Kripa' || userName === 'KRIPA' || userEmail === 'kripa@toniosenora.com';
+      const isSneha = userName === 'Sneha' || userName === 'SNEHA' || userEmail === 'sneha@toniosenora.com';
 
-      if (isKripa && pStaffId === userId) {
-        console.log('🔍 Kripa accessing clients - including Sneha\'s clients');
-
-        // Find Sneha's ID
-        let snehaId = null;
-        try {
-          const snehaUsers = await db.getUsers({ email: 'sneha@toniosenora.com' });
-          if (snehaUsers.length > 0) snehaId = snehaUsers[0].id;
-          else {
-            const snehaByName = await db.getUsers({ name: 'Sneha' });
-            if (snehaByName.length > 0) snehaId = snehaByName[0].id;
-          }
-        } catch (e) { console.error('Error finding Sneha:', e); }
-
-        if (snehaId) {
-          // We need a custom filter that db.getClients might not support directly via simple object
-          // So we will fetch all clients and filter in memory (SQLite is fast enough for this scale)
-          // OR we pass a special flag if db.getClients supported it. 
-          // Since db.getClients implementation is simplistic, we'll fetch broader and filter here.
-          // BUT db.getClients uses dynamic query building.
-          // Let's rely on fetching all and filtering here for Kripa specific case to be safe, 
-          // or we can't easily express OR condition with the current db helper.
-
-          // Fetch all clients (we will filter manually)
-          // We don't set filter.processing_staff_id here
-        } else {
-          filter.processing_staff_id = pStaffId;
-        }
+      // If Kripa or Sneha is requesting their own dashboard, we want to fetch more data to handle backups/handovers
+      // So we SKIP the strict DB filter here and rely on the in-memory filtering below (lines 136+)
+      // This ensures we get Sneha's clients too when Kripa requests her dashboard
+      if ((isKripa || isSneha) && pStaffId === userId) {
+        console.log('🔍 Processing Team Access: Fetching broader dataset for flexible filtering');
+        // Do NOT set filter.processing_staff_id here
       } else {
         filter.processing_staff_id = pStaffId;
       }

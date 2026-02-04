@@ -273,7 +273,7 @@ const Dashboard = () => {
   // After data is loaded, check again for admin viewing Sneha/Kripa
   // Sneha's ID is 12, Kripa's ID is 8 (from backend code)
   const snehaStaffId = 12;
-  const kripaStaffId = 8;
+  const kripaStaffId = 13;
 
   const adminViewingSnehaAfterLoad = staffId && (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && (
     Number(staffId) === snehaStaffId || // Direct ID check

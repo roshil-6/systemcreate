@@ -125,8 +125,15 @@ router.get('/staff/:id', authenticate, async (req, res) => {
       if (staffId !== userId) {
         // Check if the staff member is in their team
         const teamMembers = await db.getUsers({ managed_by: userId, id: staffId });
+
+        // Fallback: If no direct reports found, check if target is a SALES_TEAM member (Safety Net)
         if (teamMembers.length === 0) {
-          return res.status(403).json({ error: 'Access denied. You can only view your own dashboard or your team members\' dashboards' });
+          const targetUser = await db.getUsers({ id: staffId });
+          const isSalesMember = targetUser.length > 0 && (targetUser[0].role === 'SALES_TEAM' || targetUser[0].role === 'STAFF');
+
+          if (!isSalesMember) {
+            return res.status(403).json({ error: 'Access denied. You can only view your own dashboard or your team members\' dashboards' });
+          }
         }
       }
     }

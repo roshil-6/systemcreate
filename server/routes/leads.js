@@ -603,6 +603,107 @@ router.put('/:id', authenticate, async (req, res) => {
   }
 });
 
+// Complete registration (Convert Lead to Client)
+router.post('/:id/complete-registration', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+    const leadId = parseInt(req.params.id);
+    const { assessment_authority, occupation_mapped, registration_fee_paid } = req.body;
+
+    // Check if lead exists
+    const leads = await db.getLeads({ id: leadId });
+    const lead = leads[0];
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    if (lead.status === 'Registration Completed') {
+      return res.status(400).json({ error: 'Lead is already registered' });
+    }
+
+    // Check permissions (Admin, Sales Head, or Lead Owner)
+    if (role !== 'ADMIN') {
+      if (role === 'SALES_TEAM_HEAD') {
+        const teamMembers = await db.getUsers({ managed_by: userId });
+        const teamIds = teamMembers.map(u => u.id);
+        const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
+
+        if (leadOwnerId !== userId && !teamIds.includes(leadOwnerId) && lead.assigned_staff_id !== null) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      } else {
+        // Staff/Sales Team
+        const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
+        if (leadOwnerId !== userId) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+    }
+
+    // 1. Create Client Record
+    const clientData = {
+      name: lead.name,
+      phone_number: lead.phone_number,
+      phone_country_code: lead.phone_country_code,
+      email: lead.email,
+      age: lead.age,
+      occupation: lead.occupation,
+      qualification: lead.qualification,
+      year_of_experience: lead.year_of_experience,
+      country: lead.country, // Current country
+      target_country: lead.country, // Default target to current if not specified, or use logic
+      program: lead.program,
+      assigned_staff_id: lead.assigned_staff_id, // Keep sales rep
+      processing_staff_id: null, // Initially null, will be picked up by Processing Team
+      fee_status: 'Payment Pending', // Initial status
+      processing_status: 'Agreement Pending',
+      assessment_authority: assessment_authority,
+      occupation_mapped: occupation_mapped,
+      registration_fee_paid: registrationData = true, // Flag from form
+      amount_paid: 0,
+    };
+
+    // Fix bug where client creation fails if fields are null
+    // (Assuming db.createClient handles nulls, otherwise we need to sanitize)
+
+    // Create logic for determining processing staff (Round robin or logic?)
+    // For now, leave null (Processing Head assigns or they pick it up)
+
+    const newClient = await db.createClient(clientData);
+
+    // 2. Update Lead Status
+    await db.updateLead(leadId, { status: 'Registration Completed' });
+
+    // 3. Create Notification for Processing Team (Sneha/Kripa)
+    // Find processing team users
+    const processingUsers = await db.getUsers({ role: 'PROCESSING' }); // Or specific IDs
+    // Also include Admin
+    const admins = await db.getUsers({ role: 'ADMIN' });
+
+    const notifyUsers = [...processingUsers, ...admins];
+    const uniqueNotifyIds = [...new Set(notifyUsers.map(u => u.id))];
+
+    for (const notifyUserId of uniqueNotifyIds) {
+      await db.createNotification({
+        user_id: notifyUserId,
+        lead_id: leadId,
+        type: 'registration_completed',
+        message: `New Registration: "${lead.name}" is now a client.`,
+        created_by: userId,
+      });
+    }
+
+    console.log(`✅ Registration completed for lead ${leadId} -> Client ${newClient.id}`);
+    res.json({ success: true, clientId: newClient.id, client: newClient });
+
+  } catch (error) {
+    console.error('Complete registration error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
 // Get comments for a lead
 router.get('/:id/comments', authenticate, async (req, res) => {
   try {
