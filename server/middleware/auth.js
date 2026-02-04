@@ -1,12 +1,14 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'emergency_fallback_secret_2024';
+
 // Verify JWT token
 const authenticate = async (req, res, next) => {
   try {
     // Handle case-insensitive header names
     const authHeader = req.headers.authorization || req.headers.Authorization;
-    
+
     if (!authHeader) {
       console.error('❌ Auth: No authorization header found');
       console.error('   Available headers:', Object.keys(req.headers));
@@ -27,12 +29,15 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+    const decoded = jwt.verify(
+      token,
+      JWT_SECRET
+    );
+
     // Verify user still exists
     const users = await db.getUsers({ id: decoded.userId });
     const user = users[0];
-    
+
     if (!user) {
       console.error('❌ Auth: User not found for userId:', decoded.userId);
       return res.status(401).json({ error: 'User not found' });
