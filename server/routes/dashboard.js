@@ -48,7 +48,11 @@ async function getAccessibleUserIds(user) {
     return null; // null means all users
   } else if (role === 'SALES_TEAM_HEAD') {
     // Sales team head sees themselves + only their team members (those managed by them)
-    const teamMembers = await db.getUsers({ managed_by: userId });
+    // Fallback: If no direct reports, show all 'SALES_TEAM' role users (Safety Net)
+    let teamMembers = await db.getUsers({ managed_by: userId });
+    if (teamMembers.length === 0) {
+      teamMembers = await db.getUsers({ role: 'SALES_TEAM' });
+    }
     return [userId, ...teamMembers.map(u => u.id)];
   } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
     // Sales team and processing see only themselves
@@ -159,8 +163,12 @@ router.get('/staff/:id', authenticate, async (req, res) => {
           (c.processing_staff_id === null && c.assigned_staff_id !== null) // FALLBACK: Newly registered/Unassigned processing
         );
       } else if (isKripa) {
-        // Kripa's clients (assigned for processing)
-        processingClients = await db.getClients({ processing_staff_id: staffId });
+        // Kripa's clients (assigned for processing OR unassigned fallback)
+        const allClients = await db.getClients({});
+        processingClients = allClients.filter(c =>
+          c.processing_staff_id === staffId ||
+          (c.processing_staff_id === null && c.status === 'Client')
+        );
 
         // Also get Sneha's clients (to help if Sneha is on leave)
         if (snehaUserId) {
@@ -519,7 +527,13 @@ router.get('/', authenticate, async (req, res) => {
         console.log('📊 Sneha user found?', snehaUser ? `Yes - ID: ${snehaUser.id}, Name: ${snehaUser.name}, Role: ${snehaUser.role}` : 'No - Sneha not found in database!');
       } else if (role === 'SALES_TEAM_HEAD') {
         // Sales team head sees leads assigned to themselves and ONLY their team members (managed by them)
-        const teamMembers = await db.getUsers({ managed_by: userId });
+        let teamMembers = await db.getUsers({ managed_by: userId });
+
+        // Fallback: If no team members found by ID, get all SALES_TEAM users
+        if (teamMembers.length === 0) {
+          console.log('⚠️ No direct reports found. Falling back to all SALES_TEAM users.');
+          teamMembers = await db.getUsers({ role: 'SALES_TEAM' });
+        }
         console.log('📊 Sales Team Head Dashboard:');
         console.log('  Team Head ID:', userId);
         console.log('  Team Head Name:', req.user.name);
