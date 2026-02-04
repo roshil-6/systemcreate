@@ -52,7 +52,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'emergency_fallback_secret_2024',
       { expiresIn: '7d' }
     );
 
