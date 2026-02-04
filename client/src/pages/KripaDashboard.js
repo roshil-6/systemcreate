@@ -220,29 +220,6 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
           <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
             User ID: {user?.id} | Name: {user?.name} | Email: {user?.email}
           </p>
-          <button
-            onClick={async () => {
-              try {
-                const allClients = await axios.get(`${API_BASE_URL}/api/clients`);
-                console.log('All clients:', allClients.data);
-                alert(`Total clients: ${allClients.data.length}\nCheck console for details`);
-              } catch (e) {
-                console.error('Error:', e);
-              }
-            }}
-            style={{
-              marginTop: '12px',
-              padding: '8px 16px',
-              background: '#6b7280',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
-          >
-            Debug: Check All Clients
-          </button>
         </div>
       ) : (
         <div className="tasks-grid">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
@@ -486,13 +486,93 @@ const Dashboard = () => {
     );
   };
 
-  // Show restricted view for non-admin roles
   if (isRestrictedRole && !isStaffDetailView) {
     return (
       <div className="dashboard">
         <h1 className="dashboard-title">My Dashboard</h1>
         {renderStaffMetrics()}
         {renderStatusBreakdown()}
+        <div className="recent-activity">
+          <h2>Recent Activity</h2>
+          {/* ... existing activity code ... */}
+        </div>
+      </div>
+    );
+  }
+
+  // Admin/Head Dashboard View
+  if (!isStaffDetailView && (data.role === 'ADMIN' || data.role === 'SALES_TEAM_HEAD')) {
+    return (
+      <div className="dashboard">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <div>
+            <h1 className="dashboard-title">
+              {data.role === 'SALES_TEAM_HEAD' ? 'Team Overview' : 'Admin Dashboard'}
+            </h1>
+            <p style={{ color: '#666', marginTop: '4px' }}>
+              Welcome back, {user?.name}
+            </p>
+          </div>
+        </div>
+
+        {/* Team Performance Section - CRITICAL for Sales Heads */}
+        {(data.staffPerformance && data.staffPerformance.length > 0) && (
+          <div className="staff-performance-section" style={{ marginBottom: '32px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
+              {data.role === 'SALES_TEAM_HEAD' ? 'My Team Performance' : 'Staff Performance Overview'}
+            </h2>
+            <div className="leads-list-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Staff Name</th>
+                    <th>Total Leads</th>
+                    <th>Converted (Clients)</th>
+                    <th>Processing</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.staffPerformance.map((staff) => (
+                    <tr key={staff.id} className="staff-row hover:bg-gray-50">
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{
+                            width: '32px', height: '32px', borderRadius: '50%',
+                            background: '#E0E7FF', color: '#4F46E5', display: 'flex',
+                            alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold'
+                          }}>
+                            {staff.name.charAt(0)}
+                          </div>
+                          <span style={{ fontWeight: '500' }}>{staff.name}</span>
+                          {staff.id === user.id && <span style={{ fontSize: '10px', background: '#F3F4F6', padding: '2px 6px', borderRadius: '4px' }}>(You)</span>}
+                        </div>
+                      </td>
+                      <td>{staff.total_leads}</td>
+                      <td>
+                        <span style={{ color: '#059669', fontWeight: '500' }}>{staff.converted_leads}</span>
+                      </td>
+                      <td>{staff.clients_in_processing}</td>
+                      <td>
+                        <Link
+                          to={`/dashboard/staff/${staff.id}`}
+                          className="action-button"
+                          style={{ textDecoration: 'none', display: 'inline-block', textAlign: 'center' }}
+                        >
+                          View Dashboard
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {renderStaffMetrics()}
+        {renderStatusBreakdown()}
+
         <div className="recent-activity">
           <h2>Recent Activity</h2>
           {data.recentActivity && data.recentActivity.length > 0 ? (
@@ -508,6 +588,7 @@ const Dashboard = () => {
                       <strong>{activity.lead_name}</strong>
                     </div>
                     <div className="activity-meta">
+                      {activity.user_name && <span>by {activity.user_name} • </span>}
                       {new Date(activity.timestamp).toLocaleString()}
                     </div>
                   </div>
