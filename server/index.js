@@ -12,6 +12,7 @@ const notificationsRoutes = require('./routes/notifications');
 const emailTemplatesRoutes = require('./routes/emailTemplates');
 const db = require('./config/database');
 const { startEmailScheduler } = require('./services/emailScheduler');
+const fixCompletedActionsType = require('./scripts/fixCompletedActionsType');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
@@ -25,14 +26,17 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Test database connection
+// Test database connection and run migrations
 (async () => {
   try {
+    // Run schema fix for completed_actions
+    await fixCompletedActionsType();
+
     await db.getUsers();
     console.log('✅ PostgreSQL database connected successfully');
     console.log(`📡 Database: ${process.env.DATABASE_URL ? 'Connected' : 'DATABASE_URL not set'}`);
   } catch (err) {
-    console.error('❌ Database connection error:', err.message);
+    console.error('❌ Database connection/migration error:', err.message);
   }
 })();
 
