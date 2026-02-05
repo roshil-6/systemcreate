@@ -1977,4 +1977,55 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
   }
 });
 
+// Delete a lead
+router.delete('/:id', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+    const leadId = parseInt(req.params.id);
+
+    // Fetch existing lead to check permissions
+    const existingLeads = await db.getLeads({ id: leadId });
+    const existingLead = existingLeads[0];
+
+    if (!existingLead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    // Permission Check
+    let canDelete = false;
+
+    if (role === 'ADMIN') {
+      canDelete = true;
+    } else if (role === 'SALES_TEAM_HEAD') {
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      const teamMemberIds = teamMembers.map(u => u.id);
+      if (existingLead.assigned_staff_id === userId || teamMemberIds.includes(existingLead.assigned_staff_id)) {
+        canDelete = true;
+      }
+    } else {
+      // Staff/Sales/Processing
+      // Can delete if they created it OR if it is assigned to them
+      if (existingLead.assigned_staff_id === userId || existingLead.created_by === userId) {
+        canDelete = true;
+      }
+    }
+
+    if (!canDelete) {
+      return res.status(403).json({ error: 'Not authorized to delete this lead' });
+    }
+
+    const success = await db.deleteLead(leadId);
+    if (success) {
+      res.json({ message: 'Lead deleted successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete lead' });
+    }
+
+  } catch (error) {
+    console.error('❌ Delete lead error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

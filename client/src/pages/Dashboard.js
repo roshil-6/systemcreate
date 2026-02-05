@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Dashboard.css';
-import { FiUsers, FiTrendingUp, FiClock, FiXCircle, FiActivity, FiArrowLeft, FiPhone, FiMail, FiEdit2, FiCheck } from 'react-icons/fi';
+import { FiUsers, FiTrendingUp, FiClock, FiXCircle, FiActivity, FiArrowLeft, FiPhone, FiMail, FiEdit2, FiCheck, FiTrash2 } from 'react-icons/fi';
 import SnehaDashboard from './SnehaDashboard';
 import KripaDashboard from './KripaDashboard';
 
@@ -133,6 +133,22 @@ const Dashboard = () => {
       console.warn('⚠️ Metrics auto-update failed:', error.message);
     }
   }, [staffId]);
+
+  // Handle Lead Deletion
+  const handleDelete = async (leadId, leadName) => {
+    if (window.confirm(`Are you sure you want to delete lead: "${leadName}"? This action cannot be undone.`)) {
+      try {
+        await axios.delete(`${API_BASE_URL}/api/leads/${leadId}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        // Refresh list
+        fetchDashboardData();
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete lead: ' + (error.response?.data?.error || 'You might not have permission to delete this lead.'));
+      }
+    }
+  };
 
   useEffect(() => {
     if (staffId && user && user.role !== 'ADMIN' && user.role !== 'SALES_TEAM_HEAD' && !isEmy) {
@@ -1096,8 +1112,32 @@ const Dashboard = () => {
                         <button
                           className="btn-view-lead"
                           onClick={() => navigate(`/leads/${lead.id}`)}
+                          style={{ marginRight: '8px' }}
                         >
                           <FiEdit2 /> View
+                        </button>
+                        <button
+                          className="btn-delete-lead"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(lead.id, lead.name);
+                          }}
+                          style={{
+                            background: '#fee2e2',
+                            color: '#ef4444',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          <FiTrash2 /> Delete
                         </button>
                       </td>
                     </tr>
