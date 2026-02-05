@@ -642,6 +642,22 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
       }
     }
 
+    // Find Sneha (Processing Staff) to assign the client to
+    let processingStaffId = null;
+    try {
+      const snehaUsers = await db.getUsers({ email: 'sneha@toniosenora.com' });
+      if (snehaUsers.length > 0) {
+        processingStaffId = snehaUsers[0].id;
+      } else {
+        const snehaByName = await db.getUsers({ name: 'Sneha' });
+        if (snehaByName.length > 0) {
+          processingStaffId = snehaByName[0].id;
+        }
+      }
+    } catch (e) {
+      console.error('Error finding Sneha for assignment:', e);
+    }
+
     // 1. Create Client Record
     const clientData = {
       name: lead.name,
@@ -656,7 +672,7 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
       target_country: lead.country, // Default target to current if not specified, or use logic
       program: lead.program,
       assigned_staff_id: lead.assigned_staff_id, // Keep sales rep
-      processing_staff_id: null, // Initially null, will be picked up by Processing Team
+      processing_staff_id: processingStaffId, // Auto-assign to Sneha
       fee_status: 'Payment Pending', // Initial status
       processing_status: 'Agreement Pending',
       assessment_authority: assessment_authority,

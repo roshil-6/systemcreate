@@ -521,51 +521,59 @@ const Dashboard = () => {
             <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
               {data.role === 'SALES_TEAM_HEAD' ? 'My Team Performance' : 'Staff Performance Overview'}
             </h2>
-            <div className="leads-list-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Staff Name</th>
-                    <th>Total Leads</th>
-                    <th>Converted (Clients)</th>
-                    <th>Processing</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.staffPerformance.map((staff) => (
-                    <tr key={staff.id} className="staff-row hover:bg-gray-50">
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{
-                            width: '32px', height: '32px', borderRadius: '50%',
-                            background: '#E0E7FF', color: '#4F46E5', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold'
-                          }}>
-                            {staff.name.charAt(0)}
-                          </div>
-                          <span style={{ fontWeight: '500' }}>{staff.name}</span>
-                          {staff.id === user.id && <span style={{ fontSize: '10px', background: '#F3F4F6', padding: '2px 6px', borderRadius: '4px' }}>(You)</span>}
-                        </div>
-                      </td>
-                      <td>{staff.total_leads}</td>
-                      <td>
-                        <span style={{ color: '#059669', fontWeight: '500' }}>{staff.converted_leads}</span>
-                      </td>
-                      <td>{staff.clients_in_processing}</td>
-                      <td>
-                        <Link
-                          to={`/dashboard/staff/${staff.id}`}
-                          className="action-button"
-                          style={{ textDecoration: 'none', display: 'inline-block', textAlign: 'center' }}
-                        >
-                          View Dashboard
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+              {data.staffPerformance
+                .filter(staff => Number(staff.id) !== Number(user?.id) && staff.email !== user?.email)
+                .map((staff) => (
+                  <div
+                    key={staff.id}
+                    className="staff-card"
+                    onClick={() => navigate(`/dashboard/staff/${staff.id}`)}
+                    style={{
+                      cursor: 'pointer',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      backgroundColor: 'white',
+                      transition: 'all 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        backgroundColor: '#e0e7ff',
+                        color: '#4f46e5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: '600',
+                        fontSize: '16px',
+                        marginRight: '12px'
+                      }}>
+                        {staff.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: '600', color: '#111827' }}>{staff.name}</h3>
+                        <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>{staff.email}</p>
+                      </div>
+                      <div style={{ marginLeft: 'auto', color: '#9ca3af' }}>👉</div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ backgroundColor: '#f9fafb', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Leads</div>
+                        <div style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>{staff.total_leads || 0}</div>
+                      </div>
+                      <div style={{ backgroundColor: '#f0fdf4', padding: '10px', borderRadius: '8px' }}>
+                        <div style={{ fontSize: '12px', color: '#166534', marginBottom: '4px' }}>Processing</div>
+                        <div style={{ fontSize: '18px', fontWeight: '600', color: '#15803d' }}>{staff.clients_in_processing || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         )}
@@ -599,7 +607,7 @@ const Dashboard = () => {
             <p className="no-activity">No recent activity</p>
           )}
         </div>
-      </div>
+      </div >
     );
   }
 

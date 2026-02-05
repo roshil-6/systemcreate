@@ -60,10 +60,10 @@ router.get('/', authenticate, async (req, res) => {
       const pStaffId = Number(processing_staff_id);
 
       // Special logic for Kripa: She should see her own processing tasks AND Sneha's clients
-      const userName = req.user.name || '';
-      const userEmail = req.user.email || '';
-      const isKripa = userName === 'Kripa' || userName === 'KRIPA' || userEmail === 'kripa@toniosenora.com';
-      const isSneha = userName === 'Sneha' || userName === 'SNEHA' || userEmail === 'sneha@toniosenora.com';
+      const userNameLower = (req.user.name || '').toLowerCase().trim();
+      const userEmailLower = (req.user.email || '').toLowerCase().trim();
+      const isKripa = userNameLower === 'kripa' || userEmailLower === 'kripa@toniosenora.com';
+      const isSneha = userNameLower === 'sneha' || userEmailLower === 'sneha@toniosenora.com';
 
       // If Kripa or Sneha is requesting their own dashboard, we want to fetch more data to handle backups/handovers
       // So we SKIP the strict DB filter here and rely on the in-memory filtering below (lines 136+)
@@ -113,10 +113,10 @@ router.get('/', authenticate, async (req, res) => {
 
     // Custom filtering for Processing Team (Kripa & Sneha)
     if (Number(processing_staff_id) === userId || req.query.assigned_staff_id) {
-      const userName = req.user.name || '';
-      const userEmail = req.user.email || '';
-      const isKripa = userName.toLowerCase() === 'kripa' || userEmail.toLowerCase() === 'kripa@toniosenora.com';
-      const isSneha = userName.toLowerCase() === 'sneha' || userEmail.toLowerCase() === 'sneha@toniosenora.com';
+      const userNameLower = (req.user.name || '').toLowerCase().trim();
+      const userEmailLower = (req.user.email || '').toLowerCase().trim();
+      const isKripa = userNameLower === 'kripa' || userEmailLower === 'kripa@toniosenora.com';
+      const isSneha = userNameLower === 'sneha' || userEmailLower === 'sneha@toniosenora.com';
 
       if (isKripa || isSneha) {
         // Find Sneha's ID if we're Kripa, or use userId if we're Sneha
@@ -135,13 +135,18 @@ router.get('/', authenticate, async (req, res) => {
         if (snehaId || isKripa) {
           const originalCount = clients.length;
           clients = clients.filter(c => {
+            const clientProcessingId = c.processing_staff_id ? Number(c.processing_staff_id) : null;
+            const clientAssignedId = c.assigned_staff_id ? Number(c.assigned_staff_id) : null;
+            const staffId = Number(userId);
+            const sId = snehaId ? Number(snehaId) : null;
+
             if (isKripa) {
-              // Kripa sees: HER processing tasks OR Sneha's processing tasks OR Sneha's assigned clients
-              return c.processing_staff_id === userId ||
-                (snehaId && (c.processing_staff_id === snehaId || c.assigned_staff_id === snehaId));
+              // Kripa sees: HER processing tasks OR Sneha's processing tasks OR Sneha's assigned clients OR Unassigned tasks
+              return clientProcessingId === staffId || !clientProcessingId ||
+                (sId && (clientProcessingId === sId || clientAssignedId === sId));
             } else {
-              // Sneha sees: HER processing tasks OR HER assigned clients
-              return c.processing_staff_id === userId || c.assigned_staff_id === userId;
+              // Sneha sees: HER processing tasks OR HER assigned clients OR Unassigned tasks
+              return clientProcessingId === staffId || !clientProcessingId || clientAssignedId === staffId;
             }
           });
           console.log(`✅ ${isKripa ? 'Kripa' : 'Sneha'} Filter: Filtered ${originalCount} clients down to ${clients.length}`);
@@ -155,12 +160,13 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     // For non-admin roles, restrict payment data visibility - Only Admin, Sneha, Kripa, and Emy (monitoring) can see payment data
-    const userName = req.user.name || '';
-    const userEmail = req.user.email || '';
-    const isEmy = userName === 'Emy' || userName === 'EMY' || userEmail === 'emy@toniosenora.com';
+    const userNameLower = (req.user.name || '').toLowerCase().trim();
+    const userEmailLower = (req.user.email || '').toLowerCase().trim();
+
+    const isEmy = userNameLower === 'emy' || userEmailLower === 'emy@toniosenora.com';
     const canViewPaymentData = role === 'ADMIN' ||
-      userName === 'Sneha' || userName === 'SNEHA' || userEmail === 'sneha@toniosenora.com' ||
-      userName === 'Kripa' || userName === 'KRIPA' || userEmail === 'kripa@toniosenora.com' ||
+      userNameLower === 'sneha' || userEmailLower === 'sneha@toniosenora.com' ||
+      userNameLower === 'kripa' || userEmailLower === 'kripa@toniosenora.com' ||
       isEmy; // Emy has monitoring access
 
     // Filter payment data for unauthorized users (but show all other client data)
