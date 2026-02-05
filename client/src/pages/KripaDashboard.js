@@ -238,9 +238,9 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                       <p className="task-meta">Client Profile</p>
                     </div>
                     {client.completed_actions && client.completed_actions.length > 0 ? (
-                      <div className="processing-status-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '50%' }}>
+                      <div className="processing-status-col" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end', maxWidth: '50%' }}>
                         {client.completed_actions.map((item, idx) => (
-                          <div key={idx} className="processing-status-badge" style={{ fontSize: '11px', padding: '8px 12px' }}>
+                          <div key={idx} className="processing-status-badge" style={{ fontSize: '11px', padding: '8px 12px', width: 'fit-content' }}>
                             <FiCheck className="badge-check-icon" style={{ width: '12px', height: '12px' }} />
                             <span>{item.label || item.action.replace(/_/g, ' ')}</span>
                           </div>
