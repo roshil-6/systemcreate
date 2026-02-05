@@ -14,6 +14,8 @@ const Dashboard = () => {
   const { staffId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedLeads, setSelectedLeads] = useState([]);
+  const [selectedClients, setSelectedClients] = useState([]);
   const isAutoRefreshRef = useRef(false);
 
   // Check if user is Sneha
@@ -146,6 +148,45 @@ const Dashboard = () => {
       } catch (error) {
         console.error('Delete error:', error);
         alert('Failed to delete lead: ' + (error.response?.data?.error || 'You might not have permission to delete this lead.'));
+      }
+    }
+  };
+
+  const handleSelect = (id) => {
+    setSelectedLeads(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(leadId => leadId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allIds = (data?.recentLeads || []).map(lead => lead.id);
+      setSelectedLeads(allIds);
+    } else {
+      setSelectedLeads([]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeads.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedLeads.length} selected lead(s)? This action cannot be undone.`)) {
+      try {
+        await Promise.all(selectedLeads.map(id =>
+          axios.delete(`${API_BASE_URL}/api/leads/${id}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
+        ));
+        setSelectedLeads([]);
+        fetchDashboardData();
+      } catch (error) {
+        console.error('Bulk delete error:', error);
+        alert('Failed to delete some leads. You might not have permission.');
+        fetchDashboardData();
       }
     }
   };
@@ -1024,12 +1065,42 @@ const Dashboard = () => {
       {/* Recent Leads */}
       <div className="dashboard-section">
         <div className="recent-leads-section">
-          <h2>Recent Leads</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h2>Recent Leads</h2>
+            {selectedLeads.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontWeight: 500,
+                  fontSize: '13px'
+                }}
+              >
+                <FiTrash2 /> Delete Selected ({selectedLeads.length})
+              </button>
+            )}
+          </div>
           {data.recentLeads && data.recentLeads.length > 0 ? (
             <div className="leads-list-table">
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: '40px', paddingLeft: '16px' }}>
+                      <input
+                        type="checkbox"
+                        onChange={handleSelectAll}
+                        checked={data.recentLeads.length > 0 && selectedLeads.length === data.recentLeads.length}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th>Name</th>
                     <th>Phone</th>
                     <th>Email</th>
@@ -1041,7 +1112,16 @@ const Dashboard = () => {
                 </thead>
                 <tbody>
                   {(data.recentLeads || []).map((lead) => (
-                    <tr key={lead.id}>
+                    <tr key={lead.id} style={selectedLeads.includes(lead.id) ? { backgroundColor: '#f0f9ff' } : {}}>
+                      <td style={{ paddingLeft: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.includes(lead.id)}
+                          onChange={() => handleSelect(lead.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
                       <td>{lead.name}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1163,11 +1243,41 @@ const Dashboard = () => {
       {data.recentClients && data.recentClients.length > 0 && (
         <div className="dashboard-section">
           <div className="recent-leads-section">
-            <h2>Recent Clients</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h2>Recent Clients</h2>
+              {selectedClients.length > 0 && (
+                <button
+                  onClick={handleBulkDeleteClients}
+                  style={{
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontWeight: 500,
+                    fontSize: '13px'
+                  }}
+                >
+                  <FiTrash2 /> Delete Selected ({selectedClients.length})
+                </button>
+              )}
+            </div>
             <div className="leads-list-table">
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: '40px', paddingLeft: '16px' }}>
+                      <input
+                        type="checkbox"
+                        onChange={handleSelectAllClients}
+                        checked={data.recentClients && data.recentClients.length > 0 && selectedClients.length === data.recentClients.length}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
                     <th>Name</th>
                     <th>Phone</th>
                     <th>Email</th>
@@ -1179,7 +1289,16 @@ const Dashboard = () => {
                 </thead>
                 <tbody>
                   {(data.recentClients || []).map((client) => (
-                    <tr key={client.id}>
+                    <tr key={client.id} style={selectedClients.includes(client.id) ? { backgroundColor: '#f0f9ff' } : {}}>
+                      <td style={{ paddingLeft: '16px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedClients.includes(client.id)}
+                          onChange={() => handleSelectClient(client.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </td>
                       <td>{client.name}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
