@@ -237,11 +237,22 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                       <h2>{client.name}</h2>
                       <p className="task-meta">Client Profile</p>
                     </div>
-                    {client.processing_status && (
-                      <div className="processing-status-badge">
-                        <FiCheck className="badge-check-icon" />
-                        <span>{client.processing_status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                    {client.completed_actions && client.completed_actions.length > 0 ? (
+                      <div className="processing-status-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '50%' }}>
+                        {client.completed_actions.map((item, idx) => (
+                          <div key={idx} className="processing-status-badge" style={{ fontSize: '11px', padding: '8px 12px' }}>
+                            <FiCheck className="badge-check-icon" style={{ width: '12px', height: '12px' }} />
+                            <span>{item.label || item.action.replace(/_/g, ' ')}</span>
+                          </div>
+                        ))}
                       </div>
+                    ) : (
+                      client.processing_status && (
+                        <div className="processing-status-badge">
+                          <FiCheck className="badge-check-icon" />
+                          <span>{client.processing_status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                        </div>
+                      )
                     )}
                   </div>
 
