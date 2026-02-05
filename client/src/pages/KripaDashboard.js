@@ -457,7 +457,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                   <div className="processing-actions-container">
                     <div className="processing-buttons">
                       {(() => {
-                        const isHandOverCompleted = client.completed_actions?.some(a => a.action === 'hand_over_to_australia');
+                        const isHandOverCompleted = Array.isArray(client.completed_actions) && client.completed_actions.some(a => a.action === 'hand_over_to_australia');
                         return (
                           <button
                             className={`btn-processing-action ${isHandOverCompleted ? 'completed' : ''}`}
@@ -476,7 +476,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                         );
                       })()}
                       {(() => {
-                        const isPaymentDone = client.completed_actions?.some(a => a.action === 'pending_payment_done');
+                        const isPaymentDone = Array.isArray(client.completed_actions) && client.completed_actions.some(a => a.action === 'pending_payment_done');
                         return (
                           <button
                             className={`btn-processing-action ${isPaymentDone ? 'completed' : ''}`}
@@ -495,7 +495,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                         );
                       })()}
                       {(() => {
-                        const isAgreementSubmitted = client.completed_actions?.some(a => a.action === 'service_agreement_submitted');
+                        const isAgreementSubmitted = Array.isArray(client.completed_actions) && client.completed_actions.some(a => a.action === 'service_agreement_submitted');
                         return (
                           <button
                             className={`btn-processing-action ${isAgreementSubmitted ? 'completed' : ''}`}
