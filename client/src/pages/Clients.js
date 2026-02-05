@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Clients.css';
-import { FiSearch, FiEdit2, FiUser, FiDollarSign, FiClock, FiCheck, FiSend, FiFileText, FiArrowLeft } from 'react-icons/fi';
+import { FiSearch, FiEdit2, FiUser, FiDollarSign, FiClock, FiCheck, FiSend, FiFileText, FiArrowLeft, FiTrash2 } from 'react-icons/fi';
 
 const Clients = () => {
   const { user } = useAuth();
@@ -15,6 +15,7 @@ const Clients = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [feeStatusFilter, setFeeStatusFilter] = useState('');
+  const [selectedClientIds, setSelectedClientIds] = useState([]);
 
   // Check if user can view payment data - Only Admin, Sneha, and Kripa
   const userName = user?.name || '';
@@ -60,6 +61,47 @@ const Clients = () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
+
+  const handleSelectClient = (clientId) => {
+    setSelectedClientIds(prev => {
+      if (prev.includes(clientId)) {
+        return prev.filter(id => id !== clientId);
+      } else {
+        return [...prev, clientId];
+      }
+    });
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedClientIds(clients.map(c => c.id));
+    } else {
+      setSelectedClientIds([]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedClientIds.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedClientIds.length} selected client(s)? This action cannot be undone.`)) {
+      try {
+        setLoading(true);
+        await Promise.all(selectedClientIds.map(id =>
+          axios.delete(`${API_BASE_URL}/api/clients/${id}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
+        ));
+
+        setSelectedClientIds([]);
+        fetchClients();
+        alert(`Successfully deleted ${selectedClientIds.length} clients`);
+      } catch (error) {
+        console.error('Bulk delete error:', error);
+        alert('Failed to delete some clients. You might not have permission.');
+        fetchClients();
+      }
+    }
+  };
 
   const fetchClients = async () => {
     try {
@@ -294,6 +336,38 @@ const Clients = () => {
         )}
       </div>
 
+      <div className="clients-list-controls" style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input
+            type="checkbox"
+            checked={clients.length > 0 && selectedClientIds.length === clients.length}
+            onChange={handleSelectAll}
+            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: '14px', color: '#6b7280' }}>Select All ({clients.length})</span>
+        </div>
+        {selectedClientIds.length > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '13px',
+              fontWeight: 500
+            }}
+          >
+            <FiTrash2 /> Delete Selected ({selectedClientIds.length})
+          </button>
+        )}
+      </div>
+
       <div className="clients-list">
         {clients.length === 0 ? (
           <div className="no-clients">
@@ -310,8 +384,30 @@ const Clients = () => {
                 key={client.id}
                 className="client-card-simple"
                 onClick={() => handleClientClick(client.id)}
-                style={{ cursor: 'pointer' }}
+                style={{
+                  cursor: 'pointer',
+                  border: selectedClientIds.includes(client.id) ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                  backgroundColor: selectedClientIds.includes(client.id) ? '#eff6ff' : 'white',
+                  position: 'relative'
+                }}
               >
+                <div
+                  className="client-select-checkbox"
+                  onClick={(e) => { e.stopPropagation(); handleSelectClient(client.id); }}
+                  style={{
+                    position: 'absolute',
+                    top: '10px',
+                    right: '10px',
+                    zIndex: 10
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedClientIds.includes(client.id)}
+                    onChange={() => { }} // Handled by div click
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                </div>
                 <div className="client-name-row">
                   <div className="client-avatar-simple">
                     {getInitials(client.name)}

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Leads.css';
-import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2 } from 'react-icons/fi';
 
 const Leads = () => {
   const { user } = useAuth();
@@ -182,10 +182,10 @@ const Leads = () => {
 
   const handleLeadRowClick = async (leadId, e) => {
     // Don't open modal if clicking on checkbox, button, or link
-    if (e.target.closest('input[type="checkbox"]') || 
-        e.target.closest('button') || 
-        e.target.closest('a') ||
-        e.target.closest('.quick-assign-dropdown')) {
+    if (e.target.closest('input[type="checkbox"]') ||
+      e.target.closest('button') ||
+      e.target.closest('a') ||
+      e.target.closest('.quick-assign-dropdown')) {
       return;
     }
 
@@ -204,10 +204,10 @@ const Leads = () => {
 
   const handleBulkEdit = async () => {
     if (selectedLeadIds.length === 0) return;
-    
+
     try {
       setBulkEditLoading(true);
-      
+
       // Prepare update data - only include fields that have values
       const updateData = {};
       if (bulkEditData.status) updateData.status = bulkEditData.status;
@@ -224,14 +224,14 @@ const Leads = () => {
       // For comments, we need to fetch each lead first to append to existing comment
       const updatePromises = selectedLeadIds.map(async (leadId) => {
         const leadUpdateData = { ...updateData };
-        
+
         // If comment is provided, fetch the lead first to append comment
         if (bulkEditData.comment && bulkEditData.comment.trim() !== '') {
           try {
             const leadResponse = await axios.get(`${API_BASE_URL}/api/leads/${leadId}`);
             const existingComment = leadResponse.data.comment || '';
             // Append new comment to existing comment
-            leadUpdateData.comment = existingComment 
+            leadUpdateData.comment = existingComment
               ? `${existingComment} | ${bulkEditData.comment.trim()}`
               : bulkEditData.comment.trim();
           } catch (error) {
@@ -240,12 +240,12 @@ const Leads = () => {
             leadUpdateData.comment = bulkEditData.comment.trim();
           }
         }
-        
+
         return axios.put(`${API_BASE_URL}/api/leads/${leadId}`, leadUpdateData);
       });
 
       await Promise.all(updatePromises);
-      
+
       const updatedCount = selectedLeadIds.length;
       setSelectedLeadIds([]);
       setBulkEditData({
@@ -263,6 +263,31 @@ const Leads = () => {
       alert(error.response?.data?.error || 'Error updating leads. Some leads may not have been updated.');
     } finally {
       setBulkEditLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeadIds.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected lead(s)? This action cannot be undone.`)) {
+      try {
+        setBulkAssignLoading(true);
+        await Promise.all(selectedLeadIds.map(id =>
+          axios.delete(`${API_BASE_URL}/api/leads/${id}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
+        ));
+
+        setSelectedLeadIds([]);
+        fetchLeads();
+        alert(`Successfully deleted ${selectedLeadIds.length} leads`);
+      } catch (error) {
+        console.error('Bulk delete error:', error);
+        alert('Failed to delete some leads. You might not have permission.');
+        fetchLeads();
+      } finally {
+        setBulkAssignLoading(false);
+      }
     }
   };
 
@@ -352,7 +377,7 @@ const Leads = () => {
 
   const formatPriority = (priority) => {
     if (!priority) return '-';
-    return priority.split(' ').map(word => 
+    return priority.split(' ').map(word =>
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   };
@@ -373,7 +398,7 @@ const Leads = () => {
         </button>
         <h1>Clients (Leads)</h1>
       </div>
-      
+
       {/* Controls Section */}
       <div className="leads-controls-section">
         <div className="leads-controls">
@@ -463,6 +488,26 @@ const Leads = () => {
             >
               {bulkAssignLoading ? (isAdmin ? 'Assigning...' : 'Transferring...') : (isAdmin ? 'Assign Selected' : 'Transfer Selected')}
             </button>
+            <button
+              className="bulk-delete-button"
+              onClick={handleBulkDelete}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#ef4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '14px',
+                fontWeight: 500,
+                marginLeft: '10px'
+              }}
+            >
+              <FiTrash2 /> Delete
+            </button>
           </div>
         </div>
       )}
@@ -475,7 +520,7 @@ const Leads = () => {
             <p style={{ color: '#666', marginBottom: '20px' }}>
               Update the fields below. Only filled fields will be updated for all selected leads.
             </p>
-            
+
             <div className="form-group" style={{ marginBottom: '15px' }}>
               <label>Status</label>
               <select
@@ -750,9 +795,9 @@ const Leads = () => {
                 <div className="detail-field">
                   <label>Follow-up Status</label>
                   <div>
-                    <span style={{ 
-                      color: selectedLeadDetails.follow_up_status === 'Completed' ? '#28a745' : 
-                             selectedLeadDetails.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
+                    <span style={{
+                      color: selectedLeadDetails.follow_up_status === 'Completed' ? '#28a745' :
+                        selectedLeadDetails.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
                       fontWeight: '500'
                     }}>
                       {selectedLeadDetails.follow_up_status || 'Pending'}
@@ -763,9 +808,9 @@ const Leads = () => {
                 {selectedLeadDetails.comment && (
                   <div className="detail-field" style={{ gridColumn: '1 / -1' }}>
                     <label>Comment</label>
-                    <div style={{ 
-                      padding: '12px', 
-                      background: '#f9fafb', 
+                    <div style={{
+                      padding: '12px',
+                      background: '#f9fafb',
                       borderRadius: '6px',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
@@ -820,7 +865,7 @@ const Leads = () => {
           </div>
         </div>
       )}
-      
+
       {/* Leads Table */}
       <div className="leads-table-container">
         {leads.length === 0 ? (
@@ -855,7 +900,7 @@ const Leads = () => {
             </thead>
             <tbody>
               {leads.map((lead) => (
-                <tr 
+                <tr
                   key={lead.id}
                   onClick={(e) => handleLeadRowClick(lead.id, e)}
                   style={{ cursor: 'pointer' }}
@@ -933,9 +978,9 @@ const Leads = () => {
                     )}
                   </td>
                   <td>
-                    <span style={{ 
-                      color: lead.follow_up_status === 'Completed' ? '#28a745' : 
-                             lead.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
+                    <span style={{
+                      color: lead.follow_up_status === 'Completed' ? '#28a745' :
+                        lead.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
                       fontWeight: '500'
                     }}>
                       {lead.follow_up_status || 'Pending'}

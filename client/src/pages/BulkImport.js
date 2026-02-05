@@ -15,12 +15,12 @@ const BulkImport = () => {
   const [preview, setPreview] = useState(null);
 
   // Allow admin and all staff roles
-  const canAccess = user?.role === 'ADMIN' || 
-                    user?.role === 'SALES_TEAM_HEAD' || 
-                    user?.role === 'SALES_TEAM' || 
-                    user?.role === 'PROCESSING' || 
-                    user?.role === 'STAFF';
-  
+  const canAccess = user?.role === 'ADMIN' ||
+    user?.role === 'SALES_TEAM_HEAD' ||
+    user?.role === 'SALES_TEAM' ||
+    user?.role === 'PROCESSING' ||
+    user?.role === 'STAFF';
+
   if (!canAccess) {
     return (
       <div className="bulk-import">
@@ -36,7 +36,7 @@ const BulkImport = () => {
     if (selectedFile) {
       setFile(selectedFile);
       setResult(null);
-      
+
       // Preview CSV or Excel
       if (selectedFile.name.toLowerCase().endsWith('.csv')) {
         const reader = new FileReader();
@@ -83,7 +83,7 @@ const BulkImport = () => {
       setResult(response.data);
       setFile(null);
       setPreview(null);
-      
+
       // Reset file input
       const fileInput = document.getElementById('csv-file-input');
       if (fileInput) {
@@ -93,16 +93,16 @@ const BulkImport = () => {
       console.error('Import error:', error);
       console.error('Error response:', error.response?.data);
       console.error('Error status:', error.response?.status);
-      
+
       const errorMessage = error.response?.data?.error || error.message || 'Error importing leads';
       const errorDetails = error.response?.data?.details || error.response?.data?.message || '';
       const availableColumns = error.response?.data?.availableColumns || [];
-      
+
       // Show full error details in console for debugging
       if (error.response?.data) {
         console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
       }
-      
+
       setResult({
         success: false,
         error: errorMessage,
@@ -119,9 +119,7 @@ const BulkImport = () => {
   const downloadTemplate = () => {
     const headers = [
       'name',
-      'phone_country_code',
       'phone_number',
-      'whatsapp_country_code',
       'whatsapp_number',
       'email',
       'age',
@@ -135,12 +133,10 @@ const BulkImport = () => {
       'comment',
       'follow_up_date',
     ];
-    
+
     const sampleRow = [
       'John Doe',
-      '+91',
       '1234567890',
-      '+91',
       '1234567890',
       'john@example.com',
       '30',
@@ -286,7 +282,7 @@ const BulkImport = () => {
               onChange={handleFileChange}
               className="file-input"
             />
-              <label htmlFor="csv-file-input" className="file-label">
+            <label htmlFor="csv-file-input" className="file-label">
               <FiUpload /> {file ? file.name : 'Choose CSV or Excel File'}
             </label>
           </div>
