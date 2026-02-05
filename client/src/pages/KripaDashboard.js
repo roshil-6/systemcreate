@@ -146,7 +146,11 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
   const handleProcessingAction = async (clientId, action) => {
     try {
       const client = clients.find(c => c.id === clientId);
-      const existingHistory = client.completed_actions || [];
+      let existingHistory = client.completed_actions;
+      // Safety check for corrupted data (if it's a string from old DB schema)
+      if (!Array.isArray(existingHistory)) {
+        existingHistory = [];
+      }
 
       // Check if action already completed - if yes, do nothing (silent)
       const actionAlreadyCompleted = existingHistory.some(a => a.action === action);
@@ -237,7 +241,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                       <h2>{client.name}</h2>
                       <p className="task-meta">Client Profile</p>
                     </div>
-                    {client.completed_actions && client.completed_actions.length > 0 ? (
+                    {Array.isArray(client.completed_actions) && client.completed_actions.length > 0 ? (
                       <div className="processing-status-col" style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end', maxWidth: '50%' }}>
                         {client.completed_actions.map((item, idx) => (
                           <div key={idx} className="processing-status-badge" style={{ fontSize: '11px', padding: '8px 12px', width: 'fit-content' }}>
