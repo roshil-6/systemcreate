@@ -191,6 +191,46 @@ const Dashboard = () => {
     }
   };
 
+  // Client Bulk Handlers
+  const handleSelectClient = (id) => {
+    setSelectedClients(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(clientId => clientId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleSelectAllClients = (e) => {
+    if (e.target.checked) {
+      const allIds = (data?.recentClients || []).map(client => client.id);
+      setSelectedClients(allIds);
+    } else {
+      setSelectedClients([]);
+    }
+  };
+
+  const handleBulkDeleteClients = async () => {
+    if (selectedClients.length === 0) return;
+
+    if (window.confirm(`Are you sure you want to delete ${selectedClients.length} selected client(s)? This action cannot be undone.`)) {
+      try {
+        await Promise.all(selectedClients.map(id =>
+          axios.delete(`${API_BASE_URL}/api/clients/${id}`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
+        ));
+        setSelectedClients([]);
+        fetchDashboardData();
+      } catch (error) {
+        console.error('Bulk delete error:', error);
+        alert('Failed to delete some clients. You might not have permission.');
+        fetchDashboardData();
+      }
+    }
+  };
+
   useEffect(() => {
     if (staffId && user && user.role !== 'ADMIN' && user.role !== 'SALES_TEAM_HEAD' && !isEmy) {
       navigate('/');
