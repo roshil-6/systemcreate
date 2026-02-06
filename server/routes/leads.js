@@ -260,8 +260,21 @@ router.get('/fix-phones-maintenance', async (req, res) => {
 
   const client = await db.pool.connect();
   try {
-    const result = await client.query("SELECT id, phone_number, secondary_phone_number FROM leads WHERE length(phone_number) > 15 OR phone_number ~ '[\\s,;/]'");
+    // DEBUG: Get specific lead to see what's wrong
+    const result = await client.query("SELECT id, name, phone_number, length(phone_number) as len FROM leads WHERE name ILIKE '%digiya%'");
     const leads = result.rows;
+
+    // Return debug info immediately
+    return res.json({
+      debug: true,
+      found: leads.length,
+      samples: leads.map(l => ({
+        name: l.name,
+        phone: l.phone_number,
+        len: l.len,
+        hex: l.phone_number ? Buffer.from(l.phone_number).toString('hex') : null
+      }))
+    });
     let fixedCount = 0;
 
     await client.query('BEGIN');
