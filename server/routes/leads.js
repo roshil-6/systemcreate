@@ -326,7 +326,8 @@ router.get('/fix-phones-maintenance', async (req, res) => {
 });
 
 // Maintenance route to wipe ALL leads (Run with caution)
-router.delete('/delete-all-maintenance', async (req, res) => {
+// Maintenance route to wipe ALL leads (Run with caution)
+router.get('/delete-all-maintenance', async (req, res) => {
   if (req.query.key !== 'fix_my_phones_please') {
     return res.status(403).json({ error: 'Unauthorized' });
   }
