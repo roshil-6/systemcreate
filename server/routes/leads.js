@@ -1464,12 +1464,20 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           }
         }
 
-        // Fix repeating phone numbers (common CSV export error, e.g., "123 123" or "123, 123")
+        // Fix repeating phone numbers (common CSV export error)
         if (phoneNumber && typeof phoneNumber === 'string') {
-          const parts = phoneNumber.trim().split(/[\s,;]+/);
-          // If first two parts are identical, use just the first one
+          const cleanVal = phoneNumber.trim();
+          // Method 1: Split by delimiters (space, comma, etc.)
+          const parts = cleanVal.split(/[\s,;]+/);
           if (parts.length >= 2 && parts[0] === parts[1]) {
             phoneNumber = parts[0];
+          }
+          // Method 2: Check concatenated duplication (e.g. "123123")
+          else if (cleanVal.length > 10 && cleanVal.length % 2 === 0) {
+            const half = cleanVal.length / 2;
+            if (cleanVal.substring(0, half) === cleanVal.substring(half)) {
+              phoneNumber = cleanVal.substring(0, half);
+            }
           }
         }
 
