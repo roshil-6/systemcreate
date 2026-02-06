@@ -298,17 +298,11 @@ router.get('/fix-phones-maintenance', async (req, res) => {
         const p2 = parts[1];
         let newSecondary = lead.secondary_phone_number;
 
-        if (p1 === p2) {
-          // Duplicate: Primary=P1, Secondary=NULL (unless existing distinct secondary)
-          if (!newSecondary) newSecondary = null;
-        } else {
-          // Different: Primary=P1, Secondary=P2 (if empty)
-          if (!newSecondary) newSecondary = p2;
-        }
+        // Always move 2nd part to secondary if empty, even if duplicate
+        // This splits "123 123" into Primary: 123, Secondary: 123
+        if (!newSecondary) newSecondary = p2;
 
         // Verify change - strict check
-        // We must update if primary is changing (stripping the duplicate part)
-        // lead.phone_number was "A B". p1 is "A". 
         if (lead.phone_number !== p1 || newSecondary !== lead.secondary_phone_number) {
           await client.query('UPDATE leads SET phone_number = $1, secondary_phone_number = $2 WHERE id = $3', [p1, newSecondary, lead.id]);
           fixedCount++;
@@ -1201,13 +1195,16 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         }
 
         // Strategy 6: Substring match (normalized - phone matches phone_number)
-        index = headers.findIndex(h => {
-          const hNormalized = h.replace(/[_\s-]/g, '');
-          return hNormalized.includes(fieldNormalized) || fieldNormalized.includes(hNormalized);
-        });
-        if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headers[index]}" (substring normalized)`);
-          return index;
+        // SKIP for short fields to avoid false positives (e.g. 'age' matching 'agent')
+        if (fieldNormalized.length > 3) {
+          index = headers.findIndex(h => {
+            const hNormalized = h.replace(/[_\s-]/g, '');
+            return hNormalized.includes(fieldNormalized) || fieldNormalized.includes(hNormalized);
+          });
+          if (index !== -1) {
+            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (substring normalized)`);
+            return index;
+          }
         }
 
         // Strategy 7: Try matching against original header values directly (case-insensitive)
@@ -1548,7 +1545,10 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           const parts = cleanVal.split(/[\s,;/]+| - /).filter(p => p.trim().length > 0);
           if (parts.length >= 2) {
             phoneNumber = parts[0];
-            secondaryPhoneNumber = parts[1];
+            // Always move to secondary if empty
+            if (!secondaryPhoneNumber) {
+              secondaryPhoneNumber = parts[1];
+            }
           }
           // Method 2: Check concatenated duplication (e.g. "123123")
           else if (cleanVal.length > 10 && cleanVal.length % 2 === 0) {
