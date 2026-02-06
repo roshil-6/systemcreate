@@ -1461,8 +1461,13 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           }
         }
 
-        // Get other fields
-        const email = getValue(columnIndices.email);
+        // Fix repeating phone numbers (common CSV export error, e.g., "123456 123456")
+        if (phoneNumber && typeof phoneNumber === 'string') {
+          const parts = phoneNumber.trim().split(/\s+/);
+          if (parts.length === 2 && parts[0] === parts[1]) {
+            phoneNumber = parts[0]; // Deduplicate
+          }
+        } const email = getValue(columnIndices.email);
         const age = getValue(columnIndices.age);
         const occupation = getValue(columnIndices.occupation);
         const qualification = getValue(columnIndices.qualification);
