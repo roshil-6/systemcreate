@@ -313,60 +313,63 @@ router.get('/fix-phones-maintenance', async (req, res) => {
     client.release();
   }
 });
-try {
-  const userId = req.user.id;
-  const role = req.user.role;
-  const leadId = parseInt(req.params.id);
 
-  const filter = { id: leadId };
+// Get single lead
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+    const leadId = parseInt(req.params.id);
 
-  // CRITICAL: Non-admin roles can only see their own leads (or team leads for heads)
-  if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
-    filter.assigned_staff_id = userId;
-  } else if (role === 'SALES_TEAM_HEAD') {
-    // Sales team head can see their own and their team's leads
-    const teamMembers = await db.getUsers({ managed_by: userId });
-    const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-    // We'll filter after fetching
-  }
+    const filter = { id: leadId };
 
-  let leads = await db.getLeads(filter);
-
-  // Apply team head filtering if needed
-  if (role === 'SALES_TEAM_HEAD') {
-    const teamMembers = await db.getUsers({ managed_by: userId });
-    const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-    leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
-  }
-
-  // CRITICAL: Filter out "Registration Completed" leads - they are now clients
-  leads = leads.filter(lead => lead.status !== 'Registration Completed');
-
-  const lead = leads[0];
-
-  if (!lead) {
-    return res.status(404).json({ error: 'Lead not found or has been converted to client' });
-  }
-
-  // Add assigned staff name
-  let assignedStaffName = null;
-  if (lead.assigned_staff_id) {
-    try {
-      assignedStaffName = await db.getUserName(lead.assigned_staff_id);
-    } catch (error) {
-      console.error('Error getting assigned staff name:', error);
+    // CRITICAL: Non-admin roles can only see their own leads (or team leads for heads)
+    if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
+      filter.assigned_staff_id = userId;
+    } else if (role === 'SALES_TEAM_HEAD') {
+      // Sales team head can see their own and their team's leads
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
+      // We'll filter after fetching
     }
-  }
-  const leadWithStaff = {
-    ...lead,
-    assigned_staff_name: assignedStaffName,
-  };
 
-  res.json(leadWithStaff);
-} catch (error) {
-  console.error('Get lead error:', error);
-  res.status(500).json({ error: 'Server error', details: error.message });
-}
+    let leads = await db.getLeads(filter);
+
+    // Apply team head filtering if needed
+    if (role === 'SALES_TEAM_HEAD') {
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
+      leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
+    }
+
+    // CRITICAL: Filter out "Registration Completed" leads - they are now clients
+    leads = leads.filter(lead => lead.status !== 'Registration Completed');
+
+    const lead = leads[0];
+
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found or has been converted to client' });
+    }
+
+    // Add assigned staff name
+    let assignedStaffName = null;
+    if (lead.assigned_staff_id) {
+      try {
+        assignedStaffName = await db.getUserName(lead.assigned_staff_id);
+      } catch (error) {
+        console.error('Error getting assigned staff name:', error);
+      }
+    }
+    const leadWithStaff = {
+      ...lead,
+      assigned_staff_name: assignedStaffName,
+    };
+
+    res.json(leadWithStaff);
+  } catch (error) {
+    console.error('Get lead error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
 });
 
 // Create new lead
