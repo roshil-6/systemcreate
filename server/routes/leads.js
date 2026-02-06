@@ -1538,14 +1538,29 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
 
         // Validate required fields
 
-        if (!name || !phoneNumber) {
-          results.errors++;
-          results.errorRows.push({
-            row: i + 1,
-            message: 'Missing required fields: name or phone_number',
-          });
+        // Skip empty rows (fixes trailing empty lines issue)
+        if (!name && !phoneNumber && !email && !status) {
           continue;
         }
+
+        // Handle missing name
+        if (!name) {
+          name = `Unknown Lead (Row ${i + 1})`;
+          comment = comment ? `${comment} | Name missing in import` : 'Name missing in import';
+        }
+
+        // Handle missing phone
+        if (!phoneNumber) {
+          // Create unique dummy phone to bypass NOT NULL constraint
+          // format: 000-timestamp-row
+          phoneNumber = `000-${Date.now().toString().slice(-6)}-${i}`;
+          comment = comment ? `${comment} | Phone missing in import` : 'Phone missing in import';
+        }
+
+        /* 
+        // Strict check removed effectively
+        if (!name || !phoneNumber) { ... } 
+        */
 
         // Check for duplicates using in-memory sets (FAST!)
         if (existingPhones.has(phoneNumber.toLowerCase())) {
