@@ -682,16 +682,18 @@ const Leads = () => {
                   </div>
                 )}
 
-                <div className="detail-field">
-                  <label>WhatsApp Number</label>
-                  <div>
-                    {selectedLeadDetails.whatsapp_country_code && selectedLeadDetails.whatsapp_number ? (
-                      <span>{selectedLeadDetails.whatsapp_country_code} {selectedLeadDetails.whatsapp_number}</span>
-                    ) : (
-                      selectedLeadDetails.whatsapp_number || '-'
-                    )}
+                {selectedLeadDetails.whatsapp_number && (
+                  <div className="detail-field">
+                    <label>WhatsApp Number</label>
+                    <div>
+                      {selectedLeadDetails.whatsapp_country_code && selectedLeadDetails.whatsapp_number ? (
+                        <span>{selectedLeadDetails.whatsapp_country_code} {selectedLeadDetails.whatsapp_number}</span>
+                      ) : (
+                        selectedLeadDetails.whatsapp_number
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="detail-field">
                   <label>Email</label>
