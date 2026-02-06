@@ -325,6 +325,35 @@ router.get('/fix-phones-maintenance', async (req, res) => {
   }
 });
 
+// Maintenance route to wipe ALL leads (Run with caution)
+router.delete('/delete-all-maintenance', async (req, res) => {
+  if (req.query.key !== 'fix_my_phones_please') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Delete related data first to avoid FK constraints if cascade isn't set up
+    await client.query('DELETE FROM comments WHERE lead_id IS NOT NULL');
+    await client.query('DELETE FROM notifications WHERE lead_id IS NOT NULL');
+    await client.query('DELETE FROM email_logs WHERE lead_id IS NOT NULL');
+
+    // Delete leads
+    const result = await client.query('DELETE FROM leads');
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: `Deleted ${result.rowCount} leads and related data` });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Get single lead
 router.get('/:id', authenticate, async (req, res) => {
   try {
