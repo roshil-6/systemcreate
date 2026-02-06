@@ -1247,6 +1247,12 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         // Strategy 7: Try matching against original header values directly (case-insensitive)
         index = headerValues.findIndex(h => {
           const hLower = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '');
+
+          if (isShortField) {
+            // Strict equality only for short fields
+            return hLower === fieldLower;
+          }
+
           return hLower === fieldLower || hLower.includes(fieldLower) || fieldLower.includes(hLower);
         });
         if (index !== -1) {
