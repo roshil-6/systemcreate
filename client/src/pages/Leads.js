@@ -875,7 +875,7 @@ const Leads = () => {
             <thead>
               <tr>
                 {canManageLeads && (
-                  <th className="checkbox-column">
+                  <th className="checkbox-column" style={{ width: '40px' }}>
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -886,16 +886,16 @@ const Leads = () => {
                     />
                   </th>
                 )}
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Priority</th>
-                <th>Comment</th>
-                <th>Follow-up Date</th>
-                <th>Follow-up Status</th>
-                <th>Status</th>
-                <th style={{ fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
-                <th>Actions</th>
+                <th style={{ width: '12%' }}>Name</th>
+                <th style={{ width: '11%' }}>Phone</th>
+                <th style={{ width: '14%' }}>Email</th>
+                <th style={{ width: '90px' }}>Priority</th>
+                <th style={{ width: '16%' }}>Comment</th>
+                <th style={{ width: '100px' }}>Follow-up Date</th>
+                <th style={{ width: '100px' }}>Follow-up Status</th>
+                <th style={{ width: '100px' }}>Status</th>
+                <th style={{ width: '12%', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
+                <th style={{ width: '110px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>

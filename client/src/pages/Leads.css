@@ -218,6 +218,7 @@
 .leads-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .leads-table thead {
@@ -232,6 +233,8 @@
   color: #374151;
   border-bottom: 1px solid #e5e7eb;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .leads-table td {
@@ -240,6 +243,8 @@
   color: #111827;
   border-bottom: 1px solid #f3f4f6;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .checkbox-column {
