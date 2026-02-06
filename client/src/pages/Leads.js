@@ -678,6 +678,11 @@ const Leads = () => {
                 </div>
 
                 <div className="detail-field">
+                  <label>Secondary Number</label>
+                  <div>{selectedLeadDetails.secondary_phone_number || '-'}</div>
+                </div>
+
+                <div className="detail-field">
                   <label>WhatsApp Number</label>
                   <div>
                     {selectedLeadDetails.whatsapp_country_code && selectedLeadDetails.whatsapp_number ? (
