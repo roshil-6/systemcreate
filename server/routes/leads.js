@@ -1471,18 +1471,15 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           // Method 1: Split by delimiters (space, comma, etc.)
           const parts = cleanVal.split(/[\s,;]+/);
           if (parts.length >= 2) {
-            if (parts[0] === parts[1]) {
-              phoneNumber = parts[0];
-            } else {
-              phoneNumber = parts[0];
-              secondaryPhoneNumber = parts[1];
-            }
+            phoneNumber = parts[0];
+            secondaryPhoneNumber = parts[1];
           }
           // Method 2: Check concatenated duplication (e.g. "123123")
           else if (cleanVal.length > 10 && cleanVal.length % 2 === 0) {
             const half = cleanVal.length / 2;
             if (cleanVal.substring(0, half) === cleanVal.substring(half)) {
               phoneNumber = cleanVal.substring(0, half);
+              secondaryPhoneNumber = cleanVal.substring(half); // Also capture it
             }
           }
         }
