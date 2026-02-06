@@ -1757,6 +1757,38 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
   }
 });
 
+// Bulk delete leads
+router.post('/bulk-delete', authenticate, async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+    const { leadIds } = req.body;
+
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+
+    await client.query('BEGIN');
+    let queryText = 'DELETE FROM leads WHERE id = ANY($1)';
+    const queryParams = [leadIds];
+
+    const result = await client.query(queryText, queryParams);
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Bulk deleted ${result.rowCount} leads by user ${userId}`);
+    res.json({ success: true, deletedCount: result.rowCount });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Bulk delete error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Export leads to CSV (for Google Sheets import)
 router.get('/export/csv', authenticate, async (req, res) => {
   try {

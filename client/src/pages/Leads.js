@@ -272,11 +272,9 @@ const Leads = () => {
     if (window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected lead(s)? This action cannot be undone.`)) {
       try {
         setBulkAssignLoading(true);
-        await Promise.all(selectedLeadIds.map(id =>
-          axios.delete(`${API_BASE_URL}/api/leads/${id}`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-          })
-        ));
+        const response = await axios.post(`${API_BASE_URL}/api/leads/bulk-delete`, {
+          leadIds: selectedLeadIds
+        });
 
         setSelectedLeadIds([]);
         fetchLeads();
