@@ -1468,8 +1468,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         // Fix repeating phone numbers (common CSV export error)
         if (phoneNumber && typeof phoneNumber === 'string') {
           const cleanVal = phoneNumber.trim();
-          // Method 1: Split by delimiters (space, comma, etc.)
-          const parts = cleanVal.split(/[\s,;]+/);
+          // Method 1: Split by delimiters (space, comma, semicolon, slash, dash)
+          const parts = cleanVal.split(/[\s,;/]+| - /).filter(p => p.trim().length > 0);
           if (parts.length >= 2) {
             phoneNumber = parts[0];
             secondaryPhoneNumber = parts[1];

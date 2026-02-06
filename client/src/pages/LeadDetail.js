@@ -550,19 +550,21 @@ const LeadDetail = () => {
                   />
                 </div>
               </div>
-              <div className="form-group">
-                <label>
-                  <FiPhone /> Secondary Number
-                </label>
-                <input
-                  type="text"
-                  name="secondary_phone_number"
-                  value={formData.secondary_phone_number || ''}
-                  onChange={handleChange}
-                  disabled={!canEdit}
-                  placeholder="Secondary Phone Number"
-                />
-              </div>
+              {(canEdit || formData.secondary_phone_number) && (
+                <div className="form-group">
+                  <label>
+                    <FiPhone /> Secondary Number
+                  </label>
+                  <input
+                    type="text"
+                    name="secondary_phone_number"
+                    value={formData.secondary_phone_number || ''}
+                    onChange={handleChange}
+                    disabled={!canEdit}
+                    placeholder="Secondary Phone Number"
+                  />
+                </div>
+              )}
               <div className="form-group">
                 <label>
                   <FiPhone /> WhatsApp Number
