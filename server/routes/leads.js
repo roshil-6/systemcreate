@@ -1203,34 +1203,37 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           return index;
         }
 
-        // Strategy 3: Starts with match (phone matches phone_number, but not vice versa)
-        index = headers.findIndex(h => h.startsWith(fieldLower));
-        if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headers[index]}" (starts with)`);
-          return index;
-        }
+        // STRICT CHECK: For short fields (like 'age', 'id'), SKIP fuzzy matching (Strategies 3-6)
+        // to prevent 'age' matching 'agent', 'agency', etc.
+        const isShortField = fieldLower.replace(/[_\s-]/g, '').length <= 3;
 
-        // Strategy 4: Contains match (header contains field - phone_number contains phone)
-        index = headers.findIndex(h => h.includes(fieldLower));
-        if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headers[index]}" (contains)`);
-          return index;
-        }
+        if (!isShortField) {
+          // Strategy 3: Starts with match (phone matches phone_number, but not vice versa)
+          index = headers.findIndex(h => h.startsWith(fieldLower));
+          if (index !== -1) {
+            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (starts with)`);
+            return index;
+          }
 
-        // Strategy 5: Match without underscores/spaces/dashes
-        const fieldNormalized = fieldLower.replace(/[_\s-]/g, '');
-        index = headers.findIndex(h => {
-          const hNormalized = h.replace(/[_\s-]/g, '');
-          return hNormalized === fieldNormalized;
-        });
-        if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headers[index]}" (normalized)`);
-          return index;
-        }
+          // Strategy 4: Contains match (header contains field - phone_number contains phone)
+          index = headers.findIndex(h => h.includes(fieldLower));
+          if (index !== -1) {
+            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (contains)`);
+            return index;
+          }
 
-        // Strategy 6: Substring match (normalized - phone matches phone_number)
-        // SKIP for short fields to avoid false positives (e.g. 'age' matching 'agent')
-        if (fieldNormalized.length > 3) {
+          // Strategy 5: Match without underscores/spaces/dashes
+          const fieldNormalized = fieldLower.replace(/[_\s-]/g, '');
+          index = headers.findIndex(h => {
+            const hNormalized = h.replace(/[_\s-]/g, '');
+            return hNormalized === fieldNormalized;
+          });
+          if (index !== -1) {
+            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (normalized)`);
+            return index;
+          }
+
+          // Strategy 6: Substring match (normalized - phone matches phone_number)
           index = headers.findIndex(h => {
             const hNormalized = h.replace(/[_\s-]/g, '');
             return hNormalized.includes(fieldNormalized) || fieldNormalized.includes(hNormalized);
