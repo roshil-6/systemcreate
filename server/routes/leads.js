@@ -252,61 +252,121 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
 });
 
 // Get single lead
-router.get('/:id', authenticate, async (req, res) => {
+// Maintenance route to fix phone numbers (Run once)
+router.get('/fix-phones-maintenance', async (req, res) => {
+  if (req.query.key !== 'fix_my_phones_please') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const client = await db.pool.connect();
   try {
-    const userId = req.user.id;
-    const role = req.user.role;
-    const leadId = parseInt(req.params.id);
+    const result = await client.query("SELECT id, phone_number, secondary_phone_number FROM leads WHERE length(phone_number) > 15 OR phone_number ~ '[\\s,;/]'");
+    const leads = result.rows;
+    let fixedCount = 0;
 
-    const filter = { id: leadId };
+    await client.query('BEGIN');
 
-    // CRITICAL: Non-admin roles can only see their own leads (or team leads for heads)
-    if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
-      filter.assigned_staff_id = userId;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      // Sales team head can see their own and their team's leads
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      // We'll filter after fetching
-    }
+    for (const lead of leads) {
+      if (!lead.phone_number) continue;
 
-    let leads = await db.getLeads(filter);
+      const cleanVal = lead.phone_number.trim();
+      let parts = cleanVal.split(/[\s,;/]+/).filter(p => p.trim().length > 0);
 
-    // Apply team head filtering if needed
-    if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
-    }
+      // Handle concatenated duplicates (e.g. 123123)
+      if (parts.length === 1 && cleanVal.length > 15 && cleanVal.length % 2 === 0) {
+        const half = cleanVal.length / 2;
+        if (cleanVal.substring(0, half) === cleanVal.substring(half)) {
+          parts = [cleanVal.substring(0, half), cleanVal.substring(half)];
+        }
+      }
 
-    // CRITICAL: Filter out "Registration Completed" leads - they are now clients
-    leads = leads.filter(lead => lead.status !== 'Registration Completed');
+      if (parts.length >= 2) {
+        const p1 = parts[0];
+        const p2 = parts[1];
+        let newSecondary = lead.secondary_phone_number;
 
-    const lead = leads[0];
+        if (p1 === p2) {
+          // Duplicate: Primary=P1, Secondary=NULL (unless existing distinct secondary)
+          if (!newSecondary) newSecondary = null;
+        } else {
+          // Different: Primary=P1, Secondary=P2 (if empty)
+          if (!newSecondary) newSecondary = p2;
+        }
 
-    if (!lead) {
-      return res.status(404).json({ error: 'Lead not found or has been converted to client' });
-    }
-
-    // Add assigned staff name
-    let assignedStaffName = null;
-    if (lead.assigned_staff_id) {
-      try {
-        assignedStaffName = await db.getUserName(lead.assigned_staff_id);
-      } catch (error) {
-        console.error('Error getting assigned staff name:', error);
+        // Verify change - strict check
+        // We must update if primary is changing (stripping the duplicate part)
+        // lead.phone_number was "A B". p1 is "A". 
+        if (lead.phone_number !== p1 || newSecondary !== lead.secondary_phone_number) {
+          await client.query('UPDATE leads SET phone_number = $1, secondary_phone_number = $2 WHERE id = $3', [p1, newSecondary, lead.id]);
+          fixedCount++;
+        }
       }
     }
-    const leadWithStaff = {
-      ...lead,
-      assigned_staff_name: assignedStaffName,
-    };
 
-    res.json(leadWithStaff);
+    await client.query('COMMIT');
+    res.json({ success: true, message: `Fixed ${fixedCount} leads`, totalScanned: leads.length });
+
   } catch (error) {
-    console.error('Get lead error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
   }
+});
+try {
+  const userId = req.user.id;
+  const role = req.user.role;
+  const leadId = parseInt(req.params.id);
+
+  const filter = { id: leadId };
+
+  // CRITICAL: Non-admin roles can only see their own leads (or team leads for heads)
+  if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
+    filter.assigned_staff_id = userId;
+  } else if (role === 'SALES_TEAM_HEAD') {
+    // Sales team head can see their own and their team's leads
+    const teamMembers = await db.getUsers({ managed_by: userId });
+    const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
+    // We'll filter after fetching
+  }
+
+  let leads = await db.getLeads(filter);
+
+  // Apply team head filtering if needed
+  if (role === 'SALES_TEAM_HEAD') {
+    const teamMembers = await db.getUsers({ managed_by: userId });
+    const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
+    leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
+  }
+
+  // CRITICAL: Filter out "Registration Completed" leads - they are now clients
+  leads = leads.filter(lead => lead.status !== 'Registration Completed');
+
+  const lead = leads[0];
+
+  if (!lead) {
+    return res.status(404).json({ error: 'Lead not found or has been converted to client' });
+  }
+
+  // Add assigned staff name
+  let assignedStaffName = null;
+  if (lead.assigned_staff_id) {
+    try {
+      assignedStaffName = await db.getUserName(lead.assigned_staff_id);
+    } catch (error) {
+      console.error('Error getting assigned staff name:', error);
+    }
+  }
+  const leadWithStaff = {
+    ...lead,
+    assigned_staff_name: assignedStaffName,
+  };
+
+  res.json(leadWithStaff);
+} catch (error) {
+  console.error('Get lead error:', error);
+  res.status(500).json({ error: 'Server error', details: error.message });
+}
 });
 
 // Create new lead
