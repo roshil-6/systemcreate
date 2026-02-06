@@ -1467,7 +1467,10 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           if (parts.length === 2 && parts[0] === parts[1]) {
             phoneNumber = parts[0]; // Deduplicate
           }
-        } const email = getValue(columnIndices.email);
+        }
+
+        // Get other fields
+        const email = getValue(columnIndices.email);
         const age = getValue(columnIndices.age);
         const occupation = getValue(columnIndices.occupation);
         const qualification = getValue(columnIndices.qualification);
