@@ -1036,6 +1036,46 @@ const Leads = () => {
                       >
                         <FiEdit2 /> View
                       </button>
+                      {canManageLeads && (
+                        <button
+                          className="btn-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Are you sure you want to delete lead: ${lead.name}?`)) {
+                              setLoadingLeadDetails(true); // Re-using existing loading state lightly or just await
+                              axios.delete(`${API_BASE_URL}/api/leads/${lead.id}`, {
+                                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                              })
+                                .then(() => {
+                                  fetchLeads();
+                                  alert('Lead deleted successfully');
+                                })
+                                .catch(error => {
+                                  console.error('Delete error:', error);
+                                  alert('Failed to delete lead');
+                                })
+                                .finally(() => setLoadingLeadDetails(false));
+                            }
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#fee2e2',
+                            color: '#ef4444',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '13px',
+                            fontWeight: 500,
+                            marginLeft: '8px'
+                          }}
+                          title="Delete Lead"
+                        >
+                          <FiTrash2 /> Delete
+                        </button>
+                      )}
                     </div>
                     {canManageLeads && assigningLeadId === lead.id && (
                       <div className="quick-assign-dropdown">

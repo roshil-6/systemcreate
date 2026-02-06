@@ -1254,9 +1254,9 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
 
     // Check for name (either 'name' OR 'first_name' + 'last_name')
     // START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
-    let nameIndex = findSimpleIndex(['name', 'full_name', 'fullname']);
-    let firstNameIndex = findSimpleIndex(['first_name', 'firstname', 'fname']);
-    let lastNameIndex = findSimpleIndex(['last_name', 'lastname', 'lname', 'surname']);
+    let nameIndex = findSimpleIndex(['name', 'full_name', 'fullname', 'client', 'client_name', 'student', 'student_name', 'prospect', 'prospect_name', 'customer', 'customer_name']);
+    let firstNameIndex = findSimpleIndex(['first_name', 'firstname', 'fname', 'first']);
+    let lastNameIndex = findSimpleIndex(['last_name', 'lastname', 'lname', 'surname', 'last']);
 
     // Then try the complex matching if simple check failed
     if (nameIndex === -1) nameIndex = findColumnIndex(columnMapping.name);
@@ -1269,7 +1269,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     if (lastNameIndex === -1) lastNameIndex = findDirectIndex(columnMapping.last_name);
 
     // NUCLEAR FALLBACK: Keyword search
-    if (nameIndex === -1) nameIndex = findKeywordIndex(['name', 'fullname', 'full_name']);
+    if (nameIndex === -1) nameIndex = findKeywordIndex(['name', 'fullname', 'full_name', 'client']);
     if (firstNameIndex === -1) firstNameIndex = findKeywordIndex(['first', 'fname', 'firstname']);
     if (lastNameIndex === -1) lastNameIndex = findKeywordIndex(['last', 'lname', 'lastname', 'surname']);
 
@@ -1284,7 +1284,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
 
     // Check for phone - try multiple variations
     // START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
-    let phoneIndex = findSimpleIndex(['phone', 'phone_number', 'mobile', 'mobile_number', 'contact_number', 'phone_no']);
+    let phoneIndex = findSimpleIndex(['phone', 'phone_number', 'mobile', 'mobile_number', 'contact_number', 'phone_no', 'cell', 'cell_phone', 'telephone', 'contact', 'whatsapp', 'call']);
 
     // Then try the complex matching if simple check failed
     if (phoneIndex === -1) phoneIndex = findColumnIndex(columnMapping.phone_number);
@@ -1293,7 +1293,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     if (phoneIndex === -1) phoneIndex = findDirectIndex(columnMapping.phone_number);
 
     // NUCLEAR FALLBACK: Keyword search
-    if (phoneIndex === -1) phoneIndex = findKeywordIndex(['phone', 'mobile', 'contact', 'tel', 'number']);
+    if (phoneIndex === -1) phoneIndex = findKeywordIndex(['phone', 'mobile', 'contact', 'tel', 'number', 'cell']);
 
     const hasPhone = phoneIndex !== -1;
 
@@ -1395,6 +1395,21 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     const validLeads = [];
     const now = new Date().toISOString();
     const assignedStaffId = (role === 'ADMIN') ? null : userId;
+
+    // Helper: Parse Date (handles Excel serials + strings)
+    const parseDate = (val) => {
+      if (!val) return null;
+      // Excel Serial Date (e.g. 46023)
+      // ~25569 is 1970-01-01 in Excel serial days (1900 system)
+      const num = Number(val);
+      if (!isNaN(num) && num > 10000 && num < 90000) {
+        return new Date((num - 25569) * 86400 * 1000).toISOString();
+      }
+      // Standard Date
+      const d = new Date(val);
+      if (!isNaN(d.getTime())) return d.toISOString();
+      return null;
+    };
 
     // Process each row
     for (let i = 1; i < lines.length; i++) {
@@ -1498,7 +1513,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           comment = source;
         }
 
-        const followUpDate = getValue(columnIndices.follow_up_date) || metaCreatedTime; // Use Meta created time if no follow_up_date
+        const followUpDate = parseDate(getValue(columnIndices.follow_up_date) || metaCreatedTime); // Use Meta created time if no follow_up_date
         const followUpStatus = getValue(columnIndices.follow_up_status) || 'Pending';
         const whatsappNumber = getValue(columnIndices.whatsapp_number);
         const whatsappCountryCode = getValue(columnIndices.whatsapp_country_code);
