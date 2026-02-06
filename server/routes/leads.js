@@ -1756,7 +1756,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           name,
           phone_number: phoneNumber,
           phone_country_code: phoneCountryCode || '+91',
-          whatsapp_number: whatsappNumber || null,
+          whatsapp_number: (whatsappNumber && whatsappNumber !== '-' && whatsappNumber.trim().length > 0) ? whatsappNumber : null,
           whatsapp_country_code: whatsappCountryCode || '+91',
           email: email || null,
           age: age || null,
