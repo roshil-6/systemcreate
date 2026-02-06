@@ -1231,15 +1231,18 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           const termNoUnderscore = termLower.replace(/[_\s-]/g, '');
           if (hNoUnderscore === termNoUnderscore) return true;
 
-          // Strategy 4: Contains match (bidirectional)
-          if (hLower.includes(termLower) || termLower.includes(hLower)) return true;
+          // Strategy 4: Contains match (bidirectional) - DISABLED (Too aggressive, e.g. 'age' matches 'agent')
+          // if (hLower.includes(termLower) || termLower.includes(hLower)) return true;
 
           // Strategy 5: Check normalized headers too
           if (i < headers.length && headers[i]) {
             const normHeader = headers[i].toLowerCase();
+            if (normHeader === termLower) return true;
+            /* 
             if (normHeader === termLower ||
               normHeader.includes(termLower) ||
-              termLower.includes(normHeader)) return true;
+              termLower.includes(normHeader)) return true; 
+            */
           }
 
           return false;
