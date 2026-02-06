@@ -310,6 +310,10 @@ router.get('/fix-phones-maintenance', async (req, res) => {
       }
     }
 
+    // Also fix bad Age values (e.g. "Kiran")
+    const ageResult = await client.query("UPDATE leads SET age = NULL WHERE age ~ '[^0-9]'");
+    console.log(`✅ Cleared ${ageResult.rowCount} non-numeric age values`);
+
     await client.query('COMMIT');
     res.json({ success: true, message: `Fixed ${fixedCount} leads`, totalScanned: leads.length });
 
