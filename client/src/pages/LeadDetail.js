@@ -548,371 +548,372 @@ const LeadDetail = () => {
                     placeholder="Enter phone number"
                   />
                 </div>
-                <div className="form-group">
-                  <label>
-                    <FiPhone /> Secondary Number
-                  </label>
-                  <input
-                    type="text"
-                    name="secondary_phone_number"
-                    value={formData.secondary_phone_number || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                    placeholder="Secondary Phone Number"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>
-                    <FiPhone /> WhatsApp Number
-                  </label>
-                  <div className="phone-input-group">
-                    <select
-                      name="whatsapp_country_code"
-                      value={formData.whatsapp_country_code || '+91'}
-                      onChange={handleChange}
-                      disabled={!canEdit}
-                      className="country-code-select"
-                    >
-                      <option value="+1">+1 (US/CA)</option>
-                      <option value="+44">+44 (UK)</option>
-                      <option value="+61">+61 (AU)</option>
-                      <option value="+91">+91 (IN)</option>
-                      <option value="+971">+971 (AE)</option>
-                      <option value="+966">+966 (SA)</option>
-                      <option value="+65">+65 (SG)</option>
-                      <option value="+60">+60 (MY)</option>
-                      <option value="+62">+62 (ID)</option>
-                      <option value="+63">+63 (PH)</option>
-                      <option value="+66">+66 (TH)</option>
-                      <option value="+84">+84 (VN)</option>
-                      <option value="+86">+86 (CN)</option>
-                      <option value="+81">+81 (JP)</option>
-                      <option value="+82">+82 (KR)</option>
-                      <option value="+27">+27 (ZA)</option>
-                      <option value="+20">+20 (EG)</option>
-                      <option value="+234">+234 (NG)</option>
-                      <option value="+254">+254 (KE)</option>
-                      <option value="+33">+33 (FR)</option>
-                      <option value="+49">+49 (DE)</option>
-                      <option value="+39">+39 (IT)</option>
-                      <option value="+34">+34 (ES)</option>
-                      <option value="+31">+31 (NL)</option>
-                      <option value="+32">+32 (BE)</option>
-                      <option value="+41">+41 (CH)</option>
-                      <option value="+46">+46 (SE)</option>
-                      <option value="+47">+47 (NO)</option>
-                      <option value="+45">+45 (DK)</option>
-                      <option value="+358">+358 (FI)</option>
-                      <option value="+7">+7 (RU)</option>
-                      <option value="+55">+55 (BR)</option>
-                      <option value="+52">+52 (MX)</option>
-                      <option value="+54">+54 (AR)</option>
-                      <option value="+64">+64 (NZ)</option>
-                    </select>
-                    <input
-                      type="text"
-                      name="whatsapp_number"
-                      value={formData.whatsapp_number || ''}
-                      onChange={handleChange}
-                      disabled={!canEdit}
-                      className="phone-number-input"
-                      placeholder="Enter WhatsApp number"
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>
-                    <FiMail /> Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Age</label>
-                  <input
-                    type="number"
-                    name="age"
-                    value={formData.age || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Occupation</label>
-                  <input
-                    type="text"
-                    name="occupation"
-                    value={formData.occupation || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Qualification</label>
-                  <select
-                    name="qualification"
-                    value={formData.qualification || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  >
-                    <option value="">Select Qualification</option>
-                    <option value="bachelors">Bachelors</option>
-                    <option value="diploma">Diploma</option>
-                    <option value="masters">Masters</option>
-                    <option value="phd">PhD</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Year of Experience</label>
-                  <input
-                    type="number"
-                    name="year_of_experience"
-                    value={formData.year_of_experience || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                    min="0"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Target Country</label>
-                  <select
-                    name="target_country"
-                    value={formData.target_country || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  >
-                    <option value="">Select Target Country</option>
-                    <option value="australia">Australia</option>
-                    <option value="canada">Canada</option>
-                    <option value="uk">United Kingdom</option>
-                    <option value="usa">United States</option>
-                    <option value="new zealand">New Zealand</option>
-                    <option value="others">Others</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Residing Country</label>
-                  <select
-                    name="residing_country"
-                    value={formData.residing_country || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  >
-                    <option value="">Select Residing Country</option>
-                    <option value="india">India</option>
-                    <option value="australia">Australia</option>
-                    <option value="canada">Canada</option>
-                    <option value="uk">United Kingdom</option>
-                    <option value="usa">United States</option>
-                    <option value="uae">United Arab Emirates</option>
-                    <option value="saudi arabia">Saudi Arabia</option>
-                    <option value="singapore">Singapore</option>
-                    <option value="malaysia">Malaysia</option>
-                    <option value="others">Others</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Program</label>
-                  <select
-                    name="program"
-                    value={formData.program || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  >
-                    <option value="">Select Program</option>
-                    <option value="gsm">GSM</option>
-                    <option value="fsw">FSW</option>
-                    <option value="visit">Visit</option>
-                    <option value="work">Work</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>IELTS Score</label>
-                  <input
-                    type="text"
-                    name="ielts_score"
-                    value={formData.ielts_score || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                    placeholder="e.g., 7.5, 8.0"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Source</label>
-                  <input
-                    type="text"
-                    name="source"
-                    value={formData.source || ''}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                    placeholder="e.g., Meta Ads, Website, Referral"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Status</label>
-                  <select
-                    name="status"
-                    value={formData.status || 'New'}
-                    onChange={handleChange}
-                    disabled={!canEdit}
-                  >
-                    <option value="New">New</option>
-                    <option value="Follow-up">Follow-up</option>
-                    <option value="Prospect">Prospect</option>
-                    <option value="Pending Lead">Pending Lead</option>
-                    <option value="Not Eligible">Not Eligible</option>
-                    <option value="Not Interested">Not Interested</option>
-                    <option value="Registration Completed">Registration Completed</option>
-                  </select>
-                </div>
-                {canManageAssignment && (user?.role === 'ADMIN' || !isNew) && (
-                  <div className="form-group">
-                    <label>{user?.role === 'ADMIN' ? 'Assign To' : 'Transfer To'}</label>
-                    <select
-                      name="assigned_staff_id"
-                      value={formData.assigned_staff_id || ''}
-                      onChange={user?.role === 'ADMIN' ? handleHeaderFieldChange : handleChange}
-                      disabled={user?.role === 'ADMIN' ? false : !canEdit}
-                    >
-                      {(user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && (
-                        <option value="">Unassigned</option>
-                      )}
-                      {staffList.map((staff) => (
-                        <option key={staff.id} value={staff.id}>
-                          {staff.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
-              {canEdit && (
-                <button className="btn-save" onClick={handleSave}>
-                  <FiSave /> {isNew ? 'Create Lead' : 'Save Changes'}
-                </button>
-              )}
-            </div>
-          </div>
-          {!isNew && (
-            <div className="lead-detail-right">
-              {/* Lead Comment Field - Display prominently */}
-              {formData.comment && (
-                <div className="comments-section" style={{ marginBottom: '20px' }}>
-                  <h2>
-                    <FiMessageSquare /> Lead Comment
-                  </h2>
-                  <div style={{
-                    padding: '15px',
-                    background: '#f9fafb',
-                    borderRadius: '8px',
-                    border: '1px solid #e5e7eb',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                    fontSize: '14px',
-                    lineHeight: '1.6',
-                    color: '#374151'
-                  }}>
-                    {formData.comment}
-                  </div>
-                </div>
-              )}
-
-              {/* Comments Section */}
-              <div className="comments-section">
-                <h2>
-                  <FiMessageSquare /> Activity Comments
-                </h2>
-                <div className="comment-input">
-                  <textarea
-                    placeholder="Add a comment..."
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    rows="3"
-                  />
-                  <button onClick={handleAddComment} className="btn-add-comment">
-                    Add Comment
-                  </button>
-                </div>
-                <div className="comments-list">
-                  {comments.length === 0 ? (
-                    <p className="no-comments">No comments yet</p>
-                  ) : (
-                    comments.map((comment) => (
-                      <div key={comment.id} className="comment-item">
-                        <div className="comment-header">
-                          <span className="comment-author">{comment.author_name}</span>
-                          <span className="comment-time">
-                            {new Date(comment.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="comment-text">{comment.text}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Registration Completed Modal */}
-        {showRegistrationModal && (
-          <div className="modal-overlay" onClick={() => setShowRegistrationModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              <h2>Registration Completed - Complete Client Information</h2>
-              <p style={{ marginBottom: '20px', color: '#666' }}>
-                Please provide the following mandatory information to convert this lead to a client:
-              </p>
               <div className="form-group">
-                <label>Assessment Authority *</label>
+                <label>
+                  <FiPhone /> Secondary Number
+                </label>
                 <input
                   type="text"
-                  value={registrationData.assessment_authority}
-                  onChange={(e) => setRegistrationData({ ...registrationData, assessment_authority: e.target.value })}
-                  placeholder="Enter assessment authority"
-                  required
+                  name="secondary_phone_number"
+                  value={formData.secondary_phone_number || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                  placeholder="Secondary Phone Number"
                 />
               </div>
               <div className="form-group">
-                <label>Occupation Mapped *</label>
+                <label>
+                  <FiPhone /> WhatsApp Number
+                </label>
+                <div className="phone-input-group">
+                  <select
+                    name="whatsapp_country_code"
+                    value={formData.whatsapp_country_code || '+91'}
+                    onChange={handleChange}
+                    disabled={!canEdit}
+                    className="country-code-select"
+                  >
+                    <option value="+1">+1 (US/CA)</option>
+                    <option value="+44">+44 (UK)</option>
+                    <option value="+61">+61 (AU)</option>
+                    <option value="+91">+91 (IN)</option>
+                    <option value="+971">+971 (AE)</option>
+                    <option value="+966">+966 (SA)</option>
+                    <option value="+65">+65 (SG)</option>
+                    <option value="+60">+60 (MY)</option>
+                    <option value="+62">+62 (ID)</option>
+                    <option value="+63">+63 (PH)</option>
+                    <option value="+66">+66 (TH)</option>
+                    <option value="+84">+84 (VN)</option>
+                    <option value="+86">+86 (CN)</option>
+                    <option value="+81">+81 (JP)</option>
+                    <option value="+82">+82 (KR)</option>
+                    <option value="+27">+27 (ZA)</option>
+                    <option value="+20">+20 (EG)</option>
+                    <option value="+234">+234 (NG)</option>
+                    <option value="+254">+254 (KE)</option>
+                    <option value="+33">+33 (FR)</option>
+                    <option value="+49">+49 (DE)</option>
+                    <option value="+39">+39 (IT)</option>
+                    <option value="+34">+34 (ES)</option>
+                    <option value="+31">+31 (NL)</option>
+                    <option value="+32">+32 (BE)</option>
+                    <option value="+41">+41 (CH)</option>
+                    <option value="+46">+46 (SE)</option>
+                    <option value="+47">+47 (NO)</option>
+                    <option value="+45">+45 (DK)</option>
+                    <option value="+358">+358 (FI)</option>
+                    <option value="+7">+7 (RU)</option>
+                    <option value="+55">+55 (BR)</option>
+                    <option value="+52">+52 (MX)</option>
+                    <option value="+54">+54 (AR)</option>
+                    <option value="+64">+64 (NZ)</option>
+                  </select>
+                  <input
+                    type="text"
+                    name="whatsapp_number"
+                    value={formData.whatsapp_number || ''}
+                    onChange={handleChange}
+                    disabled={!canEdit}
+                    className="phone-number-input"
+                    placeholder="Enter WhatsApp number"
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label>
+                  <FiMail /> Email
+                </label>
                 <input
-                  type="text"
-                  value={registrationData.occupation_mapped}
-                  onChange={(e) => setRegistrationData({ ...registrationData, occupation_mapped: e.target.value })}
-                  placeholder="Enter occupation mapped"
-                  required
+                  type="email"
+                  name="email"
+                  value={formData.email || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
                 />
               </div>
               <div className="form-group">
-                <label>Registration Fee Paid *</label>
+                <label>Age</label>
+                <input
+                  type="number"
+                  name="age"
+                  value={formData.age || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="form-group">
+                <label>Occupation</label>
+                <input
+                  type="text"
+                  name="occupation"
+                  value={formData.occupation || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                />
+              </div>
+              <div className="form-group">
+                <label>Qualification</label>
                 <select
-                  value={registrationData.registration_fee_paid}
-                  onChange={(e) => setRegistrationData({ ...registrationData, registration_fee_paid: e.target.value })}
-                  required
+                  name="qualification"
+                  value={formData.qualification || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
                 >
-                  <option value="">Select</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
+                  <option value="">Select Qualification</option>
+                  <option value="bachelors">Bachelors</option>
+                  <option value="diploma">Diploma</option>
+                  <option value="masters">Masters</option>
+                  <option value="phd">PhD</option>
                 </select>
               </div>
-              <div className="modal-actions">
-                <button className="btn-cancel" onClick={() => setShowRegistrationModal(false)}>
-                  Cancel
+              <div className="form-group">
+                <label>Year of Experience</label>
+                <input
+                  type="number"
+                  name="year_of_experience"
+                  value={formData.year_of_experience || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                  min="0"
+                />
+              </div>
+              <div className="form-group">
+                <label>Target Country</label>
+                <select
+                  name="target_country"
+                  value={formData.target_country || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                >
+                  <option value="">Select Target Country</option>
+                  <option value="australia">Australia</option>
+                  <option value="canada">Canada</option>
+                  <option value="uk">United Kingdom</option>
+                  <option value="usa">United States</option>
+                  <option value="new zealand">New Zealand</option>
+                  <option value="others">Others</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Residing Country</label>
+                <select
+                  name="residing_country"
+                  value={formData.residing_country || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                >
+                  <option value="">Select Residing Country</option>
+                  <option value="india">India</option>
+                  <option value="australia">Australia</option>
+                  <option value="canada">Canada</option>
+                  <option value="uk">United Kingdom</option>
+                  <option value="usa">United States</option>
+                  <option value="uae">United Arab Emirates</option>
+                  <option value="saudi arabia">Saudi Arabia</option>
+                  <option value="singapore">Singapore</option>
+                  <option value="malaysia">Malaysia</option>
+                  <option value="others">Others</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Program</label>
+                <select
+                  name="program"
+                  value={formData.program || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                >
+                  <option value="">Select Program</option>
+                  <option value="gsm">GSM</option>
+                  <option value="fsw">FSW</option>
+                  <option value="visit">Visit</option>
+                  <option value="work">Work</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>IELTS Score</label>
+                <input
+                  type="text"
+                  name="ielts_score"
+                  value={formData.ielts_score || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                  placeholder="e.g., 7.5, 8.0"
+                />
+              </div>
+              <div className="form-group">
+                <label>Source</label>
+                <input
+                  type="text"
+                  name="source"
+                  value={formData.source || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                  placeholder="e.g., Meta Ads, Website, Referral"
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select
+                  name="status"
+                  value={formData.status || 'New'}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                >
+                  <option value="New">New</option>
+                  <option value="Follow-up">Follow-up</option>
+                  <option value="Prospect">Prospect</option>
+                  <option value="Pending Lead">Pending Lead</option>
+                  <option value="Not Eligible">Not Eligible</option>
+                  <option value="Not Interested">Not Interested</option>
+                  <option value="Registration Completed">Registration Completed</option>
+                </select>
+              </div>
+              {canManageAssignment && (user?.role === 'ADMIN' || !isNew) && (
+                <div className="form-group">
+                  <label>{user?.role === 'ADMIN' ? 'Assign To' : 'Transfer To'}</label>
+                  <select
+                    name="assigned_staff_id"
+                    value={formData.assigned_staff_id || ''}
+                    onChange={user?.role === 'ADMIN' ? handleHeaderFieldChange : handleChange}
+                    disabled={user?.role === 'ADMIN' ? false : !canEdit}
+                  >
+                    {(user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && (
+                      <option value="">Unassigned</option>
+                    )}
+                    {staffList.map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            {canEdit && (
+              <button className="btn-save" onClick={handleSave}>
+                <FiSave /> {isNew ? 'Create Lead' : 'Save Changes'}
+              </button>
+            )}
+          </div>
+        </div>
+        {!isNew && (
+          <div className="lead-detail-right">
+            {/* Lead Comment Field - Display prominently */}
+            {formData.comment && (
+              <div className="comments-section" style={{ marginBottom: '20px' }}>
+                <h2>
+                  <FiMessageSquare /> Lead Comment
+                </h2>
+                <div style={{
+                  padding: '15px',
+                  background: '#f9fafb',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#374151'
+                }}>
+                  {formData.comment}
+                </div>
+              </div>
+            )}
+
+            {/* Comments Section */}
+            <div className="comments-section">
+              <h2>
+                <FiMessageSquare /> Activity Comments
+              </h2>
+              <div className="comment-input">
+                <textarea
+                  placeholder="Add a comment..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  rows="3"
+                />
+                <button onClick={handleAddComment} className="btn-add-comment">
+                  Add Comment
                 </button>
-                <button className="btn-save" onClick={handleRegistrationSubmit}>
-                  Create Client
-                </button>
+              </div>
+              <div className="comments-list">
+                {comments.length === 0 ? (
+                  <p className="no-comments">No comments yet</p>
+                ) : (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="comment-item">
+                      <div className="comment-header">
+                        <span className="comment-author">{comment.author_name}</span>
+                        <span className="comment-time">
+                          {new Date(comment.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="comment-text">{comment.text}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
         )}
       </div>
-      );
+
+      {/* Registration Completed Modal */}
+      {showRegistrationModal && (
+        <div className="modal-overlay" onClick={() => setShowRegistrationModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2>Registration Completed - Complete Client Information</h2>
+            <p style={{ marginBottom: '20px', color: '#666' }}>
+              Please provide the following mandatory information to convert this lead to a client:
+            </p>
+            <div className="form-group">
+              <label>Assessment Authority *</label>
+              <input
+                type="text"
+                value={registrationData.assessment_authority}
+                onChange={(e) => setRegistrationData({ ...registrationData, assessment_authority: e.target.value })}
+                placeholder="Enter assessment authority"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Occupation Mapped *</label>
+              <input
+                type="text"
+                value={registrationData.occupation_mapped}
+                onChange={(e) => setRegistrationData({ ...registrationData, occupation_mapped: e.target.value })}
+                placeholder="Enter occupation mapped"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Registration Fee Paid *</label>
+              <select
+                value={registrationData.registration_fee_paid}
+                onChange={(e) => setRegistrationData({ ...registrationData, registration_fee_paid: e.target.value })}
+                required
+              >
+                <option value="">Select</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-cancel" onClick={() => setShowRegistrationModal(false)}>
+                Cancel
+              </button>
+              <button className="btn-save" onClick={handleRegistrationSubmit}>
+                Create Client
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
-      export default LeadDetail;
+export default LeadDetail;
