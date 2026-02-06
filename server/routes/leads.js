@@ -1453,6 +1453,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         // Get phone number and extract country code if present
         let phoneNumber = getValue(columnIndices.phone_number);
         let phoneCountryCode = getValue(columnIndices.phone_country_code);
+        let secondaryPhoneNumber = null;
 
         // If phone number starts with +, extract country code
         if (phoneNumber && phoneNumber.startsWith('+') && !phoneCountryCode) {
@@ -1469,8 +1470,13 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           const cleanVal = phoneNumber.trim();
           // Method 1: Split by delimiters (space, comma, etc.)
           const parts = cleanVal.split(/[\s,;]+/);
-          if (parts.length >= 2 && parts[0] === parts[1]) {
-            phoneNumber = parts[0];
+          if (parts.length >= 2) {
+            if (parts[0] === parts[1]) {
+              phoneNumber = parts[0];
+            } else {
+              phoneNumber = parts[0];
+              secondaryPhoneNumber = parts[1];
+            }
           }
           // Method 2: Check concatenated duplication (e.g. "123123")
           else if (cleanVal.length > 10 && cleanVal.length % 2 === 0) {
@@ -1653,7 +1659,9 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           ielts_score: ieltsScore || null,
           created_by: userId,
           created_at: now,
+          created_at: now,
           updated_at: now,
+          secondary_phone_number: secondaryPhoneNumber,
         });
       } catch (error) {
         results.errors++;
@@ -1679,8 +1687,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
                 name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code,
                 email, age, occupation, qualification, year_of_experience, country, program,
                 status, priority, comment, follow_up_date, follow_up_status,
-                assigned_staff_id, source, ielts_score, created_by, created_at, updated_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+                assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
             `, [
               lead.name,
               lead.phone_number || '',
@@ -1704,7 +1712,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
               lead.ielts_score || null,
               lead.created_by || null,
               lead.created_at || new Date().toISOString(),
-              lead.updated_at || new Date().toISOString()
+              lead.updated_at || new Date().toISOString(),
+              lead.secondary_phone_number || null
             ]);
 
             // Update duplicate check sets

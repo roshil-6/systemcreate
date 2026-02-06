@@ -197,8 +197,8 @@ const database = {
         id, name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code,
         email, age, occupation, qualification, year_of_experience, country, program,
         status, priority, comment, follow_up_date, follow_up_status,
-        assigned_staff_id, source, ielts_score, created_by, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
     `, [
       id,
       leadData.name,
@@ -223,7 +223,8 @@ const database = {
       leadData.ielts_score || null,
       leadData.created_by || null,
       leadData.created_at || now,
-      leadData.updated_at || now
+      leadData.updated_at || now,
+      leadData.secondary_phone_number || null
     ]);
 
     const leads = await database.getLeads({ id });
@@ -236,7 +237,7 @@ const database = {
     let paramIndex = 1;
 
     const allowedFields = [
-      'name', 'phone_number', 'phone_country_code', 'whatsapp_number', 'whatsapp_country_code',
+      'name', 'phone_number', 'phone_country_code', 'whatsapp_number', 'whatsapp_country_code', 'secondary_phone_number',
       'email', 'age', 'occupation', 'qualification', 'year_of_experience', 'country', 'program',
       'status', 'priority', 'comment', 'follow_up_date', 'follow_up_status',
       'assigned_staff_id', 'source', 'ielts_score'
@@ -723,6 +724,7 @@ const database = {
       phone_country_code: clientData.phone_country_code || '+91',
       whatsapp_number: clientData.whatsapp_number,
       whatsapp_country_code: clientData.whatsapp_country_code || '+91',
+      secondary_phone_number: clientData.secondary_phone_number,
       email: clientData.email,
       age: clientData.age,
       occupation: clientData.occupation,
@@ -768,7 +770,7 @@ const database = {
     let paramIndex = 1;
 
     const allowedFields = [
-      'name', 'phone_number', 'phone_country_code', 'whatsapp_number', 'whatsapp_country_code',
+      'name', 'phone_number', 'phone_country_code', 'whatsapp_number', 'whatsapp_country_code', 'secondary_phone_number',
       'email', 'age', 'occupation', 'qualification', 'year_of_experience', 'country', 'target_country', 'residing_country', 'program',
       'assessment_authority', 'occupation_mapped', 'registration_fee_paid',
       'fee_status', 'amount_paid', 'payment_due_date', 'processing_status',
