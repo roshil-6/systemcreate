@@ -358,9 +358,9 @@ router.get('/delete-all-maintenance', async (req, res) => {
 // Check which version of backend is running
 router.get('/version-check', (req, res) => {
   res.json({
-    version: '1.6.0-STRICT-IMPORT',
+    version: '1.6.1-IMPORT-FIX',
     timestamp: new Date().toISOString(),
-    message: 'Backend is running the LATEST (1.6.0) code with Strict Import Logic'
+    message: 'Backend is running the LATEST (1.6.1) code with Crash Fixes'
   });
 });
 
