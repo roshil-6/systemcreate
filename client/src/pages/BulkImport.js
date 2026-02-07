@@ -228,46 +228,6 @@ const BulkImport = () => {
         </button>
       </div>
 
-      <div style={{ padding: '0 2rem', marginBottom: '1rem' }}>
-        <div style={{
-          background: '#fff3cd',
-          border: '1px solid #ffeeba',
-          borderRadius: '8px',
-          padding: '1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <div>
-            <h3 style={{ margin: '0 0 0.5rem 0', color: '#856404' }}>⚠️ Maintenance Zone</h3>
-            <p style={{ margin: 0, fontSize: '14px' }}>
-              <strong>Backend Version:</strong> {backendVersion}
-              {backendVersion && backendVersion.includes('1.6.1') ? ' ✅' : ' ❌ (Update Required)'}
-            </p>
-          </div>
-          <button
-            onClick={handleDeleteAll}
-            disabled={deleting}
-            style={{
-              background: '#dc3545',
-              color: 'white',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: '6px',
-              fontWeight: 'bold',
-              cursor: deleting ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-          >
-            {deleting ? 'Reseting Database...' : '🗑️ DELETE ALL LEADS (Hard Reset)'}
-          </button>
-        </div>
-      </div>
-
       <div className="bulk-import-content">
         <div className="import-export-tabs">
           <div className="tab-section export-tab">
