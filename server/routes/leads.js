@@ -1591,23 +1591,31 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         }
 
         // Fix repeating phone numbers (common CSV export error)
+        // Fix repeating phone numbers (common CSV export error)
         if (phoneNumber && typeof phoneNumber === 'string') {
-          const cleanVal = phoneNumber.trim();
-          // Method 1: Split by delimiters (space, comma, semicolon, slash, dash, NBSP)
-          const parts = cleanVal.split(/[\s\u00A0,;/]+| - /).filter(p => p.trim().length > 0);
+          // Normalize ALL whitespace (including NBSP, tabs) to a single space
+          const cleanVal = phoneNumber.replace(/[\s\u00A0]+/g, ' ').trim();
+
+          // Method 1: Split by delimiters (space, comma, semicolon, slash, dash)
+          // Since we normalized to space, splitting by space is robust
+          const parts = cleanVal.split(/[ ,;/]+| - /).filter(p => p.trim().length > 0);
+
           if (parts.length >= 2) {
-            phoneNumber = parts[0];
-            // Always move to secondary if empty
+            phoneNumber = parts[0]; // Keep only first part
+
+            // Move second part to secondary if empty
             if (!secondaryPhoneNumber) {
               secondaryPhoneNumber = parts[1];
             }
           }
-          // Method 2: Check concatenated duplication (e.g. "123123")
-          else if (cleanVal.length > 10 && cleanVal.length % 2 === 0) {
+          // Method 2: Check concatenated duplication (e.g. "123123") - ONLY if single part
+          else if (parts.length === 1 && cleanVal.length > 10 && cleanVal.length % 2 === 0) {
             const half = cleanVal.length / 2;
             if (cleanVal.substring(0, half) === cleanVal.substring(half)) {
               phoneNumber = cleanVal.substring(0, half);
-              secondaryPhoneNumber = cleanVal.substring(half); // Also capture it
+              if (!secondaryPhoneNumber) {
+                secondaryPhoneNumber = cleanVal.substring(half);
+              }
             }
           }
         }
