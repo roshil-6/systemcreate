@@ -352,7 +352,8 @@ router.get('/delete-all-maintenance', async (req, res) => {
     res.status(500).json({ error: error.message });
   } finally {
     client.release();
-  });
+  }
+});
 
 // Check which version of backend is running
 router.get('/version-check', (req, res) => {
