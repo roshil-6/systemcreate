@@ -380,7 +380,10 @@ const Leads = () => {
         <button className="leads-back-btn" onClick={() => navigate('/')}>
           <FiArrowLeft /> Back to Dashboard
         </button>
-        <h1>Clients (Leads)</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <h1>Clients (Leads)</h1>
+          <span style={{ fontSize: '10px', color: '#888' }}>v1.7.0 (Modal Fixed)</span>
+        </div>
       </div>
 
       {/* Controls Section */}

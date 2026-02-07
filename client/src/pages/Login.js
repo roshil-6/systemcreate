@@ -84,9 +84,13 @@ const Login = () => {
               placeholder="Enter your password"
             />
           </div>
-          <button type="submit" className="btn-login" disabled={loading}>
+          <button type="submit" disabled={loading} className="login-button">
             {loading ? 'Logging in...' : 'Login'}
           </button>
+
+          <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '12px', color: '#666' }}>
+            System Version: <strong>1.7.0 (Fixed Modal & Crash)</strong>
+          </div>
         </form>
       </div>
     </div>
