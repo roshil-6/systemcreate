@@ -13,7 +13,7 @@ const LeadDetail = () => {
   const [lead, setLead] = useState(null);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(true); // ALWAYS EDIT MODE
   const [formData, setFormData] = useState({});
   const [newComment, setNewComment] = useState('');
   const [staffList, setStaffList] = useState([]);
@@ -388,104 +388,6 @@ const LeadDetail = () => {
       </div>
       <div className="lead-detail-content">
         <div className="lead-detail-left">
-          {/* Quick Info Summary - Always visible */}
-          {!isNew && lead && (
-            <div className="detail-section" style={{
-              marginBottom: '20px',
-              background: '#f9fafb',
-              padding: '20px',
-              borderRadius: '8px',
-              border: '1px solid #e5e7eb'
-            }}>
-              <h2 style={{ marginTop: 0, marginBottom: '15px' }}>Quick Summary</h2>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '15px',
-                fontSize: '14px'
-              }}>
-                <div>
-                  <strong>Status:</strong>
-                  <span style={{
-                    marginLeft: '8px',
-                    padding: '4px 12px',
-                    borderRadius: '12px',
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    background: formData.status === 'New' ? '#dbeafe' :
-                      formData.status === 'Follow-up' ? '#fef3c7' :
-                        formData.status === 'Prospect' ? '#d1fae5' :
-                          formData.status === 'Registration Completed' ? '#dcfce7' : '#f3f4f6',
-                    color: formData.status === 'New' ? '#1e40af' :
-                      formData.status === 'Follow-up' ? '#92400e' :
-                        formData.status === 'Prospect' ? '#065f46' :
-                          formData.status === 'Registration Completed' ? '#166534' : '#374151'
-                  }}>
-                    {formData.status || 'New'}
-                  </span>
-                </div>
-                <div>
-                  <strong>Priority:</strong>
-                  <span style={{ marginLeft: '8px' }}>
-                    {formData.priority ? (
-                      <span style={{
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        background: formData.priority === 'hot' ? '#fee2e2' :
-                          formData.priority === 'warm' ? '#fef3c7' : '#e0e7ff',
-                        color: formData.priority === 'hot' ? '#991b1b' :
-                          formData.priority === 'warm' ? '#92400e' : '#3730a3'
-                      }}>
-                        {formData.priority.charAt(0).toUpperCase() + formData.priority.slice(1)}
-                      </span>
-                    ) : 'Not set'}
-                  </span>
-                </div>
-                <div>
-                  <strong>Assigned To:</strong>
-                  <span style={{ marginLeft: '8px', color: formData.assigned_staff_name ? '#8B6914' : '#9ca3af' }}>
-                    {formData.assigned_staff_name || 'Unassigned'}
-                  </span>
-                </div>
-                {formData.follow_up_date && (
-                  <div>
-                    <strong>Follow-up Date:</strong>
-                    <span style={{ marginLeft: '8px' }}>
-                      {new Date(formData.follow_up_date).toLocaleDateString()}
-                      {formData.follow_up_status && (
-                        <span style={{
-                          marginLeft: '8px',
-                          padding: '2px 8px',
-                          borderRadius: '8px',
-                          fontSize: '11px',
-                          background: formData.follow_up_status === 'Completed' ? '#d4edda' :
-                            formData.follow_up_status === 'Skipped' ? '#f8d7da' : '#fff3cd',
-                          color: formData.follow_up_status === 'Completed' ? '#155724' :
-                            formData.follow_up_status === 'Skipped' ? '#721c24' : '#856404'
-                        }}>
-                          {formData.follow_up_status}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                )}
-                {formData.source && (
-                  <div>
-                    <strong>Source:</strong>
-                    <span style={{ marginLeft: '8px' }}>{formData.source}</span>
-                  </div>
-                )}
-                {formData.ielts_score && (
-                  <div>
-                    <strong>IELTS Score:</strong>
-                    <span style={{ marginLeft: '8px' }}>{formData.ielts_score}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
           <div className="detail-section">
             <h2>Lead Information</h2>
             <div className="form-grid">
@@ -746,6 +648,29 @@ const LeadDetail = () => {
                   <option value="visit">Visit</option>
                   <option value="work">Work</option>
                 </select>
+              </div>
+
+              <div className="form-group">
+                <label>Source</label>
+                <input
+                  type="text"
+                  name="source"
+                  value={formData.source || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                  placeholder="Lead Source"
+                />
+              </div>
+              <div className="form-group">
+                <label>IELTS Score</label>
+                <input
+                  type="text"
+                  name="ielts_score"
+                  value={formData.ielts_score || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                  placeholder="IELTS Score"
+                />
               </div>
               <div className="form-group">
                 <label>IELTS Score</label>
