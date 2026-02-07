@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -13,6 +13,30 @@ const BulkImport = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [backendVersion, setBackendVersion] = useState('Loading...');
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    // Check backend version on load
+    axios.get(`${API_BASE_URL}/api/leads/version-check`)
+      .then(res => setBackendVersion(res.data.version))
+      .catch(err => setBackendVersion('Offline / Error'));
+  }, []);
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm('⚠️ DANGER: This will delete ALL leads. Are you sure?')) return;
+
+    setDeleting(true);
+    try {
+      await axios.delete(`${API_BASE_URL}/api/leads/delete-all-maintenance?key=fix_my_phones_please`);
+      alert('✅ All leads deleted successfully!');
+      window.location.reload();
+    } catch (error) {
+      alert('❌ Delete failed: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Allow admin and all staff roles
   const canAccess = user?.role === 'ADMIN' ||
@@ -202,6 +226,46 @@ const BulkImport = () => {
         <button className="btn-export-all" onClick={handleExportLeads}>
           <FiDownload /> Export Leads
         </button>
+      </div>
+
+      <div style={{ padding: '0 2rem', marginBottom: '1rem' }}>
+        <div style={{
+          background: '#fff3cd',
+          border: '1px solid #ffeeba',
+          borderRadius: '8px',
+          padding: '1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div>
+            <h3 style={{ margin: '0 0 0.5rem 0', color: '#856404' }}>⚠️ Maintenance Zone</h3>
+            <p style={{ margin: 0, fontSize: '14px' }}>
+              <strong>Backend Version:</strong> {backendVersion}
+              {backendVersion && backendVersion.includes('1.6.1') ? ' ✅' : ' ❌ (Update Required)'}
+            </p>
+          </div>
+          <button
+            onClick={handleDeleteAll}
+            disabled={deleting}
+            style={{
+              background: '#dc3545',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '6px',
+              fontWeight: 'bold',
+              cursor: deleting ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            {deleting ? 'Reseting Database...' : '🗑️ DELETE ALL LEADS (Hard Reset)'}
+          </button>
+        </div>
       </div>
 
       <div className="bulk-import-content">
