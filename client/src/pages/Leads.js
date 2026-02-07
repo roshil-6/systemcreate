@@ -30,9 +30,8 @@ const Leads = () => {
     follow_up_status: '',
   });
   const [bulkEditLoading, setBulkEditLoading] = useState(false);
-  const [selectedLeadDetails, setSelectedLeadDetails] = useState(null);
-  const [showLeadDetailsModal, setShowLeadDetailsModal] = useState(false);
-  const [loadingLeadDetails, setLoadingLeadDetails] = useState(false);
+  const [bulkEditLoading, setBulkEditLoading] = useState(false);
+
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || '';
@@ -180,26 +179,15 @@ const Leads = () => {
     }
   };
 
-  const handleLeadRowClick = async (leadId, e) => {
-    // Don't open modal if clicking on checkbox, button, or link
+  const handleLeadRowClick = (leadId, e) => {
+    // Don't navigate if clicking on checkbox, button, or link
     if (e.target.closest('input[type="checkbox"]') ||
       e.target.closest('button') ||
       e.target.closest('a') ||
       e.target.closest('.quick-assign-dropdown')) {
       return;
     }
-
-    try {
-      setLoadingLeadDetails(true);
-      const response = await axios.get(`${API_BASE_URL}/api/leads/${leadId}`);
-      setSelectedLeadDetails(response.data);
-      setShowLeadDetailsModal(true);
-    } catch (error) {
-      console.error('Error fetching lead details:', error);
-      alert('Error loading lead details');
-    } finally {
-      setLoadingLeadDetails(false);
-    }
+    navigate(`/leads/${leadId}`);
   };
 
   const handleBulkEdit = async () => {
@@ -630,248 +618,7 @@ const Leads = () => {
       )}
 
       {/* Lead Details Modal */}
-      {showLeadDetailsModal && selectedLeadDetails && (
-        <div className="modal-overlay" onClick={() => setShowLeadDetailsModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0 }}>Lead Details</h2>
-              <button
-                onClick={() => setShowLeadDetailsModal(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#666',
-                  padding: '0',
-                  width: '30px',
-                  height: '30px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                ×
-              </button>
-            </div>
 
-            {loadingLeadDetails ? (
-              <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-                <div className="detail-field">
-                  <label>Name</label>
-                  <div>{selectedLeadDetails.name || '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Phone Number</label>
-                  <div>
-                    {selectedLeadDetails.phone_country_code && selectedLeadDetails.phone_number ? (
-                      <span>{selectedLeadDetails.phone_country_code} {selectedLeadDetails.phone_number}</span>
-                    ) : (
-                      selectedLeadDetails.phone_number || '-'
-                    )}
-                  </div>
-                </div>
-
-                {selectedLeadDetails.secondary_phone_number && (
-                  <div className="detail-field">
-                    <label>Secondary Number</label>
-                    <div>{selectedLeadDetails.secondary_phone_number}</div>
-                  </div>
-                )}
-
-                {selectedLeadDetails.whatsapp_number && (
-                  <div className="detail-field">
-                    <label>WhatsApp Number</label>
-                    <div>
-                      {selectedLeadDetails.whatsapp_country_code && selectedLeadDetails.whatsapp_number ? (
-                        <span>{selectedLeadDetails.whatsapp_country_code} {selectedLeadDetails.whatsapp_number}</span>
-                      ) : (
-                        selectedLeadDetails.whatsapp_number
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="detail-field">
-                  <label>Email</label>
-                  <div>{selectedLeadDetails.email || '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Age</label>
-                  <div>{selectedLeadDetails.age || '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Occupation</label>
-                  <div>{selectedLeadDetails.occupation || '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Qualification</label>
-                  <div>{selectedLeadDetails.qualification ? selectedLeadDetails.qualification.charAt(0).toUpperCase() + selectedLeadDetails.qualification.slice(1) : '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Year of Experience</label>
-                  <div>{selectedLeadDetails.year_of_experience || '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Target Country</label>
-                  <div>{selectedLeadDetails.target_country ? selectedLeadDetails.target_country.charAt(0).toUpperCase() + selectedLeadDetails.target_country.slice(1) : (selectedLeadDetails.country ? selectedLeadDetails.country.charAt(0).toUpperCase() + selectedLeadDetails.country.slice(1) : '-')}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Residing Country</label>
-                  <div>{selectedLeadDetails.residing_country ? selectedLeadDetails.residing_country.charAt(0).toUpperCase() + selectedLeadDetails.residing_country.slice(1) : '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Program</label>
-                  <div>{selectedLeadDetails.program ? selectedLeadDetails.program.toUpperCase() : '-'}</div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Status</label>
-                  <div>
-                    <span
-                      className="status-badge"
-                      style={{
-                        backgroundColor: getStatusColor(selectedLeadDetails.status),
-                        color: getStatusTextColor(selectedLeadDetails.status),
-                        border: `1px solid ${getStatusTextColor(selectedLeadDetails.status)}`,
-                        fontWeight: 500,
-                        padding: '4px 12px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                      }}
-                    >
-                      {selectedLeadDetails.status}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Priority</label>
-                  <div>
-                    {selectedLeadDetails.priority ? (
-                      <span
-                        className="priority-badge"
-                        style={{
-                          backgroundColor: `${getPriorityColor(selectedLeadDetails.priority)}20`,
-                          color: getPriorityColor(selectedLeadDetails.priority),
-                          padding: '4px 12px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {formatPriority(selectedLeadDetails.priority)}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
-                  </div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Assigned To</label>
-                  <div style={{
-                    fontWeight: selectedLeadDetails.assigned_staff_name ? 600 : 400,
-                    color: selectedLeadDetails.assigned_staff_name ? '#8B6914' : '#9ca3af',
-                  }}>
-                    {selectedLeadDetails.assigned_staff_name || 'Unassigned'}
-                  </div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Follow-up Date</label>
-                  <div>
-                    {selectedLeadDetails.follow_up_date ? (
-                      new Date(selectedLeadDetails.follow_up_date).toLocaleDateString()
-                    ) : (
-                      '-'
-                    )}
-                  </div>
-                </div>
-
-                <div className="detail-field">
-                  <label>Follow-up Status</label>
-                  <div>
-                    <span style={{
-                      color: selectedLeadDetails.follow_up_status === 'Completed' ? '#28a745' :
-                        selectedLeadDetails.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
-                      fontWeight: '500'
-                    }}>
-                      {selectedLeadDetails.follow_up_status || 'Pending'}
-                    </span>
-                  </div>
-                </div>
-
-                {selectedLeadDetails.comment && (
-                  <div className="detail-field" style={{ gridColumn: '1 / -1' }}>
-                    <label>Comment</label>
-                    <div style={{
-                      padding: '12px',
-                      background: '#f9fafb',
-                      borderRadius: '6px',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                    }}>
-                      {selectedLeadDetails.comment}
-                    </div>
-                  </div>
-                )}
-
-                <div className="detail-field" style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button
-                      onClick={() => {
-                        setShowLeadDetailsModal(false);
-                        navigate(`/leads/${selectedLeadDetails.id}`);
-                      }}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#D4AF37',
-                        color: '#FFF8E7',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 500,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <FiEdit2 /> Edit Lead
-                    </button>
-                    <button
-                      onClick={() => setShowLeadDetailsModal(false)}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#F5F1E8',
-                        color: '#8B6914',
-                        border: '1px solid #E5D4A0',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 500,
-                      }}
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Leads Table */}
       <div className="leads-table-container">

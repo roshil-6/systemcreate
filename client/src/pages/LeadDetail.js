@@ -277,15 +277,6 @@ const LeadDetail = () => {
           </button>
           <h1>{isNew ? 'Create New Lead' : lead?.name || 'Lead Details'}</h1>
         </div>
-        {!isNew && (
-          <button
-            className="btn-edit"
-            onClick={() => setEditing(!editing)}
-            disabled={user?.role === 'STAFF' && Number(lead?.assigned_staff_id) !== Number(user?.id)}
-          >
-            {editing ? 'Cancel' : 'Edit'}
-          </button>
-        )}
       </div>
       <div className="lead-header-fields">
         <div className="header-field-group">
@@ -659,17 +650,6 @@ const LeadDetail = () => {
                   onChange={handleChange}
                   disabled={!canEdit}
                   placeholder="Lead Source"
-                />
-              </div>
-              <div className="form-group">
-                <label>IELTS Score</label>
-                <input
-                  type="text"
-                  name="ielts_score"
-                  value={formData.ielts_score || ''}
-                  onChange={handleChange}
-                  disabled={!canEdit}
-                  placeholder="IELTS Score"
                 />
               </div>
               <div className="form-group">
