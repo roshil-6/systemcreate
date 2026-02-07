@@ -230,6 +230,18 @@ const LeadDetail = () => {
     return <div className="lead-detail-loading">Loading...</div>;
   }
 
+  if (!isNew && !lead) {
+    return (
+      <div className="lead-detail-error">
+        <h2>Lead Not Found</h2>
+        <p>The requested lead could not be loaded. It may have been deleted or you do not have permission to view it.</p>
+        <button onClick={() => navigate('/leads')} className="btn-back">
+          Back to Leads
+        </button>
+      </div>
+    );
+  }
+
   const canEdit = editing || id === 'new';
   const isNew = id === 'new';
   const canEditHeaderFields = !isNew && (
