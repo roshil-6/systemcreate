@@ -30,8 +30,6 @@ const Leads = () => {
     follow_up_status: '',
   });
   const [bulkEditLoading, setBulkEditLoading] = useState(false);
-  const [bulkEditLoading, setBulkEditLoading] = useState(false);
-
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || '';
