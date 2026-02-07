@@ -1217,7 +1217,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           return normalized === fieldLower;
         });
         if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headerValues[index]}" (exact from original)`);
+          console.log(`✅ Found "${field}" → "${headerValues[index]}" (exact from original)`);
           return index;
         }
 
@@ -1229,14 +1229,14 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           // Strategy 3: Starts with match (phone matches phone_number, but not vice versa)
           index = headers.findIndex(h => h.startsWith(fieldLower));
           if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (starts with)`);
+            console.log(`✅ Found "${field}" → "${headers[index]}" (starts with)`);
             return index;
           }
 
           // Strategy 4: Contains match (header contains field - phone_number contains phone)
           index = headers.findIndex(h => h.includes(fieldLower));
           if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (contains)`);
+            console.log(`✅ Found "${field}" → "${headers[index]}" (contains)`);
             return index;
           }
 
@@ -1247,7 +1247,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
             return hNormalized === fieldNormalized;
           });
           if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (normalized)`);
+            console.log(`✅ Found "${field}" → "${headers[index]}" (normalized)`);
             return index;
           }
 
@@ -1257,7 +1257,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
             return hNormalized.includes(fieldNormalized) || fieldNormalized.includes(hNormalized);
           });
           if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (substring normalized)`);
+            console.log(`✅ Found "${field}" → "${headers[index]}" (substring normalized)`);
             return index;
           }
         }
@@ -1266,7 +1266,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         index = headerValues.findIndex(h => {
           const hLower = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '');
 
-          if (isShortField) {
+          if (isStrictField) {
             // Strict equality only for short fields
             return hLower === fieldLower;
           }
@@ -1274,7 +1274,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           return hLower === fieldLower || hLower.includes(fieldLower) || fieldLower.includes(hLower);
         });
         if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headerValues[index]}" (direct original match)`);
+          console.log(`✅ Found "${field}" → "${headerValues[index]}" (direct original match)`);
           return index;
         }
       }
