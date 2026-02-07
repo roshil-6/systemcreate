@@ -8,6 +8,7 @@ import { FiSave, FiMessageSquare, FiUser, FiPhone, FiMail, FiCalendar, FiArrowLe
 
 const LeadDetail = () => {
   const { id } = useParams();
+  const isNew = id === 'new';
   const navigate = useNavigate();
   const { user } = useAuth();
   const [lead, setLead] = useState(null);
@@ -243,7 +244,6 @@ const LeadDetail = () => {
   }
 
   const canEdit = editing || id === 'new';
-  const isNew = id === 'new';
   const canEditHeaderFields = !isNew && (
     user?.role === 'ADMIN'
     || (user?.role === 'STAFF' && Number(lead?.assigned_staff_id) === Number(user?.id))
