@@ -1190,632 +1190,620 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       ielts_score: ['ielts_score', 'ielts', 'ielts_band', 'ielts score'],
     };
 
-    // Find column indices for each field (ULTRA AGGRESSIVE matching)
-    const findColumnIndex = (fieldNames) => {
-      for (const fieldName of fieldNames) {
-        const fieldLower = fieldName.toLowerCase().trim();
+    // Strategy 2: Exact match with original header values (case-insensitive)
+    index = headerValues.findIndex((h, idx) => {
+      const normalized = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '').replace(/\s+/g, '_').replace(/[^\w_-]/g, '');
+      return normalized === fieldLower;
+    });
+    if (index !== -1) {
+      console.log(`✅ Found "${fieldName}" → "${headerValues[index]}" (exact from original)`);
+      return index;
+    }
 
-        // Strategy 1: Exact match (headers are already lowercase)
-        let index = headers.findIndex(h => h === fieldLower);
-        if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headers[index]}" (exact match)`);
-          return index;
-        }
+    // STRICT CHECK: For short fields (like 'age', 'id'), SKIP fuzzy matching (Strategies 3-6)
+    // to prevent 'age' matching 'agent', 'agency', etc.
+    const isShortField = fieldLower.replace(/[_\s-]/g, '').length <= 3;
 
-        // Strategy 2: Exact match with original header values (case-insensitive)
-        index = headerValues.findIndex((h, idx) => {
-          const normalized = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '').replace(/\s+/g, '_').replace(/[^\w_-]/g, '');
-          return normalized === fieldLower;
-        });
-        if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headerValues[index]}" (exact from original)`);
-          return index;
-        }
-
-        // STRICT CHECK: For short fields (like 'age', 'id'), SKIP fuzzy matching (Strategies 3-6)
-        // to prevent 'age' matching 'agent', 'agency', etc.
-        const isShortField = fieldLower.replace(/[_\s-]/g, '').length <= 3;
-
-        if (!isShortField) {
-          // Strategy 3: Starts with match (phone matches phone_number, but not vice versa)
-          index = headers.findIndex(h => h.startsWith(fieldLower));
-          if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (starts with)`);
-            return index;
-          }
-
-          // Strategy 4: Contains match (header contains field - phone_number contains phone)
-          index = headers.findIndex(h => h.includes(fieldLower));
-          if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (contains)`);
-            return index;
-          }
-
-          // Strategy 5: Match without underscores/spaces/dashes
-          const fieldNormalized = fieldLower.replace(/[_\s-]/g, '');
-          index = headers.findIndex(h => {
-            const hNormalized = h.replace(/[_\s-]/g, '');
-            return hNormalized === fieldNormalized;
-          });
-          if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (normalized)`);
-            return index;
-          }
-
-          // Strategy 6: Substring match (normalized - phone matches phone_number)
-          index = headers.findIndex(h => {
-            const hNormalized = h.replace(/[_\s-]/g, '');
-            return hNormalized.includes(fieldNormalized) || fieldNormalized.includes(hNormalized);
-          });
-          if (index !== -1) {
-            console.log(`✅ Found "${fieldName}" → "${headers[index]}" (substring normalized)`);
-            return index;
-          }
-        }
-
-        // Strategy 7: Try matching against original header values directly (case-insensitive)
-        index = headerValues.findIndex(h => {
-          const hLower = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '');
-
-          if (isShortField) {
-            // Strict equality only for short fields
-            return hLower === fieldLower;
-          }
-
-          return hLower === fieldLower || hLower.includes(fieldLower) || fieldLower.includes(hLower);
-        });
-        if (index !== -1) {
-          console.log(`✅ Found "${fieldName}" → "${headerValues[index]}" (direct original match)`);
-          return index;
-        }
+    if (!isShortField) {
+      // Strategy 3: Starts with match (phone matches phone_number, but not vice versa)
+      index = headers.findIndex(h => h.startsWith(fieldLower));
+      if (index !== -1) {
+        console.log(`✅ Found "${fieldName}" → "${headers[index]}" (starts with)`);
+        return index;
       }
+
+      // Strategy 4: Contains match (header contains field - phone_number contains phone)
+      index = headers.findIndex(h => h.includes(fieldLower));
+      if (index !== -1) {
+        console.log(`✅ Found "${fieldName}" → "${headers[index]}" (contains)`);
+        return index;
+      }
+
+      // Strategy 5: Match without underscores/spaces/dashes
+      const fieldNormalized = fieldLower.replace(/[_\s-]/g, '');
+      index = headers.findIndex(h => {
+        const hNormalized = h.replace(/[_\s-]/g, '');
+        return hNormalized === fieldNormalized;
+      });
+      if (index !== -1) {
+        console.log(`✅ Found "${fieldName}" → "${headers[index]}" (normalized)`);
+        return index;
+      }
+
+      // Strategy 6: Substring match (normalized - phone matches phone_number)
+      index = headers.findIndex(h => {
+        const hNormalized = h.replace(/[_\s-]/g, '');
+        return hNormalized.includes(fieldNormalized) || fieldNormalized.includes(hNormalized);
+      });
+      if (index !== -1) {
+        console.log(`✅ Found "${fieldName}" → "${headers[index]}" (substring normalized)`);
+        return index;
+      }
+    }
+
+    // Strategy 7: Try matching against original header values directly (case-insensitive)
+    index = headerValues.findIndex(h => {
+      const hLower = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '');
+
+      if (isShortField) {
+        // Strict equality only for short fields
+        return hLower === fieldLower;
+      }
+
+      return hLower === fieldLower || hLower.includes(fieldLower) || fieldLower.includes(hLower);
+    });
+    if (index !== -1) {
+      console.log(`✅ Found "${fieldName}" → "${headerValues[index]}" (direct original match)`);
+      return index;
+    }
+  }
       console.log(`❌ NOT FOUND after all strategies: ${fieldNames.join(', ')}`);
-      console.log(`   Available normalized headers: ${headers.join(', ')}`);
-      console.log(`   Available original headers: ${headerValues.join(', ')}`);
-      return -1;
-    };
+  console.log(`   Available normalized headers: ${headers.join(', ')}`);
+  console.log(`   Available original headers: ${headerValues.join(', ')}`);
+  return -1;
+};
 
-    // Check for required fields
-    console.log('📋 Bulk import: Headers found:', headers);
-    console.log('📋 Total headers:', headers.length);
-    console.log('📋 Original header values:', headerValues);
+// Check for required fields
+console.log('📋 Bulk import: Headers found:', headers);
+console.log('📋 Total headers:', headers.length);
+console.log('📋 Original header values:', headerValues);
 
-    // DIRECT FALLBACK: Check original headers if normalized matching fails
-    const findDirectIndex = (searchTerms) => {
-      for (const term of searchTerms) {
-        const termLower = term.toLowerCase();
-        // Check normalized headers
-        let idx = headers.findIndex(h => h === termLower || h.includes(termLower) || termLower.includes(h));
-        if (idx !== -1) return idx;
-        // Check original headers
-        idx = headerValues.findIndex(h => {
-          const hNorm = h.trim().toLowerCase().replace(/[^\w]/g, '_');
-          return hNorm === termLower || hNorm.includes(termLower) || termLower.includes(hNorm);
-        });
-        if (idx !== -1) return idx;
-      }
-      return -1;
-    };
-
-    // NUCLEAR OPTION: Keyword-based search as last resort - ULTRA AGGRESSIVE
-    const findKeywordIndex = (keywords) => {
-      for (const keyword of keywords) {
-        const keywordLower = keyword.toLowerCase().replace(/[_\s-]/g, '');
-        // Search in original headers - try multiple variations
-        const idx = headerValues.findIndex((h, i) => {
-          const hLower = h.toLowerCase().replace(/[_\s-]/g, '');
-          const hOriginal = h.toLowerCase();
-
-          // Try exact match (normalized)
-          if (hLower === keywordLower) return true;
-
-          // Try contains match (normalized)
-          if (hLower.includes(keywordLower) || keywordLower.includes(hLower)) return true;
-
-          // Try original with underscores/spaces
-          if (hOriginal.includes(keywordLower) || keywordLower.includes(hOriginal.replace(/[_\s-]/g, ''))) return true;
-
-          // Try partial match - "first" matches "first_name"
-          const keywordParts = keywordLower.split('_');
-          if (keywordParts.length > 0) {
-            const mainKeyword = keywordParts[0];
-            if (hLower.includes(mainKeyword) && mainKeyword.length >= 3) return true;
-          }
-
-          return false;
-        });
-        if (idx !== -1) {
-          console.log(`✅ Found via keyword search: "${keyword}" → "${headerValues[idx]}"`);
-          return idx;
-        }
-      }
-      return -1;
-    };
-
-    // SIMPLE DIRECT CHECK: Search original header values directly (case-insensitive)
-    // This is the most reliable method for common column names
-    const findSimpleIndex = (searchTerms) => {
-      for (const term of searchTerms) {
-        const termLower = term.toLowerCase().trim();
-        // Check original header values directly with multiple strategies
-        const idx = headerValues.findIndex((h, i) => {
-          // Remove quotes and trim
-          const hClean = h.trim().replace(/^["']+|["']+$/g, '');
-          const hLower = hClean.toLowerCase();
-
-          // Strategy 1: Exact match
-          if (hLower === termLower) return true;
-
-          // Strategy 2: Match without special characters
-          const hNormalized = hLower.replace(/[^\w]/g, '_');
-          const termNormalized = termLower.replace(/[^\w]/g, '_');
-          if (hNormalized === termNormalized) return true;
-
-          // Strategy 3: Match without underscores/spaces
-          const hNoUnderscore = hLower.replace(/[_\s-]/g, '');
-          const termNoUnderscore = termLower.replace(/[_\s-]/g, '');
-          if (hNoUnderscore === termNoUnderscore) return true;
-
-          // Strategy 4: Contains match (bidirectional) - DISABLED (Too aggressive, e.g. 'age' matches 'agent')
-          // if (hLower.includes(termLower) || termLower.includes(hLower)) return true;
-
-          // Strategy 5: Check normalized headers too
-          if (i < headers.length && headers[i]) {
-            const normHeader = headers[i].toLowerCase();
-            if (normHeader === termLower) return true;
-            /* 
-            if (normHeader === termLower ||
-              normHeader.includes(termLower) ||
-              termLower.includes(normHeader)) return true; 
-            */
-          }
-
-          return false;
-        });
-        if (idx !== -1) {
-          console.log(`✅ Simple direct match: "${term}" → "${headerValues[idx]}" (index: ${idx})`);
-          return idx;
-        }
-      }
-      return -1;
-    };
-
-    // Check for name (either 'name' OR 'first_name' + 'last_name')
-    // START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
-    let nameIndex = findSimpleIndex(['name', 'full_name', 'fullname', 'client', 'client_name', 'student', 'student_name', 'prospect', 'prospect_name', 'customer', 'customer_name']);
-    let firstNameIndex = findSimpleIndex(['first_name', 'firstname', 'fname', 'first']);
-    let lastNameIndex = findSimpleIndex(['last_name', 'lastname', 'lname', 'surname', 'last']);
-
-    // Then try the complex matching if simple check failed
-    if (nameIndex === -1) nameIndex = findColumnIndex(columnMapping.name);
-    if (firstNameIndex === -1) firstNameIndex = findColumnIndex(columnMapping.first_name);
-    if (lastNameIndex === -1) lastNameIndex = findColumnIndex(columnMapping.last_name);
-
-    // Fallback to direct search if matching failed
-    if (nameIndex === -1) nameIndex = findDirectIndex(columnMapping.name);
-    if (firstNameIndex === -1) firstNameIndex = findDirectIndex(columnMapping.first_name);
-    if (lastNameIndex === -1) lastNameIndex = findDirectIndex(columnMapping.last_name);
-
-    // NUCLEAR FALLBACK: Keyword search
-    if (nameIndex === -1) nameIndex = findKeywordIndex(['name', 'fullname', 'full_name', 'client']);
-    if (firstNameIndex === -1) firstNameIndex = findKeywordIndex(['first', 'fname', 'firstname']);
-    if (lastNameIndex === -1) lastNameIndex = findKeywordIndex(['last', 'lname', 'lastname', 'surname']);
-
-    const hasName = nameIndex !== -1 || (firstNameIndex !== -1 && lastNameIndex !== -1);
-
-    console.log('🔍 Name column check:', {
-      nameIndex,
-      firstNameIndex,
-      lastNameIndex,
-      hasName
+// DIRECT FALLBACK: Check original headers if normalized matching fails
+const findDirectIndex = (searchTerms) => {
+  for (const term of searchTerms) {
+    const termLower = term.toLowerCase();
+    // Check normalized headers
+    let idx = headers.findIndex(h => h === termLower || h.includes(termLower) || termLower.includes(h));
+    if (idx !== -1) return idx;
+    // Check original headers
+    idx = headerValues.findIndex(h => {
+      const hNorm = h.trim().toLowerCase().replace(/[^\w]/g, '_');
+      return hNorm === termLower || hNorm.includes(termLower) || termLower.includes(hNorm);
     });
+    if (idx !== -1) return idx;
+  }
+  return -1;
+};
 
-    // Check for phone - try multiple variations
-    // START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
-    let phoneIndex = findSimpleIndex(['phone', 'phone_number', 'mobile', 'mobile_number', 'contact_number', 'phone_no', 'cell', 'cell_phone', 'telephone', 'contact', 'whatsapp', 'call']);
+// NUCLEAR OPTION: Keyword-based search as last resort - ULTRA AGGRESSIVE
+const findKeywordIndex = (keywords) => {
+  for (const keyword of keywords) {
+    const keywordLower = keyword.toLowerCase().replace(/[_\s-]/g, '');
+    // Search in original headers - try multiple variations
+    const idx = headerValues.findIndex((h, i) => {
+      const hLower = h.toLowerCase().replace(/[_\s-]/g, '');
+      const hOriginal = h.toLowerCase();
 
-    // Then try the complex matching if simple check failed
-    if (phoneIndex === -1) phoneIndex = findColumnIndex(columnMapping.phone_number);
+      // Try exact match (normalized)
+      if (hLower === keywordLower) return true;
 
-    // Fallback to direct search if matching failed
-    if (phoneIndex === -1) phoneIndex = findDirectIndex(columnMapping.phone_number);
+      // Try contains match (normalized)
+      if (hLower.includes(keywordLower) || keywordLower.includes(hLower)) return true;
 
-    // NUCLEAR FALLBACK: Keyword search
-    if (phoneIndex === -1) phoneIndex = findKeywordIndex(['phone', 'mobile', 'contact', 'tel', 'number', 'cell']);
+      // Try original with underscores/spaces
+      if (hOriginal.includes(keywordLower) || keywordLower.includes(hOriginal.replace(/[_\s-]/g, ''))) return true;
 
-    const hasPhone = phoneIndex !== -1;
+      // Try partial match - "first" matches "first_name"
+      const keywordParts = keywordLower.split('_');
+      if (keywordParts.length > 0) {
+        const mainKeyword = keywordParts[0];
+        if (hLower.includes(mainKeyword) && mainKeyword.length >= 3) return true;
+      }
 
-    console.log('🔍 Phone column check:', {
-      phoneIndex,
-      hasPhone,
-      searchedFor: columnMapping.phone_number
+      return false;
     });
-
-    if (!hasName) {
-      console.error('❌ Bulk import: Missing name column');
-      console.error('   Available normalized headers:', headers);
-      console.error('   Available original headers:', headerValues);
-      console.error('   Searched for name:', columnMapping.name);
-      console.error('   Searched for first_name:', columnMapping.first_name);
-      console.error('   Searched for last_name:', columnMapping.last_name);
-      console.error('   nameIndex:', nameIndex, 'firstNameIndex:', firstNameIndex, 'lastNameIndex:', lastNameIndex);
-      return res.status(400).json({
-        error: 'Missing required columns: name, phone_number',
-        details: `Found columns: ${headerValues.join(', ')}. Required: name OR (first_name + last_name), and phone_number OR phone`,
-        availableColumns: headerValues // Return original headers for user reference
-      });
+    if (idx !== -1) {
+      console.log(`✅ Found via keyword search: "${keyword}" → "${headerValues[idx]}"`);
+      return idx;
     }
+  }
+  return -1;
+};
 
-    if (!hasPhone) {
-      console.error('❌ Bulk import: Missing phone column');
-      console.error('   Available normalized headers:', headers);
-      console.error('   Available original headers:', headerValues);
-      console.error('   Searched for phone:', columnMapping.phone_number);
-      console.error('   phoneIndex:', phoneIndex);
-      return res.status(400).json({
-        error: 'Missing required columns: name, phone_number',
-        details: `Found columns: ${headerValues.join(', ')}. Required: phone_number, phone, or mobile`,
-        availableColumns: headerValues // Return original headers for user reference
-      });
-    }
+// SIMPLE DIRECT CHECK: Search original header values directly (case-insensitive)
+// This is the most reliable method for common column names
+const findSimpleIndex = (searchTerms) => {
+  for (const term of searchTerms) {
+    const termLower = term.toLowerCase().trim();
+    // Check original header values directly with multiple strategies
+    const idx = headerValues.findIndex((h, i) => {
+      // Remove quotes and trim
+      const hClean = h.trim().replace(/^["']+|["']+$/g, '');
+      const hLower = hClean.toLowerCase();
 
-    // Map all column indices
-    // Also detect Meta Ads specific columns
-    const metaAdsColumns = {
-      ad_name: findSimpleIndex(['ad name', 'ad_name', 'adname']),
-      campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname']),
-      form_name: findSimpleIndex(['form name', 'form_name', 'formname']),
-      lead_id: findSimpleIndex(['lead id', 'lead_id', 'leadid', 'id']),
-      created_time: findSimpleIndex(['created time', 'created_time', 'created date', 'created_date', 'date', 'timestamp']),
-    };
+      // Strategy 1: Exact match
+      if (hLower === termLower) return true;
 
-    const columnIndices = {
-      name: nameIndex,
-      first_name: firstNameIndex,
-      last_name: lastNameIndex,
-      phone_number: phoneIndex,
-      phone_country_code: findColumnIndex(columnMapping.phone_country_code),
-      whatsapp_number: findColumnIndex(columnMapping.whatsapp_number),
-      whatsapp_country_code: findColumnIndex(columnMapping.whatsapp_country_code),
-      email: findColumnIndex(columnMapping.email),
-      age: findColumnIndex(columnMapping.age),
-      occupation: findColumnIndex(columnMapping.occupation),
-      qualification: findColumnIndex(columnMapping.qualification),
-      year_of_experience: findColumnIndex(columnMapping.year_of_experience),
-      country: findColumnIndex(columnMapping.country),
-      program: findColumnIndex(columnMapping.program),
-      status: findColumnIndex(columnMapping.status),
-      priority: findColumnIndex(columnMapping.priority),
-      comment: findColumnIndex(columnMapping.comment),
-      follow_up_date: findColumnIndex(columnMapping.follow_up_date),
-      follow_up_status: findColumnIndex(columnMapping.follow_up_status),
-      assigned_staff: findColumnIndex(columnMapping.assigned_staff),
-      source: findColumnIndex(columnMapping.source),
-      ielts_score: findColumnIndex(columnMapping.ielts_score),
-      // Meta Ads specific columns
-      meta_ad_name: metaAdsColumns.ad_name,
-      meta_campaign_name: metaAdsColumns.campaign_name,
-      meta_form_name: metaAdsColumns.form_name,
-      meta_lead_id: metaAdsColumns.lead_id,
-      meta_created_time: metaAdsColumns.created_time,
-    };
+      // Strategy 2: Match without special characters
+      const hNormalized = hLower.replace(/[^\w]/g, '_');
+      const termNormalized = termLower.replace(/[^\w]/g, '_');
+      if (hNormalized === termNormalized) return true;
 
-    console.log('✅ Column mapping successful:', {
-      name: columnIndices.name !== -1 ? 'found' : (columnIndices.first_name !== -1 && columnIndices.last_name !== -1 ? 'first_name + last_name' : 'missing'),
-      phone: columnIndices.phone_number !== -1 ? 'found' : 'missing',
-      email: columnIndices.email !== -1 ? 'found' : 'missing',
-    });
+      // Strategy 3: Match without underscores/spaces
+      const hNoUnderscore = hLower.replace(/[_\s-]/g, '');
+      const termNoUnderscore = termLower.replace(/[_\s-]/g, '');
+      if (hNoUnderscore === termNoUnderscore) return true;
 
-    // Get all existing leads for duplicate checking (PostgreSQL)
-    const existingLeads = await db.getLeads();
-    const existingPhones = new Set(existingLeads.map(l => l.phone_number?.toLowerCase()));
-    const existingEmails = new Set(existingLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+      // Strategy 4: Contains match (bidirectional) - DISABLED (Too aggressive, e.g. 'age' matches 'agent')
+      // if (hLower.includes(termLower) || termLower.includes(hLower)) return true;
 
-    const results = {
-      total: lines.length - 1,
-      created: 0,
-      skipped: 0,
-      errors: 0,
-      errorRows: [],
-    };
-
-    // Collect valid leads for batch insert
-    const validLeads = [];
-    const now = new Date().toISOString();
-    const assignedStaffId = (role === 'ADMIN') ? null : userId;
-
-    // Helper: Parse Date (handles Excel serials + strings)
-    const parseDate = (val) => {
-      if (!val) return null;
-      // Excel Serial Date (e.g. 46023)
-      // ~25569 is 1970-01-01 in Excel serial days (1900 system)
-      const num = Number(val);
-      if (!isNaN(num) && num > 10000 && num < 90000) {
-        return new Date((num - 25569) * 86400 * 1000).toISOString();
-      }
-      // Standard Date
-      const d = new Date(val);
-      if (!isNaN(d.getTime())) return d.toISOString();
-      return null;
-    };
-
-    // Process each row
-    for (let i = 1; i < lines.length; i++) {
-      let line = lines[i].trim();
-      // Skip completely empty lines, but process lines with commas (even if mostly empty)
-      if (!line && !lines[i].includes(',')) continue;
-
-      // If line is empty but has commas, keep it (might be a row with empty values)
-      if (!line && lines[i].includes(',')) {
-        line = lines[i];
-      }
-
-      try {
-        // Parse CSV row using the same parser function (handle quoted values)
-        const values = parseCSVLine(line);
-
-        // Ensure we have enough values (pad with empty strings if needed)
-        while (values.length < headers.length) {
-          values.push('');
-        }
-
-        // Map values using column indices
-        const getValue = (index) => {
-          if (index === -1 || index >= values.length) return '';
-          return values[index]?.trim() || '';
-        };
-
-        // Get name (either from 'name' column OR 'first_name' + 'last_name')
-        let name = '';
-        if (columnIndices.name !== -1) {
-          name = getValue(columnIndices.name);
-        } else if (columnIndices.first_name !== -1 && columnIndices.last_name !== -1) {
-          const firstName = getValue(columnIndices.first_name);
-          const lastName = getValue(columnIndices.last_name);
-          name = `${firstName} ${lastName}`.trim();
-        }
-
-        // Get phone number and extract country code if present
-        let phoneNumber = getValue(columnIndices.phone_number);
-        let phoneCountryCode = getValue(columnIndices.phone_country_code);
-        let secondaryPhoneNumber = null;
-
-        // If phone number starts with +, extract country code
-        if (phoneNumber && phoneNumber.startsWith('+') && !phoneCountryCode) {
-          // Try to extract country code (common formats: +91, +971, +1, etc.)
-          const match = phoneNumber.match(/^(\+\d{1,3})(.+)$/);
-          if (match) {
-            phoneCountryCode = match[1]; // e.g., +91
-            phoneNumber = match[2].trim(); // e.g., 9876543210
-          }
-        }
-
-        // Fix repeating phone numbers (common CSV export error)
-        // Fix repeating phone numbers (common CSV export error)
-        if (phoneNumber && typeof phoneNumber === 'string') {
-          // Normalize ALL whitespace (including NBSP, tabs) to a single space
-          const cleanVal = phoneNumber.replace(/[\s\u00A0]+/g, ' ').trim();
-
-          // Method 1: Split by delimiters (space, comma, semicolon, slash, dash)
-          // Since we normalized to space, splitting by space is robust
-          const parts = cleanVal.split(/[ ,;/]+| - /).filter(p => p.trim().length > 0);
-
-          if (parts.length >= 2) {
-            phoneNumber = parts[0]; // Keep only first part
-
-            // Move second part to secondary if empty
-            if (!secondaryPhoneNumber) {
-              secondaryPhoneNumber = parts[1];
-            }
-          }
-          // Method 2: Check concatenated duplication (e.g. "123123") - ONLY if single part
-          else if (parts.length === 1 && cleanVal.length > 10 && cleanVal.length % 2 === 0) {
-            const half = cleanVal.length / 2;
-            if (cleanVal.substring(0, half) === cleanVal.substring(half)) {
-              phoneNumber = cleanVal.substring(0, half);
-              if (!secondaryPhoneNumber) {
-                secondaryPhoneNumber = cleanVal.substring(half);
-              }
-            }
-          }
-        }
-
-        // Get other fields
-        const email = getValue(columnIndices.email);
-        const age = getValue(columnIndices.age);
-        const occupation = getValue(columnIndices.occupation);
-        const qualification = getValue(columnIndices.qualification);
-        const yearOfExperience = getValue(columnIndices.year_of_experience);
-        const country = getValue(columnIndices.country);
-        const program = getValue(columnIndices.program);
-        let status = getValue(columnIndices.status);
-        const priority = getValue(columnIndices.priority);
-
-        // Get Meta Ads specific fields
-        const metaAdName = getValue(columnIndices.meta_ad_name);
-        const metaCampaignName = getValue(columnIndices.meta_campaign_name);
-        const metaFormName = getValue(columnIndices.meta_form_name);
-        const metaLeadId = getValue(columnIndices.meta_lead_id);
-        const metaCreatedTime = getValue(columnIndices.meta_created_time);
-
-        // Get source and IELTS score
-        let source = getValue(columnIndices.source);
-        const ieltsScore = getValue(columnIndices.ielts_score);
-
-        // Build source from Meta Ads fields or use provided source
-        if (!source && (metaAdName || metaCampaignName || metaFormName)) {
-          const metaParts = [];
-          if (metaCampaignName) metaParts.push(`Campaign: ${metaCampaignName}`);
-          if (metaAdName) metaParts.push(`Ad: ${metaAdName}`);
-          if (metaFormName) metaParts.push(`Form: ${metaFormName}`);
-          source = metaParts.join(' | ');
-        }
-
-        // Build comment - combine existing comment with Meta Ads info
-        let comment = getValue(columnIndices.comment) || '';
-        if (metaLeadId || metaCreatedTime || metaAdName || metaCampaignName) {
-          const metaInfo = [];
-          if (metaLeadId) metaInfo.push(`Lead ID: ${metaLeadId}`);
-          if (metaCreatedTime) metaInfo.push(`Created: ${metaCreatedTime}`);
-          if (metaAdName && !source) metaInfo.push(`Ad: ${metaAdName}`);
-          if (metaCampaignName && !source) metaInfo.push(`Campaign: ${metaCampaignName}`);
-          if (metaFormName) metaInfo.push(`Form: ${metaFormName}`);
-
-          if (metaInfo.length > 0) {
-            const metaInfoStr = `Meta Ads: ${metaInfo.join(', ')}`;
-            comment = comment ? `${comment} | ${metaInfoStr}` : metaInfoStr;
-          }
-        }
-
-        // If no comment but we have source, use source as comment
-        if (!comment && source) {
-          comment = source;
-        }
-
-        const followUpDate = parseDate(getValue(columnIndices.follow_up_date) || metaCreatedTime); // Use Meta created time if no follow_up_date
-        const followUpStatus = getValue(columnIndices.follow_up_status) || 'Pending';
-        const whatsappNumber = getValue(columnIndices.whatsapp_number);
-        const whatsappCountryCode = getValue(columnIndices.whatsapp_country_code);
-
-        // Handle assigned_staff - can be name or ID
-        let finalAssignedStaffId = assignedStaffId; // Default to current user or null for admin
-        const assignedStaffValue = getValue(columnIndices.assigned_staff);
-        if (assignedStaffValue && role === 'ADMIN') {
-          // Try to find user by name (case-insensitive)
-          const allUsers = await db.getUsers();
-          const matchedUser = allUsers.find(u =>
-            u.name.toLowerCase() === assignedStaffValue.toLowerCase() ||
-            u.email.toLowerCase() === assignedStaffValue.toLowerCase()
-          );
-          if (matchedUser) {
-            finalAssignedStaffId = matchedUser.id;
-            console.log(`✅ Found staff "${assignedStaffValue}" → ID: ${matchedUser.id}`);
-          } else {
-            console.log(`⚠️ Staff "${assignedStaffValue}" not found, lead will be unassigned`);
-          }
-        }
-
-        // Validate required fields
-
-        // Skip empty rows (fixes trailing empty lines issue)
-        if (!name && !phoneNumber && !email && !status) {
-          continue;
-        }
-
-        // Handle missing name
-        if (!name) {
-          name = `Unknown Lead (Row ${i + 1})`;
-          comment = comment ? `${comment} | Name missing in import` : 'Name missing in import';
-        }
-
-        // Handle missing phone
-        if (!phoneNumber) {
-          // Create unique dummy phone to bypass NOT NULL constraint
-          // format: 000-timestamp-row
-          phoneNumber = `000-${Date.now().toString().slice(-6)}-${i}`;
-          comment = comment ? `${comment} | Phone missing in import` : 'Phone missing in import';
-        }
-
+      // Strategy 5: Check normalized headers too
+      if (i < headers.length && headers[i]) {
+        const normHeader = headers[i].toLowerCase();
+        if (normHeader === termLower) return true;
         /* 
-        // Strict check removed effectively
-        if (!name || !phoneNumber) { ... } 
+        if (normHeader === termLower ||
+          normHeader.includes(termLower) ||
+          termLower.includes(normHeader)) return true; 
         */
+      }
 
-        // Check for duplicates using in-memory sets (FAST!)
-        if (existingPhones.has(phoneNumber.toLowerCase())) {
-          results.skipped++;
-          continue;
-        }
+      return false;
+    });
+    if (idx !== -1) {
+      console.log(`✅ Simple direct match: "${term}" → "${headerValues[idx]}" (index: ${idx})`);
+      return idx;
+    }
+  }
+  return -1;
+};
 
-        if (email && existingEmails.has(email.toLowerCase())) {
-          results.skipped++;
-          continue;
-        }
+// Check for name (either 'name' OR 'first_name' + 'last_name')
+// START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
+let nameIndex = findSimpleIndex(['name', 'full_name', 'fullname', 'client', 'client_name', 'student', 'student_name', 'prospect', 'prospect_name', 'customer', 'customer_name']);
+let firstNameIndex = findSimpleIndex(['first_name', 'firstname', 'fname', 'first']);
+let lastNameIndex = findSimpleIndex(['last_name', 'lastname', 'lname', 'surname', 'last']);
 
-        // Map status values (handle different status formats)
-        if (!status) {
-          status = 'New';
-        } else {
-          // Normalize status values
-          const statusLower = status.toLowerCase();
-          if (statusLower.includes('new') || statusLower.includes('pending')) {
-            status = 'New';
-          } else if (statusLower.includes('follow') || statusLower.includes('followup')) {
-            status = 'Follow-up';
-          } else if (statusLower.includes('prospect')) {
-            status = 'Prospect';
-          } else if (statusLower.includes('not eligible') || statusLower.includes('ineligible')) {
-            status = 'Not Eligible';
-          } else if (statusLower.includes('not interested') || statusLower.includes('uninterested')) {
-            status = 'Not Interested';
-          } else if (statusLower.includes('registration') || statusLower.includes('completed')) {
-            status = 'Registration Completed';
-          } else {
-            // Check if it matches a valid status exactly
-            const validStatuses = ['New', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
-            if (!validStatuses.includes(status)) {
-              status = 'New'; // Default to New if unknown
-            }
-          }
-        }
+// Then try the complex matching if simple check failed
+if (nameIndex === -1) nameIndex = findColumnIndex(columnMapping.name);
+if (firstNameIndex === -1) firstNameIndex = findColumnIndex(columnMapping.first_name);
+if (lastNameIndex === -1) lastNameIndex = findColumnIndex(columnMapping.last_name);
 
-        // Validate priority
-        let finalPriority = priority || null;
-        if (finalPriority) {
-          const validPriorities = ['hot', 'warm', 'cold', 'not interested', 'not eligible'];
-          if (!validPriorities.includes(finalPriority.toLowerCase())) {
-            finalPriority = null;
-          }
-        }
+// Fallback to direct search if matching failed
+if (nameIndex === -1) nameIndex = findDirectIndex(columnMapping.name);
+if (firstNameIndex === -1) firstNameIndex = findDirectIndex(columnMapping.first_name);
+if (lastNameIndex === -1) lastNameIndex = findDirectIndex(columnMapping.last_name);
 
-        // Add to batch insert array
-        validLeads.push({
-          name,
-          phone_number: phoneNumber,
-          phone_country_code: phoneCountryCode || '+91',
-          whatsapp_number: (whatsappNumber && whatsappNumber !== '-' && whatsappNumber.trim().length > 0) ? whatsappNumber : null,
-          whatsapp_country_code: whatsappCountryCode || '+91',
-          email: email || null,
-          age: age || null,
-          occupation: occupation || null,
-          qualification: qualification || null,
-          year_of_experience: yearOfExperience || null,
-          country: country || null,
-          program: program || null,
-          status,
-          priority: finalPriority,
-          comment: comment || null,
-          follow_up_date: followUpDate || null,
-          follow_up_status: followUpStatus || 'Pending',
-          assigned_staff_id: finalAssignedStaffId,
-          source: source || null,
-          ielts_score: ieltsScore || null,
-          created_by: userId,
-          created_at: now,
-          created_at: now,
-          updated_at: now,
-          secondary_phone_number: secondaryPhoneNumber,
-        });
-      } catch (error) {
-        results.errors++;
-        results.errorRows.push({
-          row: i + 1,
-          message: error.message || 'Error processing row',
-        });
+// NUCLEAR FALLBACK: Keyword search
+if (nameIndex === -1) nameIndex = findKeywordIndex(['name', 'fullname', 'full_name', 'client']);
+if (firstNameIndex === -1) firstNameIndex = findKeywordIndex(['first', 'fname', 'firstname']);
+if (lastNameIndex === -1) lastNameIndex = findKeywordIndex(['last', 'lname', 'lastname', 'surname']);
+
+const hasName = nameIndex !== -1 || (firstNameIndex !== -1 && lastNameIndex !== -1);
+
+console.log('🔍 Name column check:', {
+  nameIndex,
+  firstNameIndex,
+  lastNameIndex,
+  hasName
+});
+
+// Check for phone - try multiple variations
+// START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
+let phoneIndex = findSimpleIndex(['phone', 'phone_number', 'mobile', 'mobile_number', 'contact_number', 'phone_no', 'cell', 'cell_phone', 'telephone', 'contact', 'whatsapp', 'call']);
+
+// Then try the complex matching if simple check failed
+if (phoneIndex === -1) phoneIndex = findColumnIndex(columnMapping.phone_number);
+
+// Fallback to direct search if matching failed
+if (phoneIndex === -1) phoneIndex = findDirectIndex(columnMapping.phone_number);
+
+// NUCLEAR FALLBACK: Keyword search
+if (phoneIndex === -1) phoneIndex = findKeywordIndex(['phone', 'mobile', 'contact', 'tel', 'number', 'cell']);
+
+const hasPhone = phoneIndex !== -1;
+
+console.log('🔍 Phone column check:', {
+  phoneIndex,
+  hasPhone,
+  searchedFor: columnMapping.phone_number
+});
+
+if (!hasName) {
+  console.error('❌ Bulk import: Missing name column');
+  console.error('   Available normalized headers:', headers);
+  console.error('   Available original headers:', headerValues);
+  console.error('   Searched for name:', columnMapping.name);
+  console.error('   Searched for first_name:', columnMapping.first_name);
+  console.error('   Searched for last_name:', columnMapping.last_name);
+  console.error('   nameIndex:', nameIndex, 'firstNameIndex:', firstNameIndex, 'lastNameIndex:', lastNameIndex);
+  return res.status(400).json({
+    error: 'Missing required columns: name, phone_number',
+    details: `Found columns: ${headerValues.join(', ')}. Required: name OR (first_name + last_name), and phone_number OR phone`,
+    availableColumns: headerValues // Return original headers for user reference
+  });
+}
+
+if (!hasPhone) {
+  console.error('❌ Bulk import: Missing phone column');
+  console.error('   Available normalized headers:', headers);
+  console.error('   Available original headers:', headerValues);
+  console.error('   Searched for phone:', columnMapping.phone_number);
+  console.error('   phoneIndex:', phoneIndex);
+  return res.status(400).json({
+    error: 'Missing required columns: name, phone_number',
+    details: `Found columns: ${headerValues.join(', ')}. Required: phone_number, phone, or mobile`,
+    availableColumns: headerValues // Return original headers for user reference
+  });
+}
+
+// Map all column indices
+// Also detect Meta Ads specific columns
+const metaAdsColumns = {
+  ad_name: findSimpleIndex(['ad name', 'ad_name', 'adname']),
+  campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname']),
+  form_name: findSimpleIndex(['form name', 'form_name', 'formname']),
+  lead_id: findSimpleIndex(['lead id', 'lead_id', 'leadid', 'id']),
+  created_time: findSimpleIndex(['created time', 'created_time', 'created date', 'created_date', 'date', 'timestamp']),
+};
+
+const columnIndices = {
+  name: nameIndex,
+  first_name: firstNameIndex,
+  last_name: lastNameIndex,
+  phone_number: phoneIndex,
+  phone_country_code: findColumnIndex(columnMapping.phone_country_code),
+  whatsapp_number: findColumnIndex(columnMapping.whatsapp_number),
+  whatsapp_country_code: findColumnIndex(columnMapping.whatsapp_country_code),
+  email: findColumnIndex(columnMapping.email),
+  age: findColumnIndex(columnMapping.age),
+  occupation: findColumnIndex(columnMapping.occupation),
+  qualification: findColumnIndex(columnMapping.qualification),
+  year_of_experience: findColumnIndex(columnMapping.year_of_experience),
+  country: findColumnIndex(columnMapping.country),
+  program: findColumnIndex(columnMapping.program),
+  status: findColumnIndex(columnMapping.status),
+  priority: findColumnIndex(columnMapping.priority),
+  comment: findColumnIndex(columnMapping.comment),
+  follow_up_date: findColumnIndex(columnMapping.follow_up_date),
+  follow_up_status: findColumnIndex(columnMapping.follow_up_status),
+  assigned_staff: findColumnIndex(columnMapping.assigned_staff),
+  source: findColumnIndex(columnMapping.source),
+  ielts_score: findColumnIndex(columnMapping.ielts_score),
+  // Meta Ads specific columns
+  meta_ad_name: metaAdsColumns.ad_name,
+  meta_campaign_name: metaAdsColumns.campaign_name,
+  meta_form_name: metaAdsColumns.form_name,
+  meta_lead_id: metaAdsColumns.lead_id,
+  meta_created_time: metaAdsColumns.created_time,
+};
+
+console.log('✅ Column mapping successful:', {
+  name: columnIndices.name !== -1 ? 'found' : (columnIndices.first_name !== -1 && columnIndices.last_name !== -1 ? 'first_name + last_name' : 'missing'),
+  phone: columnIndices.phone_number !== -1 ? 'found' : 'missing',
+  email: columnIndices.email !== -1 ? 'found' : 'missing',
+});
+
+// Get all existing leads for duplicate checking (PostgreSQL)
+const existingLeads = await db.getLeads();
+const existingPhones = new Set(existingLeads.map(l => l.phone_number?.toLowerCase()));
+const existingEmails = new Set(existingLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+
+const results = {
+  total: lines.length - 1,
+  created: 0,
+  skipped: 0,
+  errors: 0,
+  errorRows: [],
+};
+
+// Collect valid leads for batch insert
+const validLeads = [];
+const now = new Date().toISOString();
+const assignedStaffId = (role === 'ADMIN') ? null : userId;
+
+// Helper: Parse Date (handles Excel serials + strings)
+const parseDate = (val) => {
+  if (!val) return null;
+  // Excel Serial Date (e.g. 46023)
+  // ~25569 is 1970-01-01 in Excel serial days (1900 system)
+  const num = Number(val);
+  if (!isNaN(num) && num > 10000 && num < 90000) {
+    return new Date((num - 25569) * 86400 * 1000).toISOString();
+  }
+  // Standard Date
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) return d.toISOString();
+  return null;
+};
+
+// Process each row
+for (let i = 1; i < lines.length; i++) {
+  let line = lines[i].trim();
+  // Skip completely empty lines, but process lines with commas (even if mostly empty)
+  if (!line && !lines[i].includes(',')) continue;
+
+  // If line is empty but has commas, keep it (might be a row with empty values)
+  if (!line && lines[i].includes(',')) {
+    line = lines[i];
+  }
+
+  try {
+    // Parse CSV row using the same parser function (handle quoted values)
+    const values = parseCSVLine(line);
+
+    // Ensure we have enough values (pad with empty strings if needed)
+    while (values.length < headers.length) {
+      values.push('');
+    }
+
+    // Map values using column indices
+    const getValue = (index) => {
+      if (index === -1 || index >= values.length) return '';
+      return values[index]?.trim() || '';
+    };
+
+    // Get name (either from 'name' column OR 'first_name' + 'last_name')
+    let name = '';
+    if (columnIndices.name !== -1) {
+      name = getValue(columnIndices.name);
+    } else if (columnIndices.first_name !== -1 && columnIndices.last_name !== -1) {
+      const firstName = getValue(columnIndices.first_name);
+      const lastName = getValue(columnIndices.last_name);
+      name = `${firstName} ${lastName}`.trim();
+    }
+
+    // Get phone number and extract country code if present
+    let phoneNumber = getValue(columnIndices.phone_number);
+    let phoneCountryCode = getValue(columnIndices.phone_country_code);
+    let secondaryPhoneNumber = null;
+
+    // If phone number starts with +, extract country code
+    if (phoneNumber && phoneNumber.startsWith('+') && !phoneCountryCode) {
+      // Try to extract country code (common formats: +91, +971, +1, etc.)
+      const match = phoneNumber.match(/^(\+\d{1,3})(.+)$/);
+      if (match) {
+        phoneCountryCode = match[1]; // e.g., +91
+        phoneNumber = match[2].trim(); // e.g., 9876543210
       }
     }
 
-    // Batch insert all valid leads using PostgreSQL transaction
-    if (validLeads.length > 0) {
-      const client = await db.pool.connect();
-      try {
-        await client.query('BEGIN');
+    // Fix repeating phone numbers (common CSV export error)
+    // Fix repeating phone numbers (common CSV export error)
+    if (phoneNumber && typeof phoneNumber === 'string') {
+      // Normalize ALL whitespace (including NBSP, tabs) to a single space
+      const cleanVal = phoneNumber.replace(/[\s\u00A0]+/g, ' ').trim();
 
-        // Insert leads one by one in transaction
-        // Note: We let PostgreSQL auto-generate IDs using the sequence
-        for (const lead of validLeads) {
-          try {
-            await client.query(`
+      // Method 1: Split by delimiters (space, comma, semicolon, slash, dash)
+      // Since we normalized to space, splitting by space is robust
+      const parts = cleanVal.split(/[ ,;/]+| - /).filter(p => p.trim().length > 0);
+
+      if (parts.length >= 2) {
+        phoneNumber = parts[0]; // Keep only first part
+
+        // Move second part to secondary if empty
+        if (!secondaryPhoneNumber) {
+          secondaryPhoneNumber = parts[1];
+        }
+      }
+      // Method 2: Check concatenated duplication (e.g. "123123") - ONLY if single part
+      else if (parts.length === 1 && cleanVal.length > 10 && cleanVal.length % 2 === 0) {
+        const half = cleanVal.length / 2;
+        if (cleanVal.substring(0, half) === cleanVal.substring(half)) {
+          phoneNumber = cleanVal.substring(0, half);
+          if (!secondaryPhoneNumber) {
+            secondaryPhoneNumber = cleanVal.substring(half);
+          }
+        }
+      }
+    }
+
+    // Get other fields
+    const email = getValue(columnIndices.email);
+    const age = getValue(columnIndices.age);
+    const occupation = getValue(columnIndices.occupation);
+    const qualification = getValue(columnIndices.qualification);
+    const yearOfExperience = getValue(columnIndices.year_of_experience);
+    const country = getValue(columnIndices.country);
+    const program = getValue(columnIndices.program);
+    let status = getValue(columnIndices.status);
+    const priority = getValue(columnIndices.priority);
+
+    // Get Meta Ads specific fields
+    const metaAdName = getValue(columnIndices.meta_ad_name);
+    const metaCampaignName = getValue(columnIndices.meta_campaign_name);
+    const metaFormName = getValue(columnIndices.meta_form_name);
+    const metaLeadId = getValue(columnIndices.meta_lead_id);
+    const metaCreatedTime = getValue(columnIndices.meta_created_time);
+
+    // Get source and IELTS score
+    let source = getValue(columnIndices.source);
+    const ieltsScore = getValue(columnIndices.ielts_score);
+
+    // Build source from Meta Ads fields or use provided source
+    if (!source && (metaAdName || metaCampaignName || metaFormName)) {
+      const metaParts = [];
+      if (metaCampaignName) metaParts.push(`Campaign: ${metaCampaignName}`);
+      if (metaAdName) metaParts.push(`Ad: ${metaAdName}`);
+      if (metaFormName) metaParts.push(`Form: ${metaFormName}`);
+      source = metaParts.join(' | ');
+    }
+
+    // Build comment - combine existing comment with Meta Ads info
+    let comment = getValue(columnIndices.comment) || '';
+    if (metaLeadId || metaCreatedTime || metaAdName || metaCampaignName) {
+      const metaInfo = [];
+      if (metaLeadId) metaInfo.push(`Lead ID: ${metaLeadId}`);
+      if (metaCreatedTime) metaInfo.push(`Created: ${metaCreatedTime}`);
+      if (metaAdName && !source) metaInfo.push(`Ad: ${metaAdName}`);
+      if (metaCampaignName && !source) metaInfo.push(`Campaign: ${metaCampaignName}`);
+      if (metaFormName) metaInfo.push(`Form: ${metaFormName}`);
+
+      if (metaInfo.length > 0) {
+        const metaInfoStr = `Meta Ads: ${metaInfo.join(', ')}`;
+        comment = comment ? `${comment} | ${metaInfoStr}` : metaInfoStr;
+      }
+    }
+
+    // If no comment but we have source, use source as comment
+    if (!comment && source) {
+      comment = source;
+    }
+
+    const followUpDate = parseDate(getValue(columnIndices.follow_up_date) || metaCreatedTime); // Use Meta created time if no follow_up_date
+    const followUpStatus = getValue(columnIndices.follow_up_status) || 'Pending';
+    const whatsappNumber = getValue(columnIndices.whatsapp_number);
+    const whatsappCountryCode = getValue(columnIndices.whatsapp_country_code);
+
+    // Handle assigned_staff - can be name or ID
+    let finalAssignedStaffId = assignedStaffId; // Default to current user or null for admin
+    const assignedStaffValue = getValue(columnIndices.assigned_staff);
+    if (assignedStaffValue && role === 'ADMIN') {
+      // Try to find user by name (case-insensitive)
+      const allUsers = await db.getUsers();
+      const matchedUser = allUsers.find(u =>
+        u.name.toLowerCase() === assignedStaffValue.toLowerCase() ||
+        u.email.toLowerCase() === assignedStaffValue.toLowerCase()
+      );
+      if (matchedUser) {
+        finalAssignedStaffId = matchedUser.id;
+        console.log(`✅ Found staff "${assignedStaffValue}" → ID: ${matchedUser.id}`);
+      } else {
+        console.log(`⚠️ Staff "${assignedStaffValue}" not found, lead will be unassigned`);
+      }
+    }
+
+    // Validate required fields
+
+    // Skip empty rows (fixes trailing empty lines issue)
+    if (!name && !phoneNumber && !email && !status) {
+      continue;
+    }
+
+    // Handle missing name
+    if (!name) {
+      name = `Unknown Lead (Row ${i + 1})`;
+      comment = comment ? `${comment} | Name missing in import` : 'Name missing in import';
+    }
+
+    // Handle missing phone
+    if (!phoneNumber) {
+      // Create unique dummy phone to bypass NOT NULL constraint
+      // format: 000-timestamp-row
+      phoneNumber = `000-${Date.now().toString().slice(-6)}-${i}`;
+      comment = comment ? `${comment} | Phone missing in import` : 'Phone missing in import';
+    }
+
+    /* 
+    // Strict check removed effectively
+    if (!name || !phoneNumber) { ... } 
+    */
+
+    // Check for duplicates using in-memory sets (FAST!)
+    if (existingPhones.has(phoneNumber.toLowerCase())) {
+      results.skipped++;
+      continue;
+    }
+
+    if (email && existingEmails.has(email.toLowerCase())) {
+      results.skipped++;
+      continue;
+    }
+
+    // Map status values (handle different status formats)
+    if (!status) {
+      status = 'New';
+    } else {
+      // Normalize status values
+      const statusLower = status.toLowerCase();
+      if (statusLower.includes('new') || statusLower.includes('pending')) {
+        status = 'New';
+      } else if (statusLower.includes('follow') || statusLower.includes('followup')) {
+        status = 'Follow-up';
+      } else if (statusLower.includes('prospect')) {
+        status = 'Prospect';
+      } else if (statusLower.includes('not eligible') || statusLower.includes('ineligible')) {
+        status = 'Not Eligible';
+      } else if (statusLower.includes('not interested') || statusLower.includes('uninterested')) {
+        status = 'Not Interested';
+      } else if (statusLower.includes('registration') || statusLower.includes('completed')) {
+        status = 'Registration Completed';
+      } else {
+        // Check if it matches a valid status exactly
+        const validStatuses = ['New', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+        if (!validStatuses.includes(status)) {
+          status = 'New'; // Default to New if unknown
+        }
+      }
+    }
+
+    // Validate priority
+    let finalPriority = priority || null;
+    if (finalPriority) {
+      const validPriorities = ['hot', 'warm', 'cold', 'not interested', 'not eligible'];
+      if (!validPriorities.includes(finalPriority.toLowerCase())) {
+        finalPriority = null;
+      }
+    }
+
+    // Add to batch insert array
+    validLeads.push({
+      name,
+      phone_number: phoneNumber,
+      phone_country_code: phoneCountryCode || '+91',
+      whatsapp_number: (whatsappNumber && whatsappNumber !== '-' && whatsappNumber.trim().length > 0) ? whatsappNumber : null,
+      whatsapp_country_code: whatsappCountryCode || '+91',
+      email: email || null,
+      age: age || null,
+      occupation: occupation || null,
+      qualification: qualification || null,
+      year_of_experience: yearOfExperience || null,
+      country: country || null,
+      program: program || null,
+      status,
+      priority: finalPriority,
+      comment: comment || null,
+      follow_up_date: followUpDate || null,
+      follow_up_status: followUpStatus || 'Pending',
+      assigned_staff_id: finalAssignedStaffId,
+      source: source || null,
+      ielts_score: ieltsScore || null,
+      created_by: userId,
+      created_at: now,
+      created_at: now,
+      updated_at: now,
+      secondary_phone_number: secondaryPhoneNumber,
+    });
+  } catch (error) {
+    results.errors++;
+    results.errorRows.push({
+      row: i + 1,
+      message: error.message || 'Error processing row',
+    });
+  }
+}
+
+// Batch insert all valid leads using PostgreSQL transaction
+if (validLeads.length > 0) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Insert leads one by one in transaction
+    // Note: We let PostgreSQL auto-generate IDs using the sequence
+    for (const lead of validLeads) {
+      try {
+        await client.query(`
               INSERT INTO leads (
                 name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code,
                 email, age, occupation, qualification, year_of_experience, country, program,
@@ -1823,74 +1811,74 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
                 assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number
               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
             `, [
-              lead.name,
-              lead.phone_number || '',
-              lead.phone_country_code || '+91',
-              lead.whatsapp_number || null,
-              lead.whatsapp_country_code || '+91',
-              lead.email || null,
-              lead.age || null,
-              lead.occupation || null,
-              lead.qualification || null,
-              lead.year_of_experience || null,
-              lead.country || null,
-              lead.program || null,
-              lead.status || 'New',
-              lead.priority || null,
-              lead.comment || null,
-              lead.follow_up_date || null,
-              lead.follow_up_status || 'Pending',
-              lead.assigned_staff_id || null,
-              lead.source || null,
-              lead.ielts_score || null,
-              lead.created_by || null,
-              lead.created_at || new Date().toISOString(),
-              lead.updated_at || new Date().toISOString(),
-              lead.secondary_phone_number || null
-            ]);
+          lead.name,
+          lead.phone_number || '',
+          lead.phone_country_code || '+91',
+          lead.whatsapp_number || null,
+          lead.whatsapp_country_code || '+91',
+          lead.email || null,
+          lead.age || null,
+          lead.occupation || null,
+          lead.qualification || null,
+          lead.year_of_experience || null,
+          lead.country || null,
+          lead.program || null,
+          lead.status || 'New',
+          lead.priority || null,
+          lead.comment || null,
+          lead.follow_up_date || null,
+          lead.follow_up_status || 'Pending',
+          lead.assigned_staff_id || null,
+          lead.source || null,
+          lead.ielts_score || null,
+          lead.created_by || null,
+          lead.created_at || new Date().toISOString(),
+          lead.updated_at || new Date().toISOString(),
+          lead.secondary_phone_number || null
+        ]);
 
-            // Update duplicate check sets
-            existingPhones.add(lead.phone_number.toLowerCase());
-            if (lead.email) {
-              existingEmails.add(lead.email.toLowerCase());
-            }
-          } catch (leadError) {
-            console.error(`❌ Error inserting lead ${lead.name}:`, leadError.message);
-            results.errors++;
-            results.errorRows.push({
-              row: 'batch',
-              message: `Error inserting ${lead.name}: ${leadError.message}`,
-            });
-          }
+        // Update duplicate check sets
+        existingPhones.add(lead.phone_number.toLowerCase());
+        if (lead.email) {
+          existingEmails.add(lead.email.toLowerCase());
         }
-
-        await client.query('COMMIT');
-        results.created = validLeads.length - results.errors;
-        console.log(`✅ Bulk import: Created ${results.created} leads in batch transaction`);
-      } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('❌ Batch insert error:', error);
-        results.errors += validLeads.length;
+      } catch (leadError) {
+        console.error(`❌ Error inserting lead ${lead.name}:`, leadError.message);
+        results.errors++;
         results.errorRows.push({
           row: 'batch',
-          message: error.message || 'Batch insert failed',
+          message: `Error inserting ${lead.name}: ${leadError.message}`,
         });
-      } finally {
-        client.release();
       }
     }
 
-    res.json({
-      success: true,
-      ...results,
-    });
+    await client.query('COMMIT');
+    results.created = validLeads.length - results.errors;
+    console.log(`✅ Bulk import: Created ${results.created} leads in batch transaction`);
   } catch (error) {
-    console.error('Bulk import error:', error);
-    res.status(500).json({
-      error: 'Server error',
-      details: error.message
+    await client.query('ROLLBACK');
+    console.error('❌ Batch insert error:', error);
+    results.errors += validLeads.length;
+    results.errorRows.push({
+      row: 'batch',
+      message: error.message || 'Batch insert failed',
     });
+  } finally {
+    client.release();
   }
+}
+
+res.json({
+  success: true,
+  ...results,
+});
+  } catch (error) {
+  console.error('Bulk import error:', error);
+  res.status(500).json({
+    error: 'Server error',
+    details: error.message
+  });
+}
 });
 
 // Bulk delete leads
