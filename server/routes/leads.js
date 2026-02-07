@@ -376,21 +376,18 @@ router.get('/:id', authenticate, async (req, res) => {
     // CRITICAL: Non-admin roles can only see their own leads (or team leads for heads)
     if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
       filter.assigned_staff_id = userId;
+    } else if (role === 'SALES_TEAM_HEAD') {
+      // Sales team head can see their own and their team's leads
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
+      // We'll filter after fetching
     }
 
-    // Parallelize fetching lead and team members (for permission check)
-    const promises = [db.getLeads(filter)];
-
-    if (role === 'SALES_TEAM_HEAD') {
-      promises.push(db.getUsers({ managed_by: userId }));
-    }
-
-    const results = await Promise.all(promises);
-    let leads = results[0];
-    const teamMembers = results[1] || [];
+    let leads = await db.getLeads(filter);
 
     // Apply team head filtering if needed
     if (role === 'SALES_TEAM_HEAD') {
+      const teamMembers = await db.getUsers({ managed_by: userId });
       const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
       leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
     }
