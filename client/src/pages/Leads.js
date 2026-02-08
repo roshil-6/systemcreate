@@ -382,7 +382,6 @@ const Leads = () => {
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <h1>Clients (Leads)</h1>
-          <span style={{ fontSize: '10px', color: '#888' }}>v1.7.0 (Modal Fixed)</span>
         </div>
       </div>
 
