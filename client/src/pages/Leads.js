@@ -797,7 +797,6 @@ const Leads = () => {
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm(`Are you sure you want to delete lead: ${lead.name}?`)) {
-                              setLoadingLeadDetails(true); // Re-using existing loading state lightly or just await
                               axios.delete(`${API_BASE_URL}/api/leads/${lead.id}`, {
                                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                               })
@@ -808,8 +807,7 @@ const Leads = () => {
                                 .catch(error => {
                                   console.error('Delete error:', error);
                                   alert('Failed to delete lead');
-                                })
-                                .finally(() => setLoadingLeadDetails(false));
+                                });
                             }
                           }}
                           style={{
