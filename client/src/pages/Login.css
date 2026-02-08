@@ -52,51 +52,36 @@
 */
 
 .login-card {
-  background: rgba(20, 20, 20, 0.95);
-  /* Dark premium background */
-  border-radius: 20px;
-  padding: 60px;
-  /* Bigger padding */
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 40px;
   width: 100%;
-  max-width: 500px;
-  /* Bigger width */
+  max-width: 400px;
   box-shadow:
-    0 25px 80px rgba(0, 0, 0, 0.7),
-    0 0 0 2px rgba(212, 175, 55, 0.3),
-    /* Golden border effect */
-    inset 0 0 20px rgba(212, 175, 55, 0.05);
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   position: relative;
   z-index: 1;
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(212, 175, 55, 0.4);
-  /* Golden border */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .login-header h1 {
-  font-size: 36px;
-  /* Bigger title */
-  color: #D4AF37;
-  /* Golden Text */
-  margin-bottom: 12px;
+  font-size: 28px;
+  color: #1a1a1a;
+  margin-bottom: 8px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .login-header p {
-  color: #a1a1aa;
-  /* Lighter grey for dark mode */
-  font-size: 16px;
-  letter-spacing: 0.5px;
+  color: #6b7280;
+  font-size: 14px;
 }
 
 .login-form {
@@ -104,48 +89,39 @@
 }
 
 .form-group {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 10px;
-  color: #D4AF37;
-  /* Golden labels */
+  margin-bottom: 8px;
+  color: #374151;
   font-size: 14px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-weight: 500;
 }
 
 .form-group input {
   width: 100%;
-  padding: 16px;
-  /* Bigger input padding */
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-  border-radius: 8px;
-  font-size: 16px;
-  color: #fff;
-  /* White text */
-  transition: all 0.3s ease;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s;
 }
 
 .form-group input:focus {
   outline: none;
   border-color: #D4AF37;
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
-  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
 }
 
 .error-message {
-  background: rgba(220, 38, 38, 0.2);
-  color: #ef4444;
+  background: #fee2e2;
+  color: #dc2626;
   padding: 12px;
   border-radius: 6px;
   margin-bottom: 20px;
   font-size: 14px;
-  border: 1px solid rgba(220, 38, 38, 0.3);
 }
 
 .btn-login {
