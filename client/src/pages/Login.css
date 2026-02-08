@@ -124,7 +124,7 @@
   font-size: 14px;
 }
 
-.btn-login {
+.login-button {
   width: 100%;
   padding: 16px;
   /* Bigger button */
@@ -144,14 +144,14 @@
   margin-top: 10px;
 }
 
-.btn-login:hover:not(:disabled) {
+.login-button:hover:not(:disabled) {
   background: linear-gradient(135deg, #E5C158 0%, #C9A961 50%, #B8860B 100%);
   /* Brighter on hover */
   box-shadow: 0 6px 25px rgba(212, 175, 55, 0.5);
   transform: translateY(-2px);
 }
 
-.btn-login:disabled {
+.login-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   background: #555;
