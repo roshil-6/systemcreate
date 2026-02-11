@@ -68,7 +68,10 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     await logLoginAttempt(req.body.email || 'unknown', false, 'Server error');
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({
+      error: 'Server error',
+      details: error.message
+    });
   }
 });
 
