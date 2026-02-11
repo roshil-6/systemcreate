@@ -3,6 +3,11 @@ console.log('🚀 CRM Server: Starting initialization...');
 const cors = require('cors');
 require('dotenv').config();
 
+const dns = require('dns');
+// Force IPv4 first to avoid Railway/Render connection timeouts (fixes "timeout exceeded")
+console.log('📡 Network: Forcing IPv4 preference...');
+dns.setDefaultResultOrder('ipv4first');
+
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
 const leadsRoutes = require('./routes/leads');
@@ -17,6 +22,9 @@ const fixCompletedActionsType = require('./scripts/fixCompletedActionsType');
 
 const app = express();
 const PORT = process.env.PORT || 5002;
+
+// --- READINESS STATE ---
+let isDatabaseReady = false;
 
 // Middleware
 const allowedOrigins = [
@@ -37,6 +45,19 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires']
 }));
+
+// --- READINESS GATEKEEPER ---
+// Prevent DB queries from being fired before the pool is stabilized
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/') && !isDatabaseReady) {
+    console.warn(`🛡️ Gatekeeper: Blocked ${req.method} ${req.path} (Database still warming up)`);
+    return res.status(503).json({
+      error: 'Backend is starting up',
+      message: 'The database is still connecting. Please wait 10-20 seconds and refresh.'
+    });
+  }
+  next();
+});
 
 // Essential health check (Database-less)
 app.get('/health', (req, res) => {
@@ -101,18 +122,22 @@ async function initializeDatabase() {
       await fixCompletedActionsType();
 
       // Check connectivity using the resilient query function
+      // Force a query to ensure the pool can actually talk to the DB
       await db.getUsers({}, { retries: 5 });
+
       console.log('✅ PostgreSQL database connected and schema verified');
+      isDatabaseReady = true; // <--- UNLOCK THE GATEKEEPER
       return;
     } catch (err) {
       retries++;
       console.error(`❌ Background DB initialization attempt ${retries} failed:`, err.message);
       if (retries < maxRetries) {
-        const delay = Math.min(1000 * Math.pow(1.5, retries), 30000);
+        // Progressive backoff: 5s, 10s, 15s...
+        const delay = Math.min(5000 * retries, 30000);
         console.log(`🔄 Retrying DB connection in ${Math.round(delay / 1000)} seconds...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       } else {
-        console.error('🛑 CRITICAL: Database failed to initialize after max retries.');
+        console.error('🛑 CRITICAL: Database failed to initialize after 10 attempts.');
       }
     }
   }

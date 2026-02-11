@@ -18,18 +18,18 @@ try {
 const poolConfig = {
   connectionString: process.env.DATABASE_URL,
   application_name: 'CRM_Server_Render',
-  max: 5, // Reduced max to 5 to avoid resource exhaustion and flaky resets
+  max: 3, // Reduced to 3 to stay strictly within free-tier limits and avoid resets
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 20000, // 20s for handshake
+  connectionTimeoutMillis: 30000, // Increased to 30s for slow cold-starts
 
   // Aggressive keepalives to prevent ECONNRESET on cloud proxies
   keepalives: true,
-  keepalives_count: 10,
-  keepalives_idle: 30, // 30s before first keepalive
-  keepalives_interval: 5, // Keepalive every 5s
+  keepalives_count: 5,
+  keepalives_idle: 30,
+  keepalives_interval: 10,
 
   // Production query safety
-  statement_timeout: 60000, // Wait up to 60s for a query
+  statement_timeout: 60000,
   query_timeout: 60000,
 
   // Essential SSL for hosted DBs
