@@ -1,13 +1,11 @@
-const { pool } = require('../config/database');
+const { query, pool } = require('../config/database');
 
 async function fixCompletedActionsType() {
-    let client;
     try {
-        client = await pool.connect();
         console.log('🔧 Checking schema for completed_actions...');
 
-        // Check current type
-        const res = await client.query(`
+        // Check current type using the resilient query function from database.js
+        const res = await query(`
             SELECT data_type, udt_name 
             FROM information_schema.columns 
             WHERE table_name = 'clients' AND column_name = 'completed_actions'
@@ -23,22 +21,17 @@ async function fixCompletedActionsType() {
             }
 
             console.log('⚠️ Column exists but is not JSONB. Dropping and recreating...');
-            await client.query('ALTER TABLE clients DROP COLUMN completed_actions');
+            await query('ALTER TABLE clients DROP COLUMN completed_actions');
         } else {
             console.log('ℹ️ Column does not exist. Creating...');
         }
 
-        // Create as JSONB
-        await client.query("ALTER TABLE clients ADD COLUMN completed_actions JSONB DEFAULT '[]'::JSONB");
+        // Create as JSONB using resilient query
+        await query("ALTER TABLE clients ADD COLUMN completed_actions JSONB DEFAULT '[]'::JSONB");
         console.log('✅ completed_actions column created/reset as JSONB');
 
     } catch (error) {
         console.error('❌ Error fixing schema:', error.message);
-    } finally {
-        if (client) client.release();
-        if (require.main === module) {
-            await pool.end();
-        }
     }
 }
 

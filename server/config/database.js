@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
+  application_name: 'CRM_Server_Render', // Helps with tracking and proxy stability
   max: 10,
   idleTimeoutMillis: 5000, // Close idle connections faster to refresh
   connectionTimeoutMillis: 30000, // 30s connection timeout
