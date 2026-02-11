@@ -2,11 +2,18 @@ const { Pool } = require('pg');
 
 // Initialize PostgreSQL connection pool
 // Production-ready configuration
+// --- CONNECTION STRING SANITIZATION ---
+let connectionString = process.env.DATABASE_URL;
+if (connectionString && !connectionString.includes('sslmode=')) {
+  // Railway/Neon often requires explicit sslmode in the string for some driver versions
+  connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=no-verify';
+}
+
 // Log target host for diagnostics (sanitized - no password)
 try {
-  if (process.env.DATABASE_URL) {
-    const dbUrl = new URL(process.env.DATABASE_URL.replace('postgres://', 'http://').replace('postgresql://', 'http://'));
-    console.log(`📡 Database Target: ${dbUrl.hostname}:${dbUrl.port || '5432'} (Database: ${dbUrl.pathname.substring(1)})`);
+  if (connectionString) {
+    const dbUrl = new URL(connectionString.replace('postgres://', 'http://').replace('postgresql://', 'http://'));
+    console.log(`📡 Database Target: ${dbUrl.hostname}:${dbUrl.port || '5432'} (Database: ${dbUrl.pathname.substring(1).split('?')[0]})`);
   } else {
     console.error('❌ DATABASE_URL is not set in environment variables!');
   }
@@ -14,50 +21,49 @@ try {
   console.log('📡 Database URL is set but could not be parsed for display');
 }
 
-// Construct connection config with optimized settings for Railway/Render
+// Construct connection config with "Ultra-Stability" settings
 const poolConfig = {
-  connectionString: process.env.DATABASE_URL,
+  connectionString: connectionString,
   application_name: 'CRM_Server_Render',
-  max: 3, // Reduced to 3 to stay strictly within free-tier limits and avoid resets
+  max: 2, // Minimal pool to stay under Railway's strict proxy limits
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 30000, // Increased to 30s for slow cold-starts
+  connectionTimeoutMillis: 10000, // Faster failure leads to faster retries
 
-  // Aggressive keepalives to prevent ECONNRESET on cloud proxies
+  // Minimal keepalives (Some proxies reset on too many heartbeats)
   keepalives: true,
-  keepalives_count: 5,
-  keepalives_idle: 30,
-  keepalives_interval: 10,
+  keepalives_count: 3,
+  keepalives_idle: 60,
+  keepalives_interval: 20,
 
-  // Production query safety
-  statement_timeout: 60000,
-  query_timeout: 60000,
-
-  // Essential SSL for hosted DBs
+  // SSL Protocol Hardening
   ssl: {
-    rejectUnauthorized: false
-  }
+    rejectUnauthorized: false,
+    minVersion: 'TLSv1.2' // Enforce modern TLS for Railway proxies
+  },
+
+  // Global query safety
+  statement_timeout: 45000,
+  query_timeout: 45000,
 };
 
 const pool = new Pool(poolConfig);
 
 // Test connection
 pool.on('connect', () => {
-  // Silent in production to avoid log noise, but help for debugging
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('✅ PostgreSQL database connected');
-  }
+  // Silent in production to avoid log noise
 });
 
 pool.on('error', (err) => {
-  console.error('❌ PostgreSQL database pool error:', err.message);
+  // Silencing pool errors unless they are critical, as they trigger retries
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('❌ PostgreSQL pool error:', err.message);
+  }
 });
 
 // Helper to execute queries with ultra-resilient retry logic
-// options.retries: number of retries (default 10)
-// options.silent: if true, suppress logs
 async function query(text, params, options = {}) {
   const maxRetries = options.retries !== undefined ? options.retries : 10;
-  const silent = options.silent || false;
+  const silent = options.silent !== undefined ? options.silent : false;
   let lastError;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -65,31 +71,33 @@ async function query(text, params, options = {}) {
     try {
       const res = await pool.query(text, params);
       const duration = Date.now() - start;
+
       if (process.env.NODE_ENV === 'development' && !silent) {
         console.log('Executed query', { text: text.substring(0, 50) + '...', duration, rows: res.rowCount, attempt });
       }
       return res;
     } catch (error) {
       lastError = error;
+
       // Identify transient network/connection errors
       const isTransient = error.message.includes('ECONNRESET') ||
         error.message.includes('timeout') ||
         error.message.includes('terminating connection') ||
-        error.message.includes('Connection terminated');
+        error.message.includes('Connection terminated') ||
+        error.message.includes('Handshake');
 
       if (isTransient && attempt < maxRetries) {
-        // Exponential backoff: 1s, 1.5s, 2.25s... cap at 5s
         const backoffDelay = Math.min(1000 * Math.pow(1.5, attempt - 1), 5000);
-        if (!silent || attempt > 1) {
-          console.warn(`⚠️ Query attempt ${attempt}/${maxRetries} failed (transient), retrying in ${Math.round(backoffDelay)}ms...`, error.message);
+        // Only log retries if NOT silent and after second attempt
+        if (!silent && attempt > 1) {
+          console.warn(`⚠️ DB Attempt ${attempt}/${maxRetries} failed: ${error.message}. Retrying...`);
         }
         await new Promise(resolve => setTimeout(resolve, backoffDelay));
         continue;
       }
 
       if (!silent) {
-        console.error('Final query error after retries:', {
-          text: text.substring(0, 100),
+        console.error('Final DB Error:', {
           error: error.message,
           attempt
         });
