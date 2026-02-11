@@ -43,41 +43,44 @@ app.get('/health', (req, res) => {
 });
 app.use(express.json());
 
-// Test database connection and run migrations with retry
-(async () => {
+// Function for database initialization
+async function initializeDatabase() {
   const maxRetries = 5;
   let retries = 0;
 
   while (retries < maxRetries) {
     try {
+      console.log(`🔧 Database attempt ${retries + 1}/${maxRetries}: Initializing...`);
       // Run schema fix for completed_actions
       await fixCompletedActionsType();
 
-      await db.getUsers();
-      console.log('✅ PostgreSQL database connected successfully');
-      console.log(`📡 Database: ${process.env.DATABASE_URL ? 'Connected' : 'DATABASE_URL not set'}`);
-      return; // Success, exit IIFE
+      // Check connectivity using the resilient query function
+      await db.getUsers({}, { retries: 3 });
+      console.log('✅ PostgreSQL database connected and schema verified');
+      return true;
     } catch (err) {
       retries++;
       console.error(`❌ Database attempt ${retries} failed:`, err.message);
       if (retries < maxRetries) {
-        console.log(`🔄 Retrying in 10 seconds (allowing more time for DB wakeup)...`);
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        const delay = 10000;
+        console.log(`🔄 Retrying in ${delay / 1000} seconds (allowing time for DB wakeup)...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       } else {
         console.error('❌ Max retries reached. Database initialization failed.');
+        return false;
       }
     }
   }
-})();
+}
 
 // Root route
 app.get('/', (req, res) => {
   res.json({
     message: 'Tonio & Senora CRM API',
-    version: '1.0.0',
+    version: '1.0.1',
     status: 'running',
     endpoints: {
-      health: '/api/health',
+      health: '/health',
       auth: '/api/auth',
       dashboard: '/api/dashboard',
       leads: '/api/leads',
@@ -86,12 +89,11 @@ app.get('/', (req, res) => {
       users: '/api/users',
       notifications: '/api/notifications',
       emailTemplates: '/api/email-templates'
-    },
-    documentation: 'See README.md for API documentation'
+    }
   });
 });
 
-// Routes
+// Primary Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/leads', leadsRoutes);
@@ -101,39 +103,40 @@ app.use('/api/users', usersRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/email-templates', emailTemplatesRoutes);
 
-// Health check
-app.get('/api/health', async (req, res) => {
-  try {
-    await db.getUsers();
-    res.json({ status: 'ok', database: 'connected', type: 'PostgreSQL' });
-  } catch (error) {
-    res.status(503).json({ status: 'error', database: 'disconnected', error: error.message });
-  }
-});
-
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
-  res.status(500).json({ error: 'Internal server error', message: err.message });
+  res.status(err.status || 500).json({
+    error: 'Internal server error',
+    message: err.message,
+    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
 });
 
-// Output scheduler status
-console.log('   Email scheduler initialized');
-
 // Start server if run directly (Render / Local)
-// Vercel imports this file, so this block won't run there
 if (require.main === module || process.env.RENDER || process.env.NODE_ENV === 'production') {
-  console.log(`📡 Attempting to listen on port ${PORT}...`);
-  app.listen(PORT, () => {
-    console.log(`✅ Server running on port ${PORT}`);
-    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📡 Preparing to start server on port ${PORT}...`);
 
-    // Start scheduler only if not in a serverless-like environment that might kill it
-    try {
-      startEmailScheduler();
-    } catch (e) {
-      console.error('❌ Failed to start scheduler:', e.message);
+  initializeDatabase().then((success) => {
+    if (!success && process.env.NODE_ENV === 'production') {
+      console.error('🛑 CRITICAL: Database failed to initialize. Starting server in degraded mode.');
     }
+
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on port ${PORT}`);
+      console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`   Health Check: /health`);
+
+      // Start scheduler only if not in a serverless-like environment
+      try {
+        startEmailScheduler();
+      } catch (e) {
+        console.error('❌ Failed to start scheduler:', e.message);
+      }
+    });
+  }).catch(err => {
+    console.error('🛑 FATAL: Unexpected error during startup:', err);
+    process.exit(1);
   });
 }
 

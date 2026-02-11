@@ -43,8 +43,11 @@ pool.on('error', (err) => {
 });
 
 // Helper to execute queries with ultra-resilient retry logic
-async function query(text, params) {
-  const maxRetries = 10; // High retry limit for flaky environments
+// options.retries: number of retries (default 10)
+// options.silent: if true, suppress logs
+async function query(text, params, options = {}) {
+  const maxRetries = options.retries !== undefined ? options.retries : 10;
+  const silent = options.silent || false;
   let lastError;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -52,8 +55,8 @@ async function query(text, params) {
     try {
       const res = await pool.query(text, params);
       const duration = Date.now() - start;
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Executed query', { text, duration, rows: res.rowCount, attempt });
+      if (process.env.NODE_ENV === 'development' && !silent) {
+        console.log('Executed query', { text: text.substring(0, 50) + '...', duration, rows: res.rowCount, attempt });
       }
       return res;
     } catch (error) {
@@ -65,14 +68,22 @@ async function query(text, params) {
         error.message.includes('Connection terminated');
 
       if (isTransient && attempt < maxRetries) {
-        // Exponential backoff: 1.5s, 2.25s, 3.37s... cap at 5s
-        const backoffDelay = Math.min(1000 * Math.pow(1.5, attempt), 5000);
-        console.warn(`⚠️ Query attempt ${attempt}/${maxRetries} failed (transient), retrying in ${backoffDelay}ms...`, error.message);
+        // Exponential backoff: 1s, 1.5s, 2.25s... cap at 5s
+        const backoffDelay = Math.min(1000 * Math.pow(1.5, attempt - 1), 5000);
+        if (!silent || attempt > 1) {
+          console.warn(`⚠️ Query attempt ${attempt}/${maxRetries} failed (transient), retrying in ${Math.round(backoffDelay)}ms...`, error.message);
+        }
         await new Promise(resolve => setTimeout(resolve, backoffDelay));
         continue;
       }
 
-      console.error('Final query error after all retries:', { text, params, error: error.message, attempt });
+      if (!silent) {
+        console.error('Final query error after retries:', {
+          text: text.substring(0, 100),
+          error: error.message,
+          attempt
+        });
+      }
       throw error;
     }
   }
@@ -87,7 +98,7 @@ async function getNextId(sequenceName) {
 // Database API (same interface as before for backward compatibility)
 const database = {
   // Users
-  getUsers: async (filter = {}) => {
+  getUsers: async (filter = {}, options = {}) => {
     let queryText = 'SELECT * FROM users WHERE 1=1';
     const params = [];
     let paramIndex = 1;
@@ -117,7 +128,7 @@ const database = {
       params.push(filter.managed_by);
     }
 
-    const result = await query(queryText, params);
+    const result = await query(queryText, params, options);
     return result.rows;
   },
 
@@ -126,7 +137,7 @@ const database = {
     return result.rows;
   },
 
-  createUser: async (userData) => {
+  createUser: async (userData, options = {}) => {
     const id = await getNextId('users_id_seq');
     const now = new Date().toISOString();
 
@@ -143,9 +154,9 @@ const database = {
       userData.managed_by || null,
       userData.created_at || now,
       userData.updated_at || now
-    ]);
+    ], options);
 
-    const users = await database.getUsers({ id });
+    const users = await database.getUsers({ id }, options);
     return users[0];
   },
 
@@ -454,7 +465,7 @@ const database = {
   },
 
   // Login Logs
-  getLoginLogs: async (filter = {}) => {
+  getLoginLogs: async (filter = {}, options = {}) => {
     let queryText = 'SELECT * FROM login_logs WHERE 1=1';
     const params = [];
     let paramIndex = 1;
@@ -474,25 +485,25 @@ const database = {
 
     queryText += ' ORDER BY timestamp DESC';
 
-    const result = await query(queryText, params);
+    const result = await query(queryText, params, options);
     return result.rows.map(row => ({
       ...row,
       success: row.success === true || row.success === 1
     }));
   },
 
-  createLoginLog: async (logData) => {
+  createLoginLog: async (logData, options = {}) => {
     await query(`
       INSERT INTO login_logs (email, success, reason, user_id, timestamp, ip_address)
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [
       logData.email,
-      logData.success || false,
-      logData.reason || null,
+      logData.success,
+      logData.reason,
       logData.user_id || null,
       logData.timestamp || new Date().toISOString(),
       logData.ip_address || null
-    ]);
+    ], options);
   },
 
   // Notifications

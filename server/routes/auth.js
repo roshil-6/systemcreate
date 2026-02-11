@@ -9,16 +9,17 @@ const router = express.Router();
 // Helper function to log login attempts
 async function logLoginAttempt(email, success, reason, userId = null) {
   try {
+    // Background logging should NEVER block the response or retry heavily if DB is down
     await db.createLoginLog({
       email,
       success,
       reason,
       user_id: userId,
       timestamp: new Date().toISOString(),
-      ip_address: null, // Can be added if needed
-    });
+      ip_address: null,
+    }, { retries: 0, silent: true });
   } catch (error) {
-    console.error('Error logging login attempt:', error);
+    // Silent catch - we don't want to crash the request if logging fails
   }
 }
 
@@ -33,7 +34,8 @@ router.post('/login', async (req, res) => {
     }
 
     console.log('🔍 Auth: Looking up user by email:', email);
-    const users = await db.getUsers({ email });
+    // Use low retry count for user login to fail fast and prevent timeouts
+    const users = await db.getUsers({ email }, { retries: 2 });
     console.log('🔍 Auth: Lookup complete. Found:', users.length, 'users');
     const user = users[0];
 
