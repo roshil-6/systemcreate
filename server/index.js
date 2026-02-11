@@ -1,4 +1,5 @@
 const express = require('express');
+console.log('🚀 CRM Server: Starting initialization...');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -105,11 +106,18 @@ console.log('   Email scheduler initialized');
 
 // Start server if run directly (Render / Local)
 // Vercel imports this file, so this block won't run there
-if (require.main === module) {
+if (require.main === module || process.env.RENDER || process.env.NODE_ENV === 'production') {
+  console.log(`📡 Attempting to listen on port ${PORT}...`);
   app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
-    startEmailScheduler(); // Run scheduler in persistent server mode
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+
+    // Start scheduler only if not in a serverless-like environment that might kill it
+    try {
+      startEmailScheduler();
+    } catch (e) {
+      console.error('❌ Failed to start scheduler:', e.message);
+    }
   });
 }
 

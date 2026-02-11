@@ -9,11 +9,13 @@ dns.setDefaultResultOrder('ipv4first');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
-  max: 3, // Lower max connections for serverless
+  max: 5, // Increased slightly for production load
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 20000, // Increased to 20s
   keepalives: true, // Help prevent ECONNRESET
-  keepalives_count: 5,
+  keepalives_count: 10,
+  keepalives_idle: 10, // Check frequency
+  keepalives_interval: 5,
   // Production optimizations
   statement_timeout: 30000, // 30 second query timeout
   query_timeout: 30000,
@@ -28,19 +30,37 @@ pool.on('error', (err) => {
   console.error('❌ PostgreSQL database connection error:', err);
 });
 
-// Helper to execute queries
+// Helper to execute queries with retry logic
 async function query(text, params) {
-  const start = Date.now();
-  try {
-    const res = await pool.query(text, params);
-    const duration = Date.now() - start;
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Executed query', { text, duration, rows: res.rowCount });
+  const maxRetries = 3;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const start = Date.now();
+    try {
+      const res = await pool.query(text, params);
+      const duration = Date.now() - start;
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Executed query', { text, duration, rows: res.rowCount, attempt });
+      }
+      return res;
+    } catch (error) {
+      lastError = error;
+      // Identify transient network/connection errors
+      const isTransient = error.message.includes('ECONNRESET') ||
+        error.message.includes('timeout') ||
+        error.message.includes('terminating connection') ||
+        error.message.includes('Connection terminated');
+
+      if (isTransient && attempt < maxRetries) {
+        console.warn(`⚠️ Query attempt ${attempt} failed (transient), retrying in ${attempt}s...`, error.message);
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
+      }
+
+      console.error('Final query error:', { text, params, error: error.message, attempt });
+      throw error;
     }
-    return res;
-  } catch (error) {
-    console.error('Query error:', { text, params, error: error.message });
-    throw error;
   }
 }
 
