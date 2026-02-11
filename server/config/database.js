@@ -18,16 +18,16 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
   application_name: 'CRM_Server_Render', // Helps with tracking and proxy stability
-  max: 5, // Reduced to 5 to avoid connection limit resets on Free Tiers
-  idleTimeoutMillis: 1000, // Close idle connections immediately to refresh flaky links
-  connectionTimeoutMillis: 20000, // 20s connection timeout
+  max: 10, // Standard limit for most production apps
+  idleTimeoutMillis: 30000, // 30s idle timeout (Standard)
+  connectionTimeoutMillis: 30000, // 30s connection timeout
   keepalives: true, // Help prevent ECONNRESET
   keepalives_count: 5,
-  keepalives_idle: 1, // Check very frequently
-  keepalives_interval: 1,
+  keepalives_idle: 60, // Standard 60s idle before keepalive
+  keepalives_interval: 10,
   // Production optimizations
-  statement_timeout: 30000,
-  query_timeout: 30000,
+  statement_timeout: 45000,
+  query_timeout: 45000,
 });
 
 // Test connection
