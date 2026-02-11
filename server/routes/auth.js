@@ -32,7 +32,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
+    console.log('🔍 Auth: Looking up user by email:', email);
     const users = await db.getUsers({ email });
+    console.log('🔍 Auth: Lookup complete. Found:', users.length, 'users');
     const user = users[0];
 
     if (!user) {
