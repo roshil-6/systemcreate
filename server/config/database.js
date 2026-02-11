@@ -5,30 +5,33 @@ const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
-  max: 10, // Increased to handle simultaneous requests better
-  idleTimeoutMillis: 10000, // Close idle connections faster to refresh
+  max: 10,
+  idleTimeoutMillis: 5000, // Close idle connections faster to refresh
   connectionTimeoutMillis: 30000, // 30s connection timeout
   keepalives: true, // Help prevent ECONNRESET
-  keepalives_count: 5,
-  keepalives_idle: 30, // Standard 30s idle before keepalive
-  keepalives_interval: 10,
+  keepalives_count: 10,
+  keepalives_idle: 5, // Check every 5 seconds
+  keepalives_interval: 2,
   // Production optimizations
-  statement_timeout: 30000, // 30 second query timeout
-  query_timeout: 30000,
+  statement_timeout: 45000, // 45 second query timeout (higher for resilience)
+  query_timeout: 45000,
 });
 
 // Test connection
 pool.on('connect', () => {
-  console.log('✅ PostgreSQL database connected');
+  // Silent in production to avoid log noise, but help for debugging
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('✅ PostgreSQL database connected');
+  }
 });
 
 pool.on('error', (err) => {
-  console.error('❌ PostgreSQL database connection error:', err);
+  console.error('❌ PostgreSQL database pool error:', err.message);
 });
 
-// Helper to execute queries with retry logic
+// Helper to execute queries with ultra-resilient retry logic
 async function query(text, params) {
-  const maxRetries = 3;
+  const maxRetries = 10; // High retry limit for flaky environments
   let lastError;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -49,12 +52,14 @@ async function query(text, params) {
         error.message.includes('Connection terminated');
 
       if (isTransient && attempt < maxRetries) {
-        console.warn(`⚠️ Query attempt ${attempt} failed (transient), retrying in ${attempt}s...`, error.message);
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        // Exponential backoff: 1.5s, 2.25s, 3.37s... cap at 5s
+        const backoffDelay = Math.min(1000 * Math.pow(1.5, attempt), 5000);
+        console.warn(`⚠️ Query attempt ${attempt}/${maxRetries} failed (transient), retrying in ${backoffDelay}ms...`, error.message);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
         continue;
       }
 
-      console.error('Final query error:', { text, params, error: error.message, attempt });
+      console.error('Final query error after all retries:', { text, params, error: error.message, attempt });
       throw error;
     }
   }
