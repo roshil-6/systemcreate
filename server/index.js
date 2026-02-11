@@ -29,7 +29,7 @@ app.use(express.json());
 
 // Test database connection and run migrations with retry
 (async () => {
-  const maxRetries = 3;
+  const maxRetries = 5;
   let retries = 0;
 
   while (retries < maxRetries) {
@@ -45,8 +45,8 @@ app.use(express.json());
       retries++;
       console.error(`❌ Database attempt ${retries} failed:`, err.message);
       if (retries < maxRetries) {
-        console.log(`🔄 Retrying in 5 seconds...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        console.log(`🔄 Retrying in 10 seconds (allowing more time for DB wakeup)...`);
+        await new Promise(resolve => setTimeout(resolve, 10000));
       } else {
         console.error('❌ Max retries reached. Database initialization failed.');
       }

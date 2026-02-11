@@ -1,21 +1,17 @@
 const { Pool } = require('pg');
-const dns = require('dns');
-
-// Force IPv4 resolution first (helps with IPv6-only addresses)
-dns.setDefaultResultOrder('ipv4first');
 
 // Initialize PostgreSQL connection pool
 // Production-ready configuration
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
-  max: 5, // Increased slightly for production load
-  idleTimeoutMillis: 30000,
+  max: 2, // Very conservative for Free Tier to avoid connection limits
+  idleTimeoutMillis: 10000, // Close idle connections faster to refresh on flaky networks
   connectionTimeoutMillis: 20000, // Increased to 20s
   keepalives: true, // Help prevent ECONNRESET
-  keepalives_count: 10,
-  keepalives_idle: 10, // Check frequency
-  keepalives_interval: 5,
+  keepalives_count: 5,
+  keepalives_idle: 1, // Check very frequently
+  keepalives_interval: 1,
   // Production optimizations
   statement_timeout: 30000, // 30 second query timeout
   query_timeout: 30000,
