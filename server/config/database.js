@@ -11,7 +11,9 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
   max: 3, // Lower max connections for serverless
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+  connectionTimeoutMillis: 20000, // Increased to 20s
+  keepalives: true, // Help prevent ECONNRESET
+  keepalives_count: 5,
   // Production optimizations
   statement_timeout: 30000, // 30 second query timeout
   query_timeout: 30000,

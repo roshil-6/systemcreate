@@ -26,17 +26,30 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Test database connection and run migrations
+// Test database connection and run migrations with retry
 (async () => {
-  try {
-    // Run schema fix for completed_actions
-    await fixCompletedActionsType();
+  const maxRetries = 3;
+  let retries = 0;
 
-    await db.getUsers();
-    console.log('✅ PostgreSQL database connected successfully');
-    console.log(`📡 Database: ${process.env.DATABASE_URL ? 'Connected' : 'DATABASE_URL not set'}`);
-  } catch (err) {
-    console.error('❌ Database connection/migration error:', err.message);
+  while (retries < maxRetries) {
+    try {
+      // Run schema fix for completed_actions
+      await fixCompletedActionsType();
+
+      await db.getUsers();
+      console.log('✅ PostgreSQL database connected successfully');
+      console.log(`📡 Database: ${process.env.DATABASE_URL ? 'Connected' : 'DATABASE_URL not set'}`);
+      return; // Success, exit IIFE
+    } catch (err) {
+      retries++;
+      console.error(`❌ Database attempt ${retries} failed:`, err.message);
+      if (retries < maxRetries) {
+        console.log(`🔄 Retrying in 5 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } else {
+        console.error('❌ Max retries reached. Database initialization failed.');
+      }
+    }
   }
 })();
 
