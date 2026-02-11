@@ -2,20 +2,32 @@ const { Pool } = require('pg');
 
 // Initialize PostgreSQL connection pool
 // Production-ready configuration
+// Log target host for diagnostics (sanitized - no password)
+try {
+  if (process.env.DATABASE_URL) {
+    const dbUrl = new URL(process.env.DATABASE_URL.replace('postgres://', 'http://').replace('postgresql://', 'http://'));
+    console.log(`📡 Database Target: ${dbUrl.hostname}:${dbUrl.port || '5432'} (Database: ${dbUrl.pathname.substring(1)})`);
+  } else {
+    console.error('❌ DATABASE_URL is not set in environment variables!');
+  }
+} catch (e) {
+  console.log('📡 Database URL is set but could not be parsed for display');
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
   application_name: 'CRM_Server_Render', // Helps with tracking and proxy stability
-  max: 10,
-  idleTimeoutMillis: 5000, // Close idle connections faster to refresh
-  connectionTimeoutMillis: 30000, // 30s connection timeout
+  max: 5, // Reduced to 5 to avoid connection limit resets on Free Tiers
+  idleTimeoutMillis: 1000, // Close idle connections immediately to refresh flaky links
+  connectionTimeoutMillis: 20000, // 20s connection timeout
   keepalives: true, // Help prevent ECONNRESET
-  keepalives_count: 10,
-  keepalives_idle: 5, // Check every 5 seconds
-  keepalives_interval: 2,
+  keepalives_count: 5,
+  keepalives_idle: 1, // Check very frequently
+  keepalives_interval: 1,
   // Production optimizations
-  statement_timeout: 45000, // 45 second query timeout (higher for resilience)
-  query_timeout: 45000,
+  statement_timeout: 30000,
+  query_timeout: 30000,
 });
 
 // Test connection

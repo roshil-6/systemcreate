@@ -1,4 +1,10 @@
 const express = require('express');
+const dns = require('dns');
+// Force IPv4 resolution first (fixes many ECONNRESET issues on Render/cloud environments)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 console.log('🚀 CRM Server: Starting initialization...');
 const cors = require('cors');
 require('dotenv').config();
