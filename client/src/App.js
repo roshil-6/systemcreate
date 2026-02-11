@@ -14,8 +14,6 @@ import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 
 function App() {
-  console.log('🔍 Router Configuration: Using BrowserRouter (Vercel Compatible)');
-
   return (
     <AuthProvider>
       <Router>

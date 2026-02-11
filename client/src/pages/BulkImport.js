@@ -13,14 +13,10 @@ const BulkImport = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [backendVersion, setBackendVersion] = useState('Loading...');
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    // Check backend version on load
-    axios.get(`${API_BASE_URL}/api/leads/version-check`)
-      .then(res => setBackendVersion(res.data.version))
-      .catch(err => setBackendVersion('Offline / Error'));
+    // Initial setup if needed
   }, []);
 
   const handleDeleteAll = async () => {

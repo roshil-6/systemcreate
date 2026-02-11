@@ -14,7 +14,7 @@ const LeadDetail = () => {
   const [lead, setLead] = useState(null);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(true); // ALWAYS EDIT MODE
+  const [editing, setEditing] = useState(true);
   const [formData, setFormData] = useState({});
   const [newComment, setNewComment] = useState('');
   const [staffList, setStaffList] = useState([]);
@@ -73,7 +73,6 @@ const LeadDetail = () => {
   }, [id, user]);
 
   const fetchLead = async () => {
-    console.log('🚀 LeadDetail.js Loaded - VERSION: SECONDARY-PHONE-ADDED-v2');
     try {
       const response = await axios.get(`${API_BASE_URL}/api/leads/${id}`);
       setLead(response.data);
