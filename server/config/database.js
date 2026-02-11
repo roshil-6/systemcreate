@@ -14,21 +14,31 @@ try {
   console.log('📡 Database URL is set but could not be parsed for display');
 }
 
-const pool = new Pool({
+// Construct connection config with optimized settings for Railway/Render
+const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
-  application_name: 'CRM_Server_Render', // Helps with tracking and proxy stability
-  max: 10, // Standard limit for most production apps
-  idleTimeoutMillis: 30000, // 30s idle timeout (Standard)
-  connectionTimeoutMillis: 30000, // 30s connection timeout
-  keepalives: true, // Help prevent ECONNRESET
-  keepalives_count: 5,
-  keepalives_idle: 60, // Standard 60s idle before keepalive
-  keepalives_interval: 10,
-  // Production optimizations
-  statement_timeout: 45000,
-  query_timeout: 45000,
-});
+  application_name: 'CRM_Server_Render',
+  max: 5, // Reduced max to 5 to avoid resource exhaustion and flaky resets
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 20000, // 20s for handshake
+
+  // Aggressive keepalives to prevent ECONNRESET on cloud proxies
+  keepalives: true,
+  keepalives_count: 10,
+  keepalives_idle: 30, // 30s before first keepalive
+  keepalives_interval: 5, // Keepalive every 5s
+
+  // Production query safety
+  statement_timeout: 60000, // Wait up to 60s for a query
+  query_timeout: 60000,
+
+  // Essential SSL for hosted DBs
+  ssl: {
+    rejectUnauthorized: false
+  }
+};
+
+const pool = new Pool(poolConfig);
 
 // Test connection
 pool.on('connect', () => {

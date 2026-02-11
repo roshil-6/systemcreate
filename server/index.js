@@ -38,40 +38,14 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires']
 }));
 
+// Essential health check (Database-less)
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.status(200).json({
+    status: 'ok',
+    service: 'CRM API',
+    timestamp: new Date().toISOString()
+  });
 });
-app.use(express.json());
-
-// Function for database initialization
-async function initializeDatabase() {
-  const maxRetries = 5;
-  let retries = 0;
-
-  while (retries < maxRetries) {
-    try {
-      console.log(`🔧 Database attempt ${retries + 1}/${maxRetries}: Initializing...`);
-      // Run schema fix for completed_actions
-      await fixCompletedActionsType();
-
-      // Check connectivity using the resilient query function
-      await db.getUsers({}, { retries: 3 });
-      console.log('✅ PostgreSQL database connected and schema verified');
-      return true;
-    } catch (err) {
-      retries++;
-      console.error(`❌ Database attempt ${retries} failed:`, err.message);
-      if (retries < maxRetries) {
-        const delay = 10000;
-        console.log(`🔄 Retrying in ${delay / 1000} seconds (allowing time for DB wakeup)...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        console.error('❌ Max retries reached. Database initialization failed.');
-        return false;
-      }
-    }
-  }
-}
 
 // Root route
 app.get('/', (req, res) => {
@@ -93,6 +67,8 @@ app.get('/', (req, res) => {
   });
 });
 
+app.use(express.json());
+
 // Primary Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -108,34 +84,63 @@ app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(err.status || 500).json({
     error: 'Internal server error',
-    message: err.message,
-    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message: err.message
   });
 });
 
+// Function for database initialization (Background)
+async function initializeDatabase() {
+  const maxRetries = 10;
+  let retries = 0;
+
+  console.log('🔄 Background Database initialization started...');
+
+  while (retries < maxRetries) {
+    try {
+      // Run schema fix for completed_actions
+      await fixCompletedActionsType();
+
+      // Check connectivity using the resilient query function
+      await db.getUsers({}, { retries: 5 });
+      console.log('✅ PostgreSQL database connected and schema verified');
+      return;
+    } catch (err) {
+      retries++;
+      console.error(`❌ Background DB initialization attempt ${retries} failed:`, err.message);
+      if (retries < maxRetries) {
+        const delay = Math.min(1000 * Math.pow(1.5, retries), 30000);
+        console.log(`🔄 Retrying DB connection in ${Math.round(delay / 1000)} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        console.error('🛑 CRITICAL: Database failed to initialize after max retries.');
+      }
+    }
+  }
+}
+
 // Start server if run directly (Render / Local)
 if (require.main === module || process.env.RENDER || process.env.NODE_ENV === 'production') {
-  console.log(`📡 Preparing to start server on port ${PORT}...`);
+  console.log(`📡 Attempting to listen on port ${PORT}...`);
 
-  initializeDatabase().then((success) => {
-    if (!success && process.env.NODE_ENV === 'production') {
-      console.error('🛑 CRITICAL: Database failed to initialize. Starting server in degraded mode.');
+  // Bind to port IMMEDIATELY. Render requires this to consider the app "Live".
+  const server = app.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+    console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`   Health Check: /health`);
+
+    // Run connection logic in the background so it doesn't block Port Binding
+    initializeDatabase();
+
+    // Start scheduler
+    try {
+      startEmailScheduler();
+    } catch (e) {
+      console.error('❌ Failed to start scheduler:', e.message);
     }
+  });
 
-    app.listen(PORT, () => {
-      console.log(`✅ Server running on port ${PORT}`);
-      console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`   Health Check: /health`);
-
-      // Start scheduler only if not in a serverless-like environment
-      try {
-        startEmailScheduler();
-      } catch (e) {
-        console.error('❌ Failed to start scheduler:', e.message);
-      }
-    });
-  }).catch(err => {
-    console.error('🛑 FATAL: Unexpected error during startup:', err);
+  server.on('error', (err) => {
+    console.error('🛑 Server failed to start:', err.message);
     process.exit(1);
   });
 }
