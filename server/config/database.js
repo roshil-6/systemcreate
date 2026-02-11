@@ -5,13 +5,13 @@ const { Pool } = require('pg');
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }, // Simplified SSL for serverless
-  max: 2, // Very conservative for Free Tier to avoid connection limits
-  idleTimeoutMillis: 10000, // Close idle connections faster to refresh on flaky networks
-  connectionTimeoutMillis: 20000, // Increased to 20s
+  max: 10, // Increased to handle simultaneous requests better
+  idleTimeoutMillis: 10000, // Close idle connections faster to refresh
+  connectionTimeoutMillis: 30000, // 30s connection timeout
   keepalives: true, // Help prevent ECONNRESET
   keepalives_count: 5,
-  keepalives_idle: 1, // Check very frequently
-  keepalives_interval: 1,
+  keepalives_idle: 30, // Standard 30s idle before keepalive
+  keepalives_interval: 10,
   // Production optimizations
   statement_timeout: 30000, // 30 second query timeout
   query_timeout: 30000,
