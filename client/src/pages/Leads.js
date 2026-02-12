@@ -104,10 +104,9 @@ const Leads = () => {
 
   const handleMarkFollowUpCompleted = async (leadId) => {
     try {
-      // Update follow_up_date to today to mark as completed
-      const today = new Date().toISOString().split('T')[0];
+      // Only mark status as completed, do not auto-update date
       await axios.put(`${API_BASE_URL}/api/leads/${leadId}`, {
-        follow_up_date: today,
+        follow_up_status: 'Completed',
       });
       await fetchLeads();
     } catch (error) {
@@ -640,13 +639,13 @@ const Leads = () => {
                     />
                   </th>
                 )}
-                <th style={{ width: '12%' }}>Name</th>
-                <th style={{ width: '11%' }}>Phone</th>
-                <th style={{ width: '14%' }}>Email</th>
-                <th style={{ width: '90px' }}>Priority</th>
-                <th style={{ width: '16%' }}>Source</th>
-                <th style={{ width: '100px' }}>Follow-up Date</th>
-                <th style={{ width: '100px' }}>Follow-up Status</th>
+                <th style={{ width: '12%', minWidth: '150px' }}>Name</th>
+                <th style={{ width: '13%', minWidth: '130px' }}>Phone</th>
+                <th style={{ width: '16%', minWidth: '180px' }}>Email</th>
+                <th style={{ width: '80px' }}>Priority</th>
+                <th style={{ width: '12%' }}>Source</th>
+                <th style={{ width: '110px' }}>Follow-up Date</th>
+                <th style={{ width: '110px' }}>Follow-up Status</th>
                 <th style={{ width: '100px' }}>Status</th>
                 <th style={{ width: '12%', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Actions</th>
@@ -699,8 +698,8 @@ const Leads = () => {
                     <div className="comment-cell" title={lead.source || ''}>
                       {(() => {
                         const rawSource = lead.source || '';
-                        // Remove "Yes", "Yes -", "Yes ", case insensitive at start
-                        const cleanSource = rawSource.replace(/^(yes|Yes)( -|-| )?/, '').trim();
+                        // Remove "Yes", "No", "Maybe" with separators like " - ", " : ", " ", etc.
+                        const cleanSource = rawSource.replace(/^(yes|no|maybe)([\s-:]+)?/i, '').trim();
                         return cleanSource || '-';
                       })()}
                     </div>
