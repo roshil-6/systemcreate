@@ -646,7 +646,7 @@ const Leads = () => {
                 <th style={{ width: '12%' }}>Source</th>
                 <th style={{ width: '110px' }}>Follow-up Date</th>
                 <th style={{ width: '110px' }}>Follow-up Status</th>
-                <th style={{ width: '100px' }}>Status</th>
+                <th style={{ width: '100px' }}>Lead Status</th>
                 <th style={{ width: '12%', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Actions</th>
               </tr>
