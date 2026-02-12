@@ -308,25 +308,25 @@ const LeadDetail = () => {
             </select>
           )}
         </div>
-        <div className="header-field-group header-comment">
-          <label>Comment</label>
+        <div className="header-field-group">
+          <label>Source</label>
           {isNew ? (
             <input
               type="text"
-              name="comment"
-              value={formData.comment || ''}
+              name="source"
+              value={formData.source || ''}
               onChange={handleChange}
-              placeholder="Add a comment..."
+              placeholder="e.g., Meta Ads, Website"
               className="header-field-input"
             />
           ) : (
             <input
               type="text"
-              name="comment"
-              value={formData.comment || ''}
+              name="source"
+              value={formData.source || ''}
               onChange={handleHeaderFieldChange}
               disabled={!canEditHeaderFields}
-              placeholder="Add a comment..."
+              placeholder="e.g., Meta Ads, Website"
               className="header-field-input"
             />
           )}
@@ -649,17 +649,7 @@ const LeadDetail = () => {
                   placeholder="e.g., 7.5, 8.0"
                 />
               </div>
-              <div className="form-group">
-                <label>Source</label>
-                <input
-                  type="text"
-                  name="source"
-                  value={formData.source || ''}
-                  onChange={handleChange}
-                  disabled={!canEdit}
-                  placeholder="e.g., Meta Ads, Website, Referral"
-                />
-              </div>
+
               <div className="form-group">
                 <label>Status</label>
                 <select
