@@ -644,7 +644,7 @@ const Leads = () => {
                 <th style={{ width: '11%' }}>Phone</th>
                 <th style={{ width: '14%' }}>Email</th>
                 <th style={{ width: '90px' }}>Priority</th>
-                <th style={{ width: '16%' }}>Comment</th>
+                <th style={{ width: '16%' }}>Source</th>
                 <th style={{ width: '100px' }}>Follow-up Date</th>
                 <th style={{ width: '100px' }}>Follow-up Status</th>
                 <th style={{ width: '100px' }}>Status</th>
@@ -696,15 +696,13 @@ const Leads = () => {
                     )}
                   </td>
                   <td>
-                    <div className="comment-cell" title={lead.comment || ''}>
-                      {lead.comment ? (
-                        <>
-                          <FiMessageSquare style={{ marginRight: '4px', opacity: 0.6 }} />
-                          {lead.comment.length > 30 ? `${lead.comment.substring(0, 30)}...` : lead.comment}
-                        </>
-                      ) : (
-                        '-'
-                      )}
+                    <div className="comment-cell" title={lead.source || ''}>
+                      {(() => {
+                        const rawSource = lead.source || '';
+                        // Remove "Yes", "Yes -", "Yes ", case insensitive at start
+                        const cleanSource = rawSource.replace(/^(yes|Yes)( -|-| )?/, '').trim();
+                        return cleanSource || '-';
+                      })()}
                     </div>
                   </td>
                   <td>
