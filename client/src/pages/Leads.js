@@ -671,14 +671,17 @@ const Leads = () => {
                     </td>
                   )}
                   <td>{lead.name}</td>
-                  <td>
-                    {lead.phone_country_code && lead.phone_number ? (
-                      <span>{lead.phone_country_code} {lead.phone_number}</span>
-                    ) : (
-                      lead.phone_number || '-'
-                    )}
+                  <td style={{ maxWidth: '130px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${lead.phone_country_code || ''} ${lead.phone_number || ''}`}>
+                    {(() => {
+                      const rawPhone = `${lead.phone_country_code || ''} ${lead.phone_number || ''}`;
+                      // Clean "Yes" from phone number display
+                      const cleanPhone = rawPhone.replace(/^(yes|no)([\s-:]+)?/i, '').trim();
+                      return cleanPhone || '-';
+                    })()}
                   </td>
-                  <td>{lead.email || '-'}</td>
+                  <td style={{ maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={lead.email || ''}>
+                    {lead.email || '-'}
+                  </td>
                   <td>
                     {lead.priority ? (
                       <span
@@ -729,13 +732,17 @@ const Leads = () => {
                     )}
                   </td>
                   <td>
-                    <span style={{
-                      color: lead.follow_up_status === 'Completed' ? '#28a745' :
-                        lead.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
-                      fontWeight: '500'
-                    }}>
-                      {lead.follow_up_status || 'Pending'}
-                    </span>
+                    {['Completed', 'Skipped', 'Pending'].includes(lead.follow_up_status) || lead.follow_up_status === 'Pending' ? (
+                      <span style={{
+                        color: lead.follow_up_status === 'Completed' ? '#28a745' :
+                          lead.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
+                        fontWeight: '500'
+                      }}>
+                        {lead.follow_up_status || 'Pending'}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                   <td>
                     <span
