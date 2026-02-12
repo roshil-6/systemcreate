@@ -243,29 +243,26 @@ const LeadDetail = () => {
   }
 
   const canEdit = editing || id === 'new';
-  const canEditHeaderFields = !isNew && (
-    user?.role === 'ADMIN'
-    || (user?.role === 'STAFF' && Number(lead?.assigned_staff_id) === Number(user?.id))
-  );
-  const canEditNextFollowUp = !isNew && (
-    user?.role === 'ADMIN'
-    || user?.role === 'SALES_TEAM_HEAD'
-    || user?.role === 'SALES_TEAM'
-    || user?.role === 'PROCESSING'
-    || (user?.role === 'STAFF' && Number(lead?.assigned_staff_id) === Number(user?.id))
-  );
-  const canEditFollowUpStatus = !isNew && (
-    user?.role === 'ADMIN'
-    || user?.role === 'SALES_TEAM_HEAD'
-    || user?.role === 'SALES_TEAM'
-    || user?.role === 'PROCESSING'
-    || (user?.role === 'STAFF' && Number(lead?.assigned_staff_id) === Number(user?.id))
-  );
-  const canManageAssignment = user?.role === 'ADMIN'
-    || user?.role === 'SALES_TEAM_HEAD'
-    || user?.role === 'STAFF'
-    || user?.role === 'SALES_TEAM'
-    || user?.role === 'PROCESSING';
+
+  // Helper to check if user owns the lead or is a manager
+  const isOwner = Number(lead?.assigned_staff_id) === Number(user?.id);
+  const isUnassigned = lead?.assigned_staff_id === null;
+  const isManager = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD';
+
+  // Detailed permission logic
+  // Allow editing header fields (Priority, Comment, Follow-up) if:
+  // 1. New lead
+  // 2. Admin/Manager
+  // 3. User owns the lead
+  // 4. Lead is unassigned (so they can work on it)
+  // NOTE: We do NOT allow random staff to edit each other's leads.
+  const canEditHeaderFields = !isNew && (isManager || isOwner || isUnassigned);
+
+  const canEditNextFollowUp = !isNew && (isManager || isOwner || isUnassigned);
+
+  const canEditFollowUpStatus = !isNew && (isManager || isOwner || isUnassigned);
+
+  const canManageAssignment = isManager || isOwner || isUnassigned;
 
   return (
     <div className="lead-detail">
@@ -640,17 +637,7 @@ const LeadDetail = () => {
                 </select>
               </div>
 
-              <div className="form-group">
-                <label>Source</label>
-                <input
-                  type="text"
-                  name="source"
-                  value={formData.source || ''}
-                  onChange={handleChange}
-                  disabled={!canEdit}
-                  placeholder="Lead Source"
-                />
-              </div>
+
               <div className="form-group">
                 <label>IELTS Score</label>
                 <input
@@ -721,26 +708,34 @@ const LeadDetail = () => {
         {!isNew && (
           <div className="lead-detail-right">
             {/* Lead Comment Field - Display prominently */}
-            {formData.comment && (
-              <div className="comments-section" style={{ marginBottom: '20px' }}>
-                <h2>
-                  <FiMessageSquare /> Lead Comment
-                </h2>
-                <div style={{
-                  padding: '15px',
-                  background: '#f9fafb',
-                  borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  fontSize: '14px',
-                  lineHeight: '1.6',
-                  color: '#374151'
-                }}>
-                  {formData.comment}
-                </div>
-              </div>
-            )}
+            {/* Lead Source Field - Display prominently */}
+            {(() => {
+              const rawSource = formData.source || '';
+              // Remove "Yes", "Yes -", "Yes ", case insensitive at start
+              const cleanSource = rawSource.replace(/^(yes|Yes)( -|-| )?/, '').trim();
+
+              if (cleanSource) {
+                return (
+                  <div className="comments-section" style={{ marginBottom: '20px' }}>
+                    <h2>
+                      Lead Source
+                    </h2>
+                    <div style={{
+                      padding: '15px',
+                      background: '#eff6ff',
+                      borderRadius: '8px',
+                      border: '1px solid #bfdbfe',
+                      fontSize: '15px',
+                      fontWeight: '500',
+                      color: '#1e40af'
+                    }}>
+                      {cleanSource}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Comments Section */}
             <div className="comments-section">

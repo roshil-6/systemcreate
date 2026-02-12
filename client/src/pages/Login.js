@@ -31,21 +31,46 @@ const Login = () => {
 
   const [serverStatus, setServerStatus] = useState('checking'); // checking, online, offline
 
-  // Wake up the server on load
+  // Wake up the server on load with polling
   React.useEffect(() => {
+    let isMounted = true;
     const wakeUpServer = async () => {
-      try {
-        console.log('⏰ Waking up server...');
-        // Simple ping to wake up Render
-        await fetch(`${API_BASE_URL}/api/auth/me`, { mode: 'no-cors' });
-        setServerStatus('online');
-        console.log('✅ Server is awake!');
-      } catch (err) {
-        console.log('💤 Server might be sleeping...', err);
-        setServerStatus('offline');
+      let attempts = 0;
+      const maxAttempts = 30; // Try for ~1 minute (30 * 2s)
+
+      while (attempts < maxAttempts && isMounted) {
+        try {
+          console.log(`⏰ Waking up server... (Attempt ${attempts + 1}/${maxAttempts})`);
+          // Standard fetch to check status (NOT no-cors, so we can see 503)
+          const response = await fetch(`${API_BASE_URL}/health`);
+
+          if (response.ok) {
+            console.log('✅ Server is awake and healthy!');
+            if (isMounted) setServerStatus('online');
+            return;
+          } else if (response.status === 503) {
+            console.log('💤 Server is starting up (503)... retrying in 2s');
+          } else {
+            // 4xx or 5xx other than 503 usually means server is reachable but maybe endpoint has issues
+            console.log(`⚠️ Server reachable but returned ${response.status}`);
+            if (isMounted) setServerStatus('online'); // Technically online
+            return;
+          }
+        } catch (err) {
+          console.log('❌ Network error (server might be down/sleeping)... retrying in 2s', err.message);
+        }
+
+        attempts++;
+        // Wait 2 seconds before next try
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
+
+      if (isMounted) setServerStatus('offline');
     };
+
     wakeUpServer();
+
+    return () => { isMounted = false; };
   }, []);
 
   return (

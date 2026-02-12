@@ -894,6 +894,10 @@ const database = {
   },
 
   getDatabase: () => pool,
+  // Cleanup
+  end: async () => {
+    await pool.end();
+  }
 };
 
 module.exports = database;

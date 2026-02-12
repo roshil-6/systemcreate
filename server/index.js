@@ -170,4 +170,35 @@ if (require.main === module || process.env.RENDER || process.env.NODE_ENV === 'p
   });
 }
 
+// --- GLOBAL ERROR HANDLERS ---
+process.on('uncaughtException', (err) => {
+  console.error('❌ UNCAUGHT EXCEPTION! Shutting down...', err);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('❌ UNHANDLED REJECTION! Shutting down...', err);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+// --- GRACEFUL SHUTDOWN ---
+const gracefulShutdown = async () => {
+  console.log('🛑 SIGTERM/SIGINT received. Shutting down gracefully...');
+  try {
+    if (db.end) {
+      await db.end();
+      console.log('✅ Database pool closed.');
+    }
+    process.exit(0);
+  } catch (err) {
+    console.error('❌ Error during shutdown:', err);
+    process.exit(1);
+  }
+};
+
+process.on('SIGTERM', gracefulShutdown);
+process.on('SIGINT', gracefulShutdown);
+
 module.exports = app;

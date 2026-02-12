@@ -19,20 +19,38 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const fetchUser = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/auth/me`);
-      if (response.data) {
-        setUser(response.data);
-      } else {
-        throw new Error('Invalid user data');
+    let retries = 0;
+    const maxRetries = 5;
+
+    while (retries < maxRetries) {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/auth/me`);
+        if (response.data) {
+          setUser(response.data);
+          setLoading(false);
+          return;
+        } else {
+          throw new Error('Invalid user data');
+        }
+      } catch (error) {
+        // If 503 or Network Error, retry
+        const isRetryable = !error.response || error.response.status === 503 || error.response.status === 502;
+
+        if (isRetryable && retries < maxRetries - 1) {
+          console.log(`🔄 Server possibly waking up (${error.response ? error.response.status : 'Network Error'})... retrying auth check (${retries + 1}/${maxRetries})`);
+          retries++;
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
+        }
+
+        // If generic error or 401/403, log out immediately (or after retries exhausted)
+        console.error('Error fetching user:', error);
+        localStorage.removeItem('token');
+        delete axios.defaults.headers.common['Authorization'];
+        setUser(null);
+        setLoading(false);
+        return;
       }
-    } catch (error) {
-      console.error('Error fetching user:', error);
-      localStorage.removeItem('token');
-      delete axios.defaults.headers.common['Authorization'];
-      setUser(null);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -40,12 +58,12 @@ export const AuthProvider = ({ children }) => {
     try {
       const loginUrl = `${API_BASE_URL}/api/auth/login`;
       console.log('🔍 Login attempt:', { email, url: loginUrl, apiBase: API_BASE_URL });
-      
+
       const response = await axios.post(loginUrl, {
         email,
         password,
       });
-      
+
       console.log('✅ Login successful:', response.data.user);
       const { token, user } = response.data;
       localStorage.setItem('token', token);
