@@ -645,7 +645,7 @@ const Leads = () => {
                 <th style={{ width: '80px' }}>Priority</th>
                 <th style={{ width: '12%' }}>Source</th>
                 <th style={{ width: '110px' }}>Follow-up Date</th>
-                <th style={{ width: '110px' }}>Follow-up Status</th>
+
                 <th style={{ width: '100px' }}>Lead Status</th>
                 <th style={{ width: '12%', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Actions</th>
@@ -731,19 +731,7 @@ const Leads = () => {
                       '-'
                     )}
                   </td>
-                  <td>
-                    {['Completed', 'Skipped', 'Pending'].includes(lead.follow_up_status) || lead.follow_up_status === 'Pending' ? (
-                      <span style={{
-                        color: lead.follow_up_status === 'Completed' ? '#28a745' :
-                          lead.follow_up_status === 'Skipped' ? '#dc3545' : '#ffc107',
-                        fontWeight: '500'
-                      }}>
-                        {lead.follow_up_status || 'Pending'}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
+
                   <td>
                     <span
                       className="status-badge"
