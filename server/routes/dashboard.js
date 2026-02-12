@@ -744,11 +744,16 @@ router.get('/', authenticate, async (req, res) => {
 
       const attendanceByDate = {};
       recentAttendance.forEach(a => {
-        const date = a.check_in.split('T')[0];
-        if (!attendanceByDate[date]) {
-          attendanceByDate[date] = new Set();
+        if (!a.check_in) return;
+        try {
+          const date = new Date(a.check_in).toISOString().split('T')[0];
+          if (!attendanceByDate[date]) {
+            attendanceByDate[date] = new Set();
+          }
+          attendanceByDate[date].add(a.user_id);
+        } catch (e) {
+          console.error('Invalid check_in date:', a.check_in, e);
         }
-        attendanceByDate[date].add(a.user_id);
       });
 
       const attendanceOverview = Object.entries(attendanceByDate)
