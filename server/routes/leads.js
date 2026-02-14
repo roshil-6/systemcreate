@@ -932,9 +932,10 @@ router.get('/:id/comments', authenticate, async (req, res) => {
 
     const comments = await db.getComments(leadId);
 
-    // Add author names
+    // Add author names and map 'comment' to 'text' for frontend compatibility
     const commentsWithAuthorsPromises = comments.map(async comment => ({
       ...comment,
+      text: comment.comment, // Map DB column 'comment' to frontend expected 'text'
       author_name: await db.getUserName(comment.user_id) || 'Unknown',
     }));
     const commentsWithAuthors = await Promise.all(commentsWithAuthorsPromises);
@@ -988,9 +989,10 @@ router.post('/:id/comments', authenticate, async (req, res) => {
       comment: text.trim(),
     });
 
-    // Add author name
+    // Add author name and map 'comment' to 'text'
     const commentWithAuthor = {
       ...comment,
+      text: comment.comment, // Map DB column 'comment' to frontend expected 'text'
       author_name: await db.getUserName(userId) || 'Unknown',
     };
 
