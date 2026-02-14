@@ -984,8 +984,8 @@ router.post('/:id/comments', authenticate, async (req, res) => {
 
     const comment = await db.createComment({
       lead_id: leadId,
-      author_id: userId,
-      text: text.trim(),
+      user_id: userId,
+      comment: text.trim(),
     });
 
     // Add author name
