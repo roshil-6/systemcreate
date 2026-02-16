@@ -7,7 +7,6 @@ import './Leads.css';
 import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2 } from 'react-icons/fi';
 
 const Leads = () => {
-  const { user } = useAuth();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
