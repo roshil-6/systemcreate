@@ -223,8 +223,27 @@ router.get('/:id', authenticate, async (req, res) => {
     if (!canViewPaymentData) {
       // Remove payment fields and assigned_staff_id but keep all other client data
       const { amount_paid, fee_status, registration_fee_paid, assigned_staff_id, ...rest } = client;
+
+      // START MODIFICATION: Fetch lead creation date
+      if (client.lead_id) {
+        const leads = await db.getLeads({ id: client.lead_id });
+        if (leads.length > 0) {
+          rest.lead_created_at = leads[0].created_at;
+        }
+      }
+      // END MODIFICATION
+
       return res.json(rest);
     }
+
+    // START MODIFICATION: Fetch lead creation date for authorized users too
+    if (client.lead_id) {
+      const leads = await db.getLeads({ id: client.lead_id });
+      if (leads.length > 0) {
+        client.lead_created_at = leads[0].created_at;
+      }
+    }
+    // END MODIFICATION
 
     res.json(client);
   } catch (error) {

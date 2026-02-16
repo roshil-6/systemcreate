@@ -28,7 +28,7 @@ function buildLeadMetrics(leads) {
 
   return {
     totalLeads: leads.length,
-    newLeads: leads.filter(l => l.status === 'New').length,
+    newLeads: leads.filter(l => l.status === 'Unassigned').length,
     followupLeads: leads.filter(l => l.status === 'Follow-up').length,
     processingLeads: leads.filter(l => l.status === 'Prospect').length,
     convertedLeads: leads.filter(l => l.status === 'Pending Lead').length,
@@ -420,7 +420,7 @@ router.get('/', authenticate, async (req, res) => {
         ...buildLeadMetrics(allLeads),
         totalClients: restrictedClients.length,
         leadsByStatus: {
-          'New': allLeads.filter(l => l.status === 'New').length,
+          'Unassigned': allLeads.filter(l => l.status === 'Unassigned').length,
           'Follow-up': allLeads.filter(l => l.status === 'Follow-up').length,
           'Prospect': allLeads.filter(l => l.status === 'Prospect').length,
           'Pending Lead': allLeads.filter(l => l.status === 'Pending Lead').length,
@@ -604,7 +604,7 @@ router.get('/', authenticate, async (req, res) => {
       console.log('  Kripa User ID:', kripaUserId);
       console.log('  All status counts from leads:');
       const statusCounts = {
-        'New': allLeads.filter(l => l.status === 'New').length,
+        'Unassigned': allLeads.filter(l => l.status === 'Unassigned').length,
         'Follow-up': allLeads.filter(l => l.status === 'Follow-up').length,
         'Prospect': allLeads.filter(l => l.status === 'Prospect').length,
         'Pending Lead': allLeads.filter(l => l.status === 'Pending Lead').length,
@@ -634,7 +634,7 @@ router.get('/', authenticate, async (req, res) => {
         totalLeads: allLeads.length,
         totalClients: allClients.length, // Add total clients count
         leadsByStatus: {
-          'New': allLeads.filter(l => l.status === 'New').length,
+          'Unassigned': allLeads.filter(l => l.status === 'Unassigned').length,
           'Follow-up': allLeads.filter(l => l.status === 'Follow-up').length,
           'Prospect': allLeads.filter(l => l.status === 'Prospect').length,
           'Pending Lead': allLeads.filter(l => l.status === 'Pending Lead').length,

@@ -461,7 +461,7 @@ const Dashboard = () => {
 
   const getStatusBoxColor = (status) => {
     const colors = {
-      'New': {
+      'Unassigned': {
         backgroundColor: '#BFDBFE', // Light blue
         color: '#1e3a8a', // Dark blue text
         borderColor: '#3b82f6' // Blue border
@@ -487,7 +487,7 @@ const Dashboard = () => {
         borderColor: '#6b7280' // Gray border
       },
     };
-    return colors[status] || colors['New'];
+    return colors[status] || colors['Unassigned'];
   };
 
   const renderStatusBreakdown = () => {
@@ -496,7 +496,7 @@ const Dashboard = () => {
       return null;
     }
 
-    const newColor = getStatusBoxColor('New');
+    const newColor = getStatusBoxColor('Unassigned');
     const followUpColor = getStatusBoxColor('Follow-up');
     const prospectColor = getStatusBoxColor('Prospect');
     const pendingColor = getStatusBoxColor('Pending Lead');
@@ -514,10 +514,10 @@ const Dashboard = () => {
           {hasLeadsByStatus ? (
             // New format with leadsByStatus
             <>
-              {data.metrics.leadsByStatus['New'] !== undefined && (
+              {data.metrics.leadsByStatus['Unassigned'] !== undefined && (
                 <div className="status-item" style={newColor}>
-                  <span className="status-label" style={{ color: newColor.color }}>New</span>
-                  <span className="status-count" style={{ color: newColor.color }}>{data.metrics.leadsByStatus['New']}</span>
+                  <span className="status-label" style={{ color: newColor.color }}>Unassigned</span>
+                  <span className="status-count" style={{ color: newColor.color }}>{data.metrics.leadsByStatus['Unassigned']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Follow-up'] !== undefined && (
@@ -561,7 +561,7 @@ const Dashboard = () => {
             // Old format with individual metrics
             <>
               <div className="status-item" style={newColor}>
-                <span className="status-label" style={{ color: newColor.color }}>New</span>
+                <span className="status-label" style={{ color: newColor.color }}>Unassigned</span>
                 <span className="status-count" style={{ color: newColor.color }}>{data.metrics.newLeads}</span>
               </div>
               <div className="status-item" style={followUpColor}>

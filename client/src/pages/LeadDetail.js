@@ -50,7 +50,7 @@ const LeadDetail = () => {
         target_country: '',
         residing_country: '',
         program: '',
-        status: 'New',
+        status: 'Unassigned',
         assigned_staff_id: user?.role === 'STAFF' ? user.id : null,
         priority: '',
         comment: '',
@@ -271,7 +271,14 @@ const LeadDetail = () => {
           <button className="btn-back" onClick={() => navigate('/leads')}>
             <FiArrowLeft /> Back
           </button>
-          <h1>{isNew ? 'Create New Lead' : lead?.name || 'Lead Details'}</h1>
+          <div>
+            <h1>{isNew ? 'Create New Lead' : lead?.name || 'Lead Details'}</h1>
+            {!isNew && lead?.created_at && (
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                Added on {new Date(lead.created_at).toLocaleString()}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       <div className="lead-header-fields">
@@ -658,7 +665,7 @@ const LeadDetail = () => {
                   onChange={handleChange}
                   disabled={!canEdit}
                 >
-                  <option value="New">New</option>
+                  <option value="Unassigned">Unassigned</option>
                   <option value="Follow-up">Follow-up</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Pending Lead">Pending Lead</option>

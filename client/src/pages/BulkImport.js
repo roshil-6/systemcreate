@@ -165,7 +165,7 @@ const BulkImport = () => {
       '5',
       'australia',
       'gsm',
-      'New',
+      'Unassigned',
       'warm',
       'Interested in product',
       '2026-02-01',

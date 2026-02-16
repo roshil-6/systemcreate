@@ -47,14 +47,20 @@ const upload = multer({
   },
 });
 
+
+
 // Get all leads (with role-based filtering)
 router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search } = req.query;
+    const { status, search, assigned_staff_id } = req.query;
 
     const filter = {};
+
+    if (assigned_staff_id) {
+      filter.assigned_staff_id = assigned_staff_id;
+    }
 
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
@@ -268,9 +274,14 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
         continue;
       }
 
-      await db.updateLead(leadId, { assigned_staff_id: staffId });
-      updatedLeadIds.push(leadId);
+      const updates = { assigned_staff_id: staffId };
+      // AUTOMATIC STATUS UPDATE: Set to 'Assigned' if currently 'Unassigned'
+      if (lead.status === 'Unassigned') {
+        updates.status = 'Assigned';
+      }
 
+      await db.updateLead(leadId, updates);
+      updatedLeadIds.push(leadId);
       const assignedUsers = await db.getUsers({ id: staffId });
       const assignedUser = assignedUsers[0];
       if (assignedUser) {
@@ -500,7 +511,7 @@ router.post(
         year_of_experience,
         country,
         program,
-        status = 'New',
+        status = 'Unassigned',
         assigned_staff_id,
         priority,
         comment,
@@ -571,6 +582,12 @@ router.post(
 
       // Create notification if lead is assigned to staff (admin or team head)
       if (finalAssignedStaffId) {
+        // AUTOMATIC STATUS UPDATE: If lead is assigned, set status to 'Assigned' (if it was Unassigned)
+        if (status === 'Unassigned') {
+          await db.updateLead(newLead.id, { status: 'Assigned' });
+          newLead.status = 'Assigned'; // Update response object
+        }
+
         const assignedUsers = await db.getUsers({ id: finalAssignedStaffId });
         const assignedUser = assignedUsers[0];
         if (assignedUser && assignedUser.role !== 'ADMIN') {
@@ -746,9 +763,17 @@ router.put('/:id', authenticate, async (req, res) => {
       // Create notification if assignment changed (including from null/unassigned to assigned)
       const existingStaffId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
       if (normalizedStaffId && existingStaffId !== normalizedStaffId) {
+
+        // AUTOMATIC STATUS UPDATE: If lead is being assigned, set status to 'Assigned'
+        // Only if current status is 'Unassigned'
+        if (existingLead.status === 'Unassigned') {
+          updates.status = 'Assigned';
+          console.log(`🔄 Auto-updating status to 'Assigned' for lead ${leadId}`);
+        }
+
         const assignedUsers = await db.getUsers({ id: normalizedStaffId });
         const assignedUser = assignedUsers[0];
-        if (assignedUser) {
+        if (assignedUser && assignedUser.role !== 'ADMIN') {
           const notification = await db.createNotification({
             user_id: normalizedStaffId,
             lead_id: leadId,
@@ -759,6 +784,15 @@ router.put('/:id', authenticate, async (req, res) => {
           console.log(`✅ Notification created for user ${normalizedStaffId}:`, notification);
         } else {
           console.error(`❌ User ${normalizedStaffId} not found for notification`);
+        }
+      }
+
+      // AUTOMATIC STATUS UPDATE: If lead is being UNASSIGNED (staffId is null)
+      if ((assigned_staff_id === null || assigned_staff_id === '') && existingStaffId !== null) {
+        // Only if current status is 'Assigned'
+        if (existingLead.status === 'Assigned') {
+          updates.status = 'Unassigned';
+          console.log(`🔄 Auto-updating status to 'Unassigned' for lead ${leadId}`);
         }
       }
 
@@ -1813,12 +1847,12 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
 
         // Map status values (handle different status formats)
         if (!status) {
-          status = 'New';
+          status = 'Unassigned';
         } else {
           // Normalize status values
           const statusLower = status.toLowerCase();
-          if (statusLower.includes('new') || statusLower.includes('pending')) {
-            status = 'New';
+          if (statusLower.includes('new') || statusLower.includes('pending') || statusLower.includes('unassigned')) {
+            status = 'Unassigned';
           } else if (statusLower.includes('follow') || statusLower.includes('followup')) {
             status = 'Follow-up';
           } else if (statusLower.includes('prospect')) {
@@ -1831,9 +1865,9 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
             status = 'Registration Completed';
           } else {
             // Check if it matches a valid status exactly
-            const validStatuses = ['New', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+            const validStatuses = ['Unassigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
             if (!validStatuses.includes(status)) {
-              status = 'New'; // Default to New if unknown
+              status = 'Unassigned'; // Default to Unassigned if unknown
             }
           }
         }
@@ -1914,7 +1948,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
               lead.year_of_experience || null,
               lead.country || null,
               lead.program || null,
-              lead.status || 'New',
+              lead.status || 'Unassigned',
               lead.priority || null,
               lead.comment || null,
               lead.follow_up_date || null,
@@ -1971,6 +2005,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     });
   }
 });
+
+
 
 // Bulk delete leads
 router.post('/bulk-delete', authenticate, async (req, res) => {

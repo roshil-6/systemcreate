@@ -74,11 +74,20 @@ const Leads = () => {
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const params = {};
-      if (statusFilter) params.status = statusFilter;
-      if (search) params.search = search;
+      const token = localStorage.getItem('token');
+      const search = searchParams.get('search');
+      const status = searchParams.get('status');
+      const assigned_staff_id = searchParams.get('assigned_staff_id');
 
-      const response = await axios.get(`${API_BASE_URL}/api/leads`, { params });
+      let url = `${API_BASE_URL}/api/leads?`;
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (status) params.append('status', status);
+      if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
+
+      const response = await axios.get(`${url}${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       // Sort leads alphabetically by name
       const leadsData = response.data || [];
       const sortedLeads = leadsData.sort((a, b) => {
@@ -89,6 +98,9 @@ const Leads = () => {
       setLeads(sortedLeads);
     } catch (error) {
       console.error('Error fetching leads:', error);
+      if (error.response?.status === 401) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
@@ -129,6 +141,7 @@ const Leads = () => {
     const params = new URLSearchParams();
     if (searchInput.trim()) params.set('search', searchInput.trim());
     if (statusFilter) params.set('status', statusFilter);
+    if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
     setSearch(searchInput.trim());
     navigate(`/leads?${params.toString()}`);
   };
@@ -141,6 +154,16 @@ const Leads = () => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (status) params.set('status', status);
+    if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
+    navigate(`/leads?${params.toString()}`);
+  };
+
+  const handleStaffFilter = (staffId) => {
+    setAssignedStaffFilter(staffId);
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (statusFilter) params.set('status', statusFilter);
+    if (staffId) params.set('assigned_staff_id', staffId);
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -319,11 +342,12 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+  const statusOptions = ['Unassigned', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
-      'New': '#87CEEB', // Soft blue
+      'Unassigned': '#87CEEB', // Soft blue
+      'Assigned': '#cbd5e1', // Slate 300 - Greyish blue for assigned
       'Follow-up': '#E6E6FA', // Lavender
       'Prospect': '#B0E0E6', // Powder blue
       'Pending Lead': '#DDA0DD', // Plum
@@ -336,7 +360,8 @@ const Leads = () => {
 
   const getStatusTextColor = (status) => {
     const colors = {
-      'New': '#1e40af', // Dark blue
+      'Unassigned': '#1e40af', // Dark blue
+      'Assigned': '#334155', // Slate 700
       'Follow-up': '#6b21a8', // Dark purple
       'Prospect': '#0e7490', // Dark cyan
       'Pending Lead': '#7c2d12', // Dark brown
@@ -391,11 +416,35 @@ const Leads = () => {
             <FiSearch className="search-icon" />
             <input
               type="text"
-              placeholder="Search lead by name to see assigned staff..."
+              placeholder="Search lead by name..."
               value={searchInput}
               onChange={handleSearchInputChange}
             />
           </form>
+
+          {canManageLeads && (
+            <select
+              className="staff-filter-select"
+              value={assignedStaffFilter}
+              onChange={(e) => handleStaffFilter(e.target.value)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid #e5e7eb',
+                backgroundColor: 'white',
+                color: '#374151',
+                fontSize: '14px',
+                marginRight: '10px'
+              }}
+            >
+              <option value="">All Staff</option>
+              {staffList.map(staff => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             className="export-btn"
             onClick={handleExportToGoogleSheets}
@@ -646,6 +695,7 @@ const Leads = () => {
                 <th style={{ width: '12%' }}>Source</th>
                 <th style={{ width: '110px' }}>Follow-up Date</th>
 
+                <th style={{ width: '130px' }}>Date Added</th>
                 <th style={{ width: '100px' }}>Lead Status</th>
                 <th style={{ width: '12%', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Actions</th>
@@ -732,6 +782,14 @@ const Leads = () => {
                     )}
                   </td>
 
+                  <td>
+                    <div className="date-cell" title={lead.created_at ? new Date(lead.created_at).toLocaleString() : ''}>
+                      {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}
+                      <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        {lead.created_at ? new Date(lead.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </div>
+                    </div>
+                  </td>
                   <td>
                     <span
                       className="status-badge"

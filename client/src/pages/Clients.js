@@ -278,6 +278,14 @@ const Clients = () => {
                 <span className="profile-label">Registration Fee Paid:</span>
                 <span className="profile-value">{selectedClient.registration_fee_paid ? 'Yes' : 'No'}</span>
               </div>
+              {selectedClient.lead_created_at && (
+                <div className="profile-detail-row">
+                  <span className="profile-label">Date Added (Lead):</span>
+                  <span className="profile-value">
+                    {new Date(selectedClient.lead_created_at).toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
 
             {selectedClient.processing_status && (
