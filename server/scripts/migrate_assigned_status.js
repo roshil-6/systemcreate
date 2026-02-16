@@ -6,8 +6,8 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 // Use the same connection logic as the main app
 const pool = new Pool({
     // Fallback to local string if env not loaded (for script execution)
-    connectionString: 'postgresql://postgres:zoTmxUqzpeCZWqigNKVHhSCcwDHVEqPe@trolley.proxy.rlwy.net:27359/railway',
-    ssl: { rejectUnauthorized: false }
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/crm_db',
+    ssl: (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost')) ? false : { rejectUnauthorized: false }
 });
 
 async function migrateAssignedStatus() {
