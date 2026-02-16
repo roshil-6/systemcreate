@@ -8,6 +8,7 @@ import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiAr
 
 const Leads = () => {
   const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState([]);
@@ -19,6 +20,7 @@ const Leads = () => {
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [assignedStaffFilter, setAssignedStaffFilter] = useState(searchParams.get('assigned_staff_id') || '');
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);

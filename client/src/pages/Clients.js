@@ -420,7 +420,14 @@ const Clients = () => {
                   <div className="client-avatar-simple">
                     {getInitials(client.name)}
                   </div>
-                  <h3 className="client-name">{client.name}</h3>
+                  <div className="client-info-col">
+                    <h3 className="client-name">{client.name}</h3>
+                    {client.lead_created_at && (
+                      <p className="client-date-small" style={{ fontSize: '11px', color: '#9ca3af', margin: 0 }}>
+                        Added: {new Date(client.lead_created_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             );

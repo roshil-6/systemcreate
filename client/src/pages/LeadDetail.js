@@ -385,6 +385,23 @@ const LeadDetail = () => {
           <div className="detail-section">
             <h2>Lead Information</h2>
             <div className="form-grid">
+              {!isNew && lead?.created_at && (
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ color: '#666', fontSize: '0.9em' }}>
+                    <FiCalendar /> Date Added
+                  </label>
+                  <div style={{
+                    padding: '10px',
+                    background: '#f9fafb',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb',
+                    color: '#374151',
+                    fontSize: '14px'
+                  }}>
+                    {new Date(lead.created_at).toLocaleString()}
+                  </div>
+                </div>
+              )}
               <div className="form-group">
                 <label>
                   <FiUser /> Name *
@@ -661,11 +678,12 @@ const LeadDetail = () => {
                 <label>Status</label>
                 <select
                   name="status"
-                  value={formData.status || 'New'}
+                  value={formData.status || 'Unassigned'}
                   onChange={handleChange}
                   disabled={!canEdit}
                 >
                   <option value="Unassigned">Unassigned</option>
+                  <option value="Assigned">Assigned</option>
                   <option value="Follow-up">Follow-up</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Pending Lead">Pending Lead</option>
