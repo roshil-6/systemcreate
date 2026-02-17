@@ -140,39 +140,42 @@ const StaffDocumentView = () => {
         <div className="staff-docs-container relative">
             {/* Document Viewer Modal */}
             {viewingDoc && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setViewingDoc(null)}>
-                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center p-4 border-b">
-                            <h3 className="text-lg font-semibold text-gray-800 truncate">{viewingDoc.file_name}</h3>
-                            <button onClick={() => setViewingDoc(null)} className="text-gray-500 hover:text-red-500 p-1">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-6" onClick={() => setViewingDoc(null)}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800 truncate">{viewingDoc.file_name}</h3>
+                                <p className="text-sm text-gray-400">Uploaded on {new Date(viewingDoc.created_at).toLocaleDateString()}</p>
+                            </div>
+                            <button onClick={() => setViewingDoc(null)} className="text-gray-400 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100 transition-all">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
-                        <div className="flex-1 bg-gray-100 overflow-auto flex items-center justify-center p-4 relative min-h-[300px]">
+                        <div className="flex-1 bg-gray-50/50 overflow-auto flex items-center justify-center p-8 relative min-h-[300px]">
                             {!viewerUrl ? (
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#D4AF37]"></div>
                             ) : (
                                 viewingDoc.file_name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/) ? (
-                                    <img src={viewerUrl} alt="Document" className="max-w-full max-h-full object-contain shadow-md" />
+                                    <img src={viewerUrl} alt="Document" className="max-w-full max-h-full object-contain shadow-lg rounded-lg" />
                                 ) : (
-                                    <iframe src={viewerUrl} title="Document Viewer" className="w-full h-full min-h-[600px] border-none shadow-md bg-white"></iframe>
+                                    <iframe src={viewerUrl} title="Document Viewer" className="w-full h-full min-h-[600px] border-none shadow-lg rounded-lg bg-white"></iframe>
                                 )
                             )}
                         </div>
-                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
+                        <div className="p-6 border-t border-gray-100 bg-white flex justify-end gap-3">
                             <a
                                 href={viewerUrl}
                                 download={viewingDoc.file_name}
-                                className="px-4 py-2 bg-[#D4AF37] text-white rounded hover:bg-[#aa8c2c] text-sm font-medium flex items-center gap-2 shadow-sm transition-colors"
+                                className="px-6 py-2.5 bg-[#D4AF37] text-white rounded-xl hover:bg-[#b4941f] text-sm font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
-                                Download
+                                Download File
                             </a>
-                            <button onClick={() => setViewingDoc(null)} className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm font-medium transition-colors">
+                            <button onClick={() => setViewingDoc(null)} className="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 text-sm font-semibold transition-colors">
                                 Close
                             </button>
                         </div>
@@ -180,118 +183,103 @@ const StaffDocumentView = () => {
                 </div>
             )}
 
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-8xl mx-auto">
                 {/* Header */}
-                <div className="flex items-center mb-8 relative z-50">
-                    <button
-                        onClick={() => navigate('/hr')}
-                        className="btn-back mr-6 relative z-50 hover:scale-105 transition-transform"
-                    >
-                        <span>&larr;</span> Back
-                    </button>
+                <div className="flex flex-col md:flex-row items-center mb-12 relative z-50 justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-white tracking-tight">
-                            Documents for <span className="text-[#D4AF37]">{staffName}</span>
+                        <button
+                            onClick={() => navigate('/hr')}
+                            className="btn-back mb-6 inline-flex"
+                        >
+                            <span>&larr;</span> Back to Directory
+                        </button>
+                        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight">
+                            Documents for <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#b4941f]">{staffName}</span>
                         </h1>
-                        <p className="text-gray-400 mt-1 text-sm">Managing upload slots for Agent ID #{id}</p>
+                        <p className="text-gray-500 mt-2 text-lg">Secure document management & storage slots.</p>
+                    </div>
+
+                    <div className="mt-4 md:mt-0 text-right hidden md:block">
+                        <div className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Agent ID</div>
+                        <div className="text-2xl font-mono text-gray-800">#{id.toString().padStart(4, '0')}</div>
                     </div>
                 </div>
 
                 {error && (
-                    <div className="mb-8 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg">
+                    <div className="mb-8 p-6 bg-red-50 border border-red-100 text-red-600 rounded-2xl shadow-sm flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                         {error}
                     </div>
                 )}
 
-                {/* Explicit Sub-Header for Upload Section */}
-                <div className="mb-6 relative z-10">
-                    <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                        <span className="w-2 h-8 bg-[#D4AF37] rounded-full"></span>
-                        Upload Area for <span className="text-[#aa8c2c]">{staffName || 'Staff Member'}</span>
-                    </h2>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 relative z-0">
+                {/* Slots Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-8 relative z-0">
                     {slots.map(slot => {
                         const doc = documents[slot];
                         const isUploading = uploadingSlot === slot;
 
                         return (
-                            <div key={slot} className="doc-card relative group h-52">
-                                <div className="slot-badge">Slot {slot}</div>
+                            <div key={slot} className="doc-card">
+                                <div className="slot-badge">Slot {slot < 10 ? `0${slot}` : slot}</div>
 
-                                <div className="h-full w-full flex flex-col items-center justify-center">
-                                    {doc ? (
-                                        <>
-                                            <div className="w-16 h-16 mb-4 flex items-center justify-center bg-[#f9f4e0] rounded-xl text-[#D4AF37] border border-[#e6dcb8]">
-                                                <span className="text-3xl">📄</span>
-                                            </div>
+                                {doc ? (
+                                    <div className="file-present">
+                                        <div className="file-icon-large text-[#D4AF37]">
+                                            📄
+                                        </div>
 
-                                            <div className="w-full text-center px-4 flex-grow flex flex-col justify-center">
-                                                <h4 className="text-gray-900 text-sm font-bold truncate w-full" title={doc.file_name}>
-                                                    {doc.file_name}
-                                                </h4>
-                                                <p className="text-gray-500 text-xs mt-1">
-                                                    {new Date(doc.created_at).toLocaleDateString()}
-                                                </p>
-                                            </div>
+                                        <div className="text-center w-full my-4">
+                                            <h4 className="font-bold text-gray-800 text-sm truncate w-full px-2" title={doc.file_name}>
+                                                {doc.file_name}
+                                            </h4>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                {new Date(doc.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
 
-                                            <div className="flex gap-2 w-full mt-auto pt-4 border-t border-gray-100 px-4 pb-4">
-                                                <button
-                                                    className="flex-1 btn-view py-1.5 rounded text-xs font-medium transition-colors"
-                                                    onClick={() => setViewingDoc(doc)}
-                                                >
-                                                    View
-                                                </button>
-                                                <button
-                                                    className="flex-1 btn-delete py-1.5 rounded text-xs font-medium transition-colors"
-                                                    onClick={() => handleDelete(slot)}
-                                                >
-                                                    Delete
-                                                </button>
+                                        <div className="doc-actions">
+                                            <button
+                                                className="btn-view"
+                                                onClick={() => setViewingDoc(doc)}
+                                            >
+                                                View
+                                            </button>
+                                            <button
+                                                className="btn-delete"
+                                                onClick={() => handleDelete(slot)}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    isUploading ? (
+                                        <div className="upload-zone">
+                                            <div className="upload-icon-circle">
+                                                <div className="w-6 h-6 border-2 border-gray-200 border-t-[#D4AF37] rounded-full animate-spin"></div>
                                             </div>
-                                        </>
+                                            <span className="text-sm font-semibold text-gray-400 animate-pulse">Uploading...</span>
+                                        </div>
                                     ) : (
-                                        isUploading ? (
-                                            <div className="upload-zone w-full h-full relative bg-[#f9f4e0] rounded-lg overflow-hidden border-2 border-dashed border-[#e6dcb8] flex items-center justify-center">
-                                                <div className="flex flex-col items-center justify-center text-[#D4AF37]">
-                                                    <div className="w-10 h-10 border-4 border-[#e6dcb8] border-t-[#D4AF37] rounded-full animate-spin mb-3"></div>
-                                                    <span className="text-sm font-semibold animate-pulse text-[#8a6d3b]">Uploading...</span>
-                                                </div>
+                                        <label className="upload-zone group">
+                                            <div className="upload-icon-circle group-hover:scale-110">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-gray-300 group-hover:text-white transition-colors">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                                </svg>
                                             </div>
-                                        ) : (
-                                            <label className="upload-zone w-full h-full relative group flex flex-col items-center justify-center cursor-pointer">
-                                                {/* Visual Layer - Clean & Modern */}
-                                                <div className="flex flex-col items-center justify-center p-4 transition-transform duration-300 group-hover:scale-105">
-                                                    <div className="mb-2 p-2 rounded-full bg-gray-50 text-gray-400 group-hover:bg-[#f9f4e0] group-hover:text-[#D4AF37] transition-colors duration-300 ring-1 ring-gray-100 group-hover:ring-[#D4AF37]/30">
-                                                        <svg
-                                                            xmlns="http://www.w3.org/2000/svg"
-                                                            fill="none"
-                                                            viewBox="0 0 24 24"
-                                                            strokeWidth={1.5}
-                                                            stroke="currentColor"
-                                                            className="w-5 h-5"
-                                                            width="20"
-                                                            height="20"
-                                                            style={{ minWidth: '20px', maxWidth: '20px' }}
-                                                        >
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                                        </svg>
-                                                    </div>
-                                                    <h5 className="text-gray-600 font-medium text-xs mb-1 group-hover:text-[#8a6d3b] transition-colors">Add Document</h5>
-                                                    <span className="text-gray-300 text-[10px] uppercase tracking-wider group-hover:text-[#D4AF37]/70 transition-colors">Select File</span>
-                                                </div>
+                                            <h5 className="text-gray-500 font-medium text-sm group-hover:text-[#D4AF37] transition-colors">Add Document</h5>
+                                            <span className="text-gray-300 text-xs mt-1">Tap to select</span>
 
-                                                {/* Hidden Input controlled by Label */}
-                                                <input
-                                                    type="file"
-                                                    className="hidden"
-                                                    onChange={(e) => handleFileUpload(slot, e.target.files[0])}
-                                                />
-                                            </label>
-                                        )
-                                    )}
-                                </div>
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                onChange={(e) => handleFileUpload(slot, e.target.files[0])}
+                                            />
+                                        </label>
+                                    )
+                                )}
                             </div>
                         );
                     })}

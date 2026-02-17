@@ -49,44 +49,45 @@ const StaffList = () => {
 
     return (
         <div className="staff-list-container">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-10">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-12">
                 <div>
-                    <h1 className="text-4xl font-bold mb-2 tracking-tight">Staff Directory</h1>
-                    <p>Centralized documentation management for all employees.</p>
+                    <h1 className="text-5xl font-bold mb-3 tracking-tighter">Staff Directory</h1>
+                    <p className="text-gray-500 text-lg">Centralized documentation & profile management.</p>
                 </div>
             </div>
 
             {displayedStaff.length === 0 ? (
-                <div className="text-center py-20">
-                    <p className="text-xl">No staff found.</p>
+                <div className="text-center py-20 bg-white/50 backdrop-blur-sm rounded-3xl border border-white/60">
+                    <p className="text-xl text-gray-400">No staff found.</p>
                 </div>
             ) : (
-                <div className="staff-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {displayedStaff.map(user => (
+                <div className="staff-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    {displayedStaff.map((user, index) => (
                         <div
                             key={user.id}
                             onClick={() => navigate(`/hr/staff/${user.id}`)}
-                            className="staff-card group cursor-pointer"
+                            className="staff-card group"
+                            style={{ animationDelay: `${index * 50}ms` }}
                         >
-                            <div className="flex items-start space-x-4">
-                                <div className="avatar-circle w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold shrink-0">
+                            <div className="flex items-start space-x-5">
+                                <div className="avatar-circle rounded-full flex items-center justify-center font-bold shrink-0">
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="text-lg font-semibold text-white truncate group-hover:text-blue-400 transition-colors">
+                                <div className="flex-1 min-w-0 pt-1">
+                                    <h3 className="truncate group-hover:text-[#D4AF37] transition-colors">
                                         {user.name}
                                     </h3>
-                                    <span className="inline-block bg-blue-500/10 text-blue-400 text-xs px-2 py-0.5 rounded mt-1 mb-1 border border-blue-500/20">
+                                    <span className="inline-block bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded-full mt-2 mb-1 tracking-wider uppercase">
                                         {user.role}
                                     </span>
-                                    <p className="text-gray-500 text-sm truncate">{user.email}</p>
+                                    <p className="text-sm truncate mt-1 opacity-70">{user.email}</p>
                                 </div>
                             </div>
 
-                            <div className="mt-4 pt-4 border-t border-gray-700/50 flex justify-between items-center text-xs text-gray-400">
-                                <span>ID: #{user.id}</span>
-                                <span className="flex items-center text-gray-500 group-hover:text-blue-400 transition-colors">
-                                    Manage Documents &rarr;
+                            <div className="mt-6 pt-5 border-t border-gray-100 flex justify-between items-center">
+                                <span className="text-xs font-mono text-gray-400">#{user.id.toString().padStart(4, '0')}</span>
+                                <span className="flex items-center text-xs font-semibold text-[#D4AF37] group-hover:translate-x-1 transition-transform">
+                                    Manage Docs &rarr;
                                 </span>
                             </div>
                         </div>
