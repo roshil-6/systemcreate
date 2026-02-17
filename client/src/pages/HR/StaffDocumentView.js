@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import API_BASE_URL from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import './HR.css';
 
@@ -25,12 +27,9 @@ const StaffDocumentView = () => {
 
     const fetchStaffDetails = async () => {
         try {
-            const response = await fetch(`http://localhost:5002/api/hr/staff/${id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                const data = await response.json();
-                setStaffName(data.name);
+            const response = await axios.get(`${API_BASE_URL}/api/hr/staff/${id}`);
+            if (response.data) {
+                setStaffName(response.data.name);
             }
         } catch (err) {
             console.error('Failed to fetch staff details', err);
@@ -39,17 +38,8 @@ const StaffDocumentView = () => {
 
     const fetchDocuments = async () => {
         try {
-            const response = await fetch(`http://localhost:5002/api/hr/staff/${id}/documents`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch documents');
-            }
-
-            const data = await response.json();
+            const response = await axios.get(`${API_BASE_URL}/api/hr/staff/${id}/documents`);
+            const data = response.data;
             // Convert list to object keyed by slot number
             const docsMap = {};
             data.forEach(doc => {
@@ -57,7 +47,7 @@ const StaffDocumentView = () => {
             });
             setDocuments(docsMap);
         } catch (err) {
-            setError(err.message);
+            setError(err.message || 'Failed to fetch documents');
         } finally {
             setLoading(false);
         }
@@ -76,11 +66,11 @@ const StaffDocumentView = () => {
 
         const fetchDocBlob = async () => {
             try {
-                const response = await fetch(`http://localhost:5002/api/hr/documents/${viewingDoc.id}/view`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                // For binary data (blob), we need to set responseType
+                const response = await axios.get(`${API_BASE_URL}/api/hr/documents/${viewingDoc.id}/view`, {
+                    responseType: 'blob'
                 });
-                if (!response.ok) throw new Error('Failed to load document');
-                const blob = await response.blob();
+                const blob = response.data;
                 const url = URL.createObjectURL(blob);
                 setViewerUrl(url);
             } catch (err) {
@@ -103,25 +93,19 @@ const StaffDocumentView = () => {
         formData.append('document', file);
 
         try {
-            const response = await fetch(`http://localhost:5002/api/hr/staff/${id}/documents/${slot}`, {
-                method: 'POST',
+            const response = await axios.post(`${API_BASE_URL}/api/hr/staff/${id}/documents/${slot}`, formData, {
                 headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: formData
+                    'Content-Type': 'multipart/form-data'
+                }
             });
 
-            if (!response.ok) {
-                throw new Error('Upload failed');
-            }
-
-            const newDoc = await response.json();
+            const newDoc = response.data;
             setDocuments(prev => ({
                 ...prev,
                 [slot]: newDoc
             }));
         } catch (err) {
-            alert('Upload failed: ' + err.message);
+            alert('Upload failed: ' + (err.response?.data?.error || err.message));
         } finally {
             setUploadingSlot(null);
         }
@@ -134,14 +118,7 @@ const StaffDocumentView = () => {
         if (!window.confirm('Are you sure you want to delete this document?')) return;
 
         try {
-            const response = await fetch(`http://localhost:5002/api/hr/documents/${doc.id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) throw new Error('Delete failed');
+            await axios.delete(`${API_BASE_URL}/api/hr/documents/${doc.id}`);
 
             setDocuments(prev => {
                 const newState = { ...prev };
@@ -149,7 +126,7 @@ const StaffDocumentView = () => {
                 return newState;
             });
         } catch (err) {
-            alert('Delete failed: ' + err.message);
+            alert('Delete failed: ' + (err.response?.data?.error || err.message));
         }
     };
 

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import API_BASE_URL from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
 import './HR.css'; // We'll create this CSS file
 
@@ -17,21 +19,18 @@ const StaffList = () => {
 
     const fetchStaff = async () => {
         try {
-            const response = await fetch('http://localhost:5002/api/hr/staff', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch staff list');
-            }
-
-            const data = await response.json();
-            setStaff(data);
+            // Use axios to leverage global auth headers and base URL
+            const response = await axios.get(`${API_BASE_URL}/api/hr/staff`);
+            setStaff(response.data);
+            setLoading(false);
         } catch (err) {
-            setError(err.message);
-        } finally {
+            console.error('Error fetching staff:', err);
+            // Check for 401 explicitly
+            if (err.response && err.response.status === 401) {
+                setError('Session expired. Please login again.');
+            } else {
+                setError(err.message || 'Failed to fetch staff list');
+            }
             setLoading(false);
         }
     };
