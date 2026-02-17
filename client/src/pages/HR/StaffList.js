@@ -36,7 +36,8 @@ const StaffList = () => {
     };
 
     // const filteredStaff = staff.filter(...) // Removed search logic
-    const displayedStaff = staff.filter(user => user.role !== 'ADMIN');
+    // const filteredStaff = staff.filter(...) // Removed search logic
+    const displayedStaff = staff; // Show all users including ADMIN
 
     if (loading) return (
         <div className="flex items-center justify-center min-h-screen text-blue-400">
