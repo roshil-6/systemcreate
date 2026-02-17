@@ -445,25 +445,30 @@ router.get('/', authenticate, async (req, res) => {
       console.log('  Registration Completed count:', metrics.leadsByStatus['Registration Completed']);
 
       // Recent activity
-      const recentLeadsPromises = allLeads.slice(0, 5).map(async l => {
-        let userName = 'Unknown';
-        if (l.assigned_staff_id) {
-          try {
-            userName = await db.getUserName(l.assigned_staff_id) || 'Unknown';
-          } catch (error) {
-            console.error('Error getting user name:', error);
-          }
-        }
-        return {
+      // OPTIMIZATION: Prepare User Map for fast lookups
+      const userMap = {};
+      try {
+        // We might have fetched specific users or all users depending on logic above, 
+        // but for safety in restricted view we can fetch all or rely on accessible logic.
+        // Since this is restricted view, we might not want to fetch ALL users if sensitive, 
+        // but fetching names is generally safe. Let's fetch all for consistent performance.
+        const allUsers = await db.getUsers();
+        allUsers.forEach(u => userMap[u.id] = u.name);
+      } catch (e) { console.error('Error building user map', e); }
+
+      // Recent leads (last 20, sorted by most recent)
+      // Optimized: Use userMap instead of async db calls inside map
+      const recentLeads = allLeads
+        .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+        .slice(0, 5) // Kept small for restricted view as per original slice logic for activity
+        .map(l => ({
           type: 'status_change',
           lead_id: l.id,
           lead_name: l.name,
           status: l.status,
           timestamp: l.updated_at || l.created_at,
-          user_name: userName,
-        };
-      });
-      const recentLeads = await Promise.all(recentLeadsPromises);
+          user_name: l.assigned_staff_id ? (userMap[l.assigned_staff_id] || 'Unknown') : 'Unknown',
+        }));
 
       const allComments = await db.getComments(null);
       const userCommentsPromises = allComments

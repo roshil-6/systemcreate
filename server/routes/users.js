@@ -151,6 +151,47 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
 
     const userToDelete = users[0];
 
+    // CHECK DEPENDENCIES BEFORE DELETION to prevent 500 Foreign Key Errors
+
+    // 1. Check assigned leads
+    const assignedLeads = await db.getLeads({ assigned_staff_id: userId });
+    if (assignedLeads.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete user. They have ${assignedLeads.length} assigned leads. Please reassign them first.`
+      });
+    }
+
+    // 2. Check assigned clients
+    const assignedClients = await db.getClients({ assigned_staff_id: userId });
+    if (assignedClients.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete user. They have ${assignedClients.length} assigned clients. Please reassign them first.`
+      });
+    }
+
+    // 3. Check processing clients
+    const processingClients = await db.getClients({ processing_staff_id: userId });
+    if (processingClients.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete user. They are processing ${processingClients.length} clients. Please reassign them first.`
+      });
+    }
+
+    // 4. Check if they manage other users (Team Head)
+    const teamMembers = await db.getUsers({ managed_by: userId });
+    if (teamMembers.length > 0) {
+      return res.status(400).json({
+        error: `Cannot delete user. They are managing ${teamMembers.length} other staff members. Please reassign their team first.`
+      });
+    }
+
+    // 5. Check other history (Comments, Attendance, etc.)
+    // For these, we might want to allow deletion by setting NULL, but for now safe blocking is better.
+    // If we crash here, it means we missed a dependency. 
+    // Ideally we should use a transaction and Soft Delete, but for now we proceed.
+    // NOTE: If strict FKs exist on comments/attendance without cascade, this might still fail. 
+    // However, leads/clients are the most common blockers. 
+
     // Remove user from database
     await db.deleteUser(userId);
 
@@ -216,16 +257,16 @@ router.get('/export/csv', authenticate, requireAdmin, async (req, res) => {
 
     const csvRows = [headers.join(',')];
 
+    // OPTIMIZATION: Create a map of User ID -> Name for fast manager lookup
+    const userMap = {};
+    users.forEach(u => userMap[u.id] = u.name);
+
     // Process users sequentially to fetch manager names
     for (const user of users) {
-      // Get manager name if exists
+      // Get manager name from map
       let managerName = '';
-      if (user.managed_by) {
-        const managers = await db.getUsers({ id: user.managed_by });
-        const manager = managers[0];
-        if (manager) {
-          managerName = manager.name;
-        }
+      if (user.managed_by && userMap[user.managed_by]) {
+        managerName = userMap[user.managed_by];
       }
 
       const row = [

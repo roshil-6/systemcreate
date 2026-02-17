@@ -69,7 +69,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
-      return { success: true };
+      return { success: true, user }; // Return user object for role checking
     } catch (error) {
       console.error('❌ Login error:', {
         message: error.message,

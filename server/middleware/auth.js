@@ -81,9 +81,18 @@ const requireAdminOrSalesTeamAdmin = (req, res, next) => {
   next();
 };
 
+// Check if user is HR or ADMIN
+const requireHrOrAdmin = (req, res, next) => {
+  if (req.user.role !== 'HR' && req.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'HR or Admin access required' });
+  }
+  next();
+};
+
 module.exports = {
   authenticate,
   requireAdmin,
   requireStaff,
   requireAdminOrSalesTeamAdmin,
+  requireHrOrAdmin,
 };

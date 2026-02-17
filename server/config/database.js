@@ -734,6 +734,53 @@ const database = {
     return result.rows[0];
   },
 
+  // Staff Documents
+  getStaffDocuments: async (userId) => {
+    const result = await query('SELECT * FROM staff_documents WHERE user_id = $1 ORDER BY slot_number ASC', [userId]);
+    return result.rows;
+  },
+
+  saveStaffDocument: async (docData) => {
+    // Upsert logic: If slot exists for user, update it; otherwise insert
+    // We used UNIQUE(user_id, slot_number) so we can use ON CONFLICT
+    const now = new Date().toISOString();
+
+    // Check if exists first to handle file replacement (cleanup old file handled by route usually, but DB update here)
+    // Actually ON CONFLICT DO UPDATE is best
+    const queryText = `
+      INSERT INTO staff_documents (user_id, slot_number, file_path, file_name, uploaded_by, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (user_id, slot_number) 
+      DO UPDATE SET 
+        file_path = EXCLUDED.file_path,
+        file_name = EXCLUDED.file_name,
+        uploaded_by = EXCLUDED.uploaded_by,
+        updated_at = EXCLUDED.updated_at
+      RETURNING *;
+    `;
+
+    const result = await query(queryText, [
+      docData.user_id,
+      docData.slot_number,
+      docData.file_path,
+      docData.file_name,
+      docData.uploaded_by,
+      now,
+      now
+    ]);
+    return result.rows[0];
+  },
+
+  deleteStaffDocument: async (id) => {
+    const result = await query('DELETE FROM staff_documents WHERE id = $1 RETURNING *', [id]);
+    return result.rows[0]; // Return deleted row so we can delete file from fs if needed
+  },
+
+  getStaffDocumentById: async (id) => {
+    const result = await query('SELECT * FROM staff_documents WHERE id = $1', [id]);
+    return result.rows[0];
+  },
+
   // Clients
   getClients: async (filter = {}) => {
     let queryText = 'SELECT * FROM clients WHERE 1=1';

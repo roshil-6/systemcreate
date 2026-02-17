@@ -1,0 +1,193 @@
+/* HR Section Styles - Soft Cream Theme */
+
+.staff-list-container,
+.staff-docs-container {
+    min-height: 100vh;
+    padding: 2rem;
+    color: #000000;
+    /* Deep Black Text */
+}
+
+/* --- Search Bar --- */
+.search-container input {
+    background: #fffbf2;
+    /* Soft Cream */
+    border: 1px solid #e5e5e5;
+    color: #000000;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.search-container input:focus {
+    background: #ffffff;
+    border-color: #d4af37;
+    /* Gold */
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+    /* Gold halo */
+    outline: none;
+}
+
+.search-container input::placeholder {
+    color: #666666;
+}
+
+/* --- Staff Cards --- */
+.staff-card {
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 16px;
+    padding: 1.5rem;
+    color: #1a1a1a;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.staff-card:hover {
+    transform: translateY(-4px);
+    border-color: #d4af37;
+    /* Gold */
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+}
+
+.staff-card h3 {
+    color: #111827;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: -0.025em;
+}
+
+.staff-card p {
+    color: #6b7280;
+}
+
+.avatar-circle {
+    background: linear-gradient(135deg, #d4af37, #b4941f);
+    color: white;
+    box-shadow: 0 4px 6px rgba(212, 175, 55, 0.2);
+    border: 2px solid #fff;
+}
+
+/* --- Document Grid --- */
+/* --- Document Grid --- */
+.doc-card {
+    background: #ffffff;
+    border: 1px solid #f3f4f6;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+    overflow: hidden;
+    /* Prevent overflow */
+}
+
+.doc-card:hover {
+    border-color: #d4af37;
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+.doc-card h3 {
+    color: #374151;
+    font-weight: 600;
+}
+
+/* Upload Zone */
+.upload-zone {
+    background: #ffffff;
+    border: 1.5px dashed #e5e7eb;
+    /* Neutral gray default */
+    border-radius: 16px;
+    width: 100%;
+    height: 100%;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-zone:hover {
+    background: #fffcf5;
+    /* Very subtle warm tint */
+    border-color: #d4af37;
+    /* Gold */
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.1);
+    transform: translateY(-2px);
+}
+
+.slot-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 6px;
+    padding: 2px 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    z-index: 20;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #9ca3af;
+    letter-spacing: 0.05em;
+}
+
+/* Actions */
+.btn-view,
+.btn-delete {
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    padding: 0.5rem;
+}
+
+.btn-view {
+    background: #f9f4e0;
+    color: #8a6d3b;
+    border: 1px solid #e6dcb8;
+}
+
+.btn-view:hover {
+    background: #f0e6c0;
+    border-color: #d4af37;
+}
+
+.btn-delete {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid transparent;
+}
+
+.btn-delete:hover {
+    background: #fee2e2;
+    border-color: #fecaca;
+}
+
+/* Back Button */
+.btn-back {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    background-color: white;
+    border: 1px solid #e5e5e5;
+    border-radius: 9999px;
+    /* Pill shape */
+    color: #4b5563;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-back:hover {
+    background-color: #f9fafb;
+    border-color: #d4af37;
+    color: #111827;
+    transform: translateX(-3px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}

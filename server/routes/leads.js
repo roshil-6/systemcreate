@@ -107,22 +107,23 @@ router.get('/', authenticate, async (req, res) => {
     // They are now clients and should be in the clients section
     leads = leads.filter(lead => lead.status !== 'Registration Completed');
 
-    // Add assigned staff name
-    const leadsWithNames = await Promise.all(leads.map(async lead => {
-      let assignedStaffName = null;
-      if (lead.assigned_staff_id) {
-        try {
-          assignedStaffName = await db.getUserName(lead.assigned_staff_id);
-        } catch (error) {
-          console.error('Error getting assigned staff name:', error);
-        }
-      }
-      return {
-        ...lead,
-        assigned_staff_name: assignedStaffName,
-      };
+    // OPTIMIZATION: Fetch all users once and create a lookup map
+    // This replaces the N+1 query pattern where we fetched user name for every single lead
+    let userMap = {};
+    try {
+      const allUsers = await db.getUsers();
+      allUsers.forEach(u => {
+        userMap[u.id] = u.name;
+      });
+    } catch (error) {
+      console.error('Optimization warning: Failed to fetch users for lookup, falling back to null names', error);
+    }
+
+    // Add assigned staff name using the lookup map
+    leads = leads.map(lead => ({
+      ...lead,
+      assigned_staff_name: lead.assigned_staff_id ? (userMap[lead.assigned_staff_id] || null) : null,
     }));
-    leads = leadsWithNames;
 
     // Exclude leads with "Registration Completed" status
     leads = leads.filter(l => l.status !== 'Registration Completed');

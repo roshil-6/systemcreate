@@ -16,6 +16,7 @@ const attendanceRoutes = require('./routes/attendance');
 const usersRoutes = require('./routes/users');
 const notificationsRoutes = require('./routes/notifications');
 const emailTemplatesRoutes = require('./routes/emailTemplates');
+const hrRoutes = require('./routes/hr');
 const db = require('./config/database');
 const { startEmailScheduler } = require('./services/emailScheduler');
 const fixCompletedActionsType = require('./scripts/fixCompletedActionsType');
@@ -83,7 +84,8 @@ app.get('/', (req, res) => {
       attendance: '/api/attendance',
       users: '/api/users',
       notifications: '/api/notifications',
-      emailTemplates: '/api/email-templates'
+      emailTemplates: '/api/email-templates',
+      hr: '/api/hr'
     }
   });
 });
@@ -99,6 +101,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/email-templates', emailTemplatesRoutes);
+app.use('/api/hr', hrRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

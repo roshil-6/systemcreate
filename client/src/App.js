@@ -12,6 +12,19 @@ import BulkImport from './pages/BulkImport';
 import EmailTemplates from './pages/EmailTemplates';
 import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
+import StaffList from './pages/HR/StaffList';
+import StaffDocumentView from './pages/HR/StaffDocumentView';
+import RoleRoute from './components/RoleRoute';
+
+// Layout wrapper for convenience
+const AppLayout = ({ children }) => (
+  <Layout>{children}</Layout>
+);
+
+// Roles who can access the main dashboard and operational pages
+const DASHBOARD_ROLES = ['ADMIN', 'SALES_TEAM_HEAD', 'SALES_TEAM', 'PROCESSING', 'STAFF'];
+// Roles who can access HR section
+const HR_ROLES = ['HR', 'ADMIN'];
 
 function App() {
   return (
@@ -19,103 +32,161 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+
+          {/* Dashboard - Protected from HR */}
           <Route
             path="/"
             element={
               <PrivateRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <Dashboard />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/dashboard/staff/:staffId"
             element={
               <PrivateRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <Dashboard />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/leads"
             element={
               <PrivateRoute>
-                <Layout>
-                  <Leads />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <Leads />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/leads/:id"
             element={
               <PrivateRoute>
-                <Layout>
-                  <LeadDetail />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <LeadDetail />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/clients"
             element={
               <PrivateRoute>
-                <Layout>
-                  <Clients />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <Clients />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/clients/:id"
             element={
               <PrivateRoute>
-                <Layout>
-                  <Clients />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <Clients />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/attendance"
             element={
               <PrivateRoute>
-                <Layout>
-                  <Attendance />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <Attendance />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/users"
             element={
               <PrivateRoute>
-                <Layout>
-                  <UserManagement />
-                </Layout>
+                <RoleRoute allowedRoles={['ADMIN']}>
+                  <AppLayout>
+                    <UserManagement />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/leads/import"
             element={
               <PrivateRoute>
-                <Layout>
-                  <BulkImport />
-                </Layout>
+                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                  <AppLayout>
+                    <BulkImport />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
+
           <Route
             path="/email-templates"
             element={
               <PrivateRoute>
-                <Layout>
-                  <EmailTemplates />
-                </Layout>
+                <RoleRoute allowedRoles={['ADMIN']}>
+                  <AppLayout>
+                    <EmailTemplates />
+                  </AppLayout>
+                </RoleRoute>
+              </PrivateRoute>
+            }
+          />
+
+          {/* HR Section - Protected from regular Staff */}
+          <Route
+            path="/hr"
+            element={
+              <PrivateRoute>
+                <RoleRoute allowedRoles={HR_ROLES}>
+                  <AppLayout>
+                    <StaffList />
+                  </AppLayout>
+                </RoleRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/hr/staff/:id"
+            element={
+              <PrivateRoute>
+                <RoleRoute allowedRoles={HR_ROLES}>
+                  <AppLayout>
+                    <StaffDocumentView />
+                  </AppLayout>
+                </RoleRoute>
               </PrivateRoute>
             }
           />
