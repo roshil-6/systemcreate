@@ -16,6 +16,8 @@ const UserManagement = () => {
     email: '',
     password: '',
     role: 'STAFF',
+    phone_number: '',
+    whatsapp_number: '',
   });
   const [error, setError] = useState('');
 
@@ -75,7 +77,7 @@ const UserManagement = () => {
       }
       setShowForm(false);
       setEditingUser(null);
-      setFormData({ name: '', email: '', password: '', role: 'STAFF' });
+      setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
       fetchUsers();
     } catch (error) {
       setError(error.response?.data?.error || 'Error saving user');
@@ -89,6 +91,8 @@ const UserManagement = () => {
       email: userToEdit.email,
       password: '', // Don't show password
       role: userToEdit.role,
+      phone_number: userToEdit.phone_number || '',
+      whatsapp_number: userToEdit.whatsapp_number || '',
     });
     setShowForm(true);
     setError('');
@@ -115,7 +119,7 @@ const UserManagement = () => {
   const handleCancel = () => {
     setShowForm(false);
     setEditingUser(null);
-    setFormData({ name: '', email: '', password: '', role: 'STAFF' });
+    setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
     setError('');
   };
 
@@ -205,6 +209,26 @@ const UserManagement = () => {
                   onChange={handleInputChange}
                   required
                   placeholder="user@toniosenora.com"
+                />
+              </div>
+              <div className="form-group">
+                <label>Phone Number</label>
+                <input
+                  type="tel"
+                  name="phone_number"
+                  value={formData.phone_number}
+                  onChange={handleInputChange}
+                  placeholder="+1234567890"
+                />
+              </div>
+              <div className="form-group">
+                <label>WhatsApp Number</label>
+                <input
+                  type="tel"
+                  name="whatsapp_number"
+                  value={formData.whatsapp_number}
+                  onChange={handleInputChange}
+                  placeholder="+1234567890"
                 />
               </div>
               <div className="form-group">

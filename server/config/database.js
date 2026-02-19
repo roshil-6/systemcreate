@@ -160,8 +160,8 @@ const database = {
     const now = new Date().toISOString();
 
     await query(`
-      INSERT INTO users (id, name, email, password, role, team, managed_by, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO users (id, name, email, password, role, team, managed_by, created_at, updated_at, phone_number, whatsapp_number)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [
       id,
       userData.name,
@@ -171,7 +171,9 @@ const database = {
       userData.team || null,
       userData.managed_by || null,
       userData.created_at || now,
-      userData.updated_at || now
+      userData.updated_at || now,
+      userData.phone_number || null,
+      userData.whatsapp_number || null
     ], options);
 
     const users = await database.getUsers({ id }, options);
@@ -206,6 +208,14 @@ const database = {
     if (updates.managed_by !== undefined) {
       updatesList.push(`managed_by = $${paramIndex++}`);
       params.push(updates.managed_by);
+    }
+    if (updates.phone_number !== undefined) {
+      updatesList.push(`phone_number = $${paramIndex++}`);
+      params.push(updates.phone_number);
+    }
+    if (updates.whatsapp_number !== undefined) {
+      updatesList.push(`whatsapp_number = $${paramIndex++}`);
+      params.push(updates.whatsapp_number);
     }
 
     updatesList.push(`updated_at = $${paramIndex++}`);

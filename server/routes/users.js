@@ -34,6 +34,8 @@ router.post(
     body('email').isEmail().withMessage('Valid email is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('role').isIn(['ADMIN', 'STAFF', 'SALES_TEAM', 'SALES_TEAM_HEAD', 'PROCESSING']).withMessage('Role must be ADMIN, STAFF, SALES_TEAM, SALES_TEAM_HEAD, or PROCESSING'),
+    body('phone_number').optional(),
+    body('whatsapp_number').optional(),
   ],
   async (req, res) => {
     try {
@@ -42,7 +44,7 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { name, email, password, role } = req.body;
+      const { name, email, password, role, phone_number, whatsapp_number } = req.body;
       const createdBy = req.user.id;
 
       // Check if email already exists
@@ -63,6 +65,8 @@ router.post(
         created_by: createdBy,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        phone_number: phone_number || null,
+        whatsapp_number: whatsapp_number || null,
       });
 
       // Log user creation activity
@@ -87,7 +91,7 @@ router.post(
 router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone_number, whatsapp_number } = req.body;
 
     const users = db.getUsers({ id: userId });
     if (users.length === 0) {
@@ -111,6 +115,12 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     }
     if (role !== undefined) {
       updates.role = role;
+    }
+    if (phone_number !== undefined) {
+      updates.phone_number = phone_number;
+    }
+    if (whatsapp_number !== undefined) {
+      updates.whatsapp_number = whatsapp_number;
     }
 
     const updatedUser = await db.updateUser(userId, updates);

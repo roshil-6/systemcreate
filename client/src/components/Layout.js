@@ -17,7 +17,11 @@ const Layout = ({ children }) => {
   };
 
   const handleCreateLead = () => {
-    navigate('/leads/new');
+    if (location.pathname.startsWith('/hr')) {
+      navigate('/hr?create=true');
+    } else {
+      navigate('/leads/new');
+    }
   };
 
   const isActive = (path) => {
@@ -96,7 +100,7 @@ const Layout = ({ children }) => {
         <header className="top-bar">
           <div className="top-bar-actions">
             <button onClick={handleCreateLead} className="btn-create-lead">
-              <FiPlus /> Create New Lead
+              <FiPlus /> {location.pathname.startsWith('/hr') ? 'Create New Staff' : 'Create New Lead'}
             </button>
             <Notifications />
             <div className="user-info">

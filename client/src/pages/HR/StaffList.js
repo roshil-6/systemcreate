@@ -1,99 +1,256 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
 import { useAuth } from '../../context/AuthContext';
-import './HR.css'; // We'll create this CSS file
+import '../UserManagement.css';
+import { FiUserPlus, FiEdit2, FiTrash2, FiSave, FiX, FiShield, FiUser, FiFolder } from 'react-icons/fi';
 
 const StaffList = () => {
+    const { user: currentUser } = useAuth();
     const [staff, setStaff] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const token = localStorage.getItem('token');
     const navigate = useNavigate();
-    // const [searchTerm, setSearchTerm] = useState(''); // Search removed as per request
+    const location = useLocation();
+
+    // Form state
+    const [showForm, setShowForm] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        role: 'STAFF',
+        phone_number: '',
+        whatsapp_number: '',
+    });
+    const [formError, setFormError] = useState('');
 
     useEffect(() => {
         fetchStaff();
-    }, []);
+        const searchParams = new URLSearchParams(location.search);
+        if (searchParams.get('create') === 'true') {
+            openCreateForm();
+            navigate('/hr', { replace: true });
+        }
+    }, [location.search]);
 
     const fetchStaff = async () => {
         try {
-            // Use axios to leverage global auth headers and base URL
+            setLoading(true);
             const response = await axios.get(`${API_BASE_URL}/api/hr/staff`);
             setStaff(response.data);
-            setLoading(false);
         } catch (err) {
-            console.error('Error fetching staff:', err);
-            // Check for 401 explicitly
-            if (err.response && err.response.status === 401) {
-                setError('Session expired. Please login again.');
-            } else {
-                setError(err.message || 'Failed to fetch staff list');
-            }
+            setError(err.response?.status === 401 ? 'Session expired. Please login again.' : (err.message || 'Failed to fetch staff list'));
+        } finally {
             setLoading(false);
         }
     };
 
-    // const filteredStaff = staff.filter(...) // Removed search logic
-    // const filteredStaff = staff.filter(...) // Removed search logic
-    const displayedStaff = staff; // Show all users including ADMIN
+    const openCreateForm = () => {
+        setEditingUser(null);
+        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
+        setFormError('');
+        setShowForm(true);
+    };
 
-    if (loading) return (
-        <div className="flex items-center justify-center min-h-screen text-blue-400">
-            <div className="text-xl animate-pulse">Loading staff directory...</div>
-        </div>
-    );
+    const handleEdit = (u) => {
+        setEditingUser(u);
+        setFormData({
+            name: u.name,
+            email: u.email,
+            password: '',
+            role: u.role,
+            phone_number: u.phone_number || '',
+            whatsapp_number: u.whatsapp_number || '',
+        });
+        setFormError('');
+        setShowForm(true);
+    };
 
-    if (error) return <div className="p-8 text-red-500 bg-red-900/10 border border-red-500/20 rounded-lg m-6">Error: {error}</div>;
+    const handleCancel = () => {
+        setShowForm(false);
+        setEditingUser(null);
+        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
+        setFormError('');
+    };
+
+    const handleInputChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+        setFormError('');
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setFormError('');
+
+        if (!formData.name || !formData.email) {
+            setFormError('Name and email are required.');
+            return;
+        }
+        if (!editingUser && !formData.password) {
+            setFormError('Password is required for new staff.');
+            return;
+        }
+        if (formData.password && formData.password.length < 6) {
+            setFormError('Password must be at least 6 characters.');
+            return;
+        }
+
+        try {
+            if (editingUser) {
+                await axios.put(`${API_BASE_URL}/api/users/${editingUser.id}`, formData);
+            } else {
+                await axios.post(`${API_BASE_URL}/api/users`, formData);
+            }
+            handleCancel();
+            fetchStaff();
+        } catch (err) {
+            setFormError(err.response?.data?.error || 'Error saving staff member.');
+        }
+    };
+
+    const handleDelete = async (userId, userName) => {
+        if (userId === currentUser?.id) {
+            alert('You cannot delete your own account.');
+            return;
+        }
+        if (!window.confirm(`Delete ${userName}? This cannot be undone.`)) return;
+        try {
+            await axios.delete(`${API_BASE_URL}/api/users/${userId}`);
+            fetchStaff();
+        } catch (err) {
+            alert(err.response?.data?.error || 'Error deleting staff member.');
+        }
+    };
+
+    if (loading) return <div className="user-management-loading">Loading staff...</div>;
+    if (error) return <div className="access-denied"><h2>Error</h2><p>{error}</p></div>;
 
     return (
-        <div className="staff-list-container">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-12">
-                <div>
-                    <h1 className="text-5xl font-bold mb-3 tracking-tighter">Staff Directory</h1>
-                    <p className="text-gray-500 text-lg">Centralized documentation & profile management.</p>
+        <div className="user-management">
+            {/* Header */}
+            <div className="user-management-header">
+                <h1>Staff Directory</h1>
+                <div className="header-actions">
+                    <button className="btn-add-user" onClick={openCreateForm}>
+                        <FiUserPlus /> Add New Staff
+                    </button>
                 </div>
             </div>
 
-            {displayedStaff.length === 0 ? (
-                <div className="text-center py-20 bg-white/50 backdrop-blur-sm rounded-3xl border border-white/60">
-                    <p className="text-xl text-gray-400">No staff found.</p>
-                </div>
-            ) : (
-                <div className="staff-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                    {displayedStaff.map((user, index) => (
-                        <div
-                            key={user.id}
-                            onClick={() => navigate(`/hr/staff/${user.id}`)}
-                            className="staff-card group"
-                            style={{ animationDelay: `${index * 50}ms` }}
-                        >
-                            <div className="flex items-start space-x-5">
-                                <div className="avatar-circle rounded-full flex items-center justify-center font-bold shrink-0">
-                                    {user.name.charAt(0).toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0 pt-1">
-                                    <h3 className="truncate group-hover:text-[#D4AF37] transition-colors">
-                                        {user.name}
-                                    </h3>
-                                    <span className="inline-block bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-1 rounded-full mt-2 mb-1 tracking-wider uppercase">
-                                        {user.role}
-                                    </span>
-                                    <p className="text-sm truncate mt-1 opacity-70">{user.email}</p>
-                                </div>
+            {/* Inline Create / Edit Form */}
+            {showForm && (
+                <div className="user-form-container">
+                    <div className="user-form">
+                        <div className="form-header">
+                            <h2>{editingUser ? `Edit — ${editingUser.name}` : 'Create New Staff'}</h2>
+                            <button className="btn-close" onClick={handleCancel}><FiX /></button>
+                        </div>
+                        <form onSubmit={handleSubmit}>
+                            {formError && <div className="form-error">{formError}</div>}
+                            <div className="form-group">
+                                <label>Full Name *</label>
+                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="John Doe" required />
+                            </div>
+                            <div className="form-group">
+                                <label>Email / Login ID *</label>
+                                <input type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="john@example.com" required />
+                            </div>
+                            <div className="form-group">
+                                <label>Phone Number</label>
+                                <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleInputChange} placeholder="+91 9876543210" />
+                            </div>
+                            <div className="form-group">
+                                <label>WhatsApp Number</label>
+                                <input type="tel" name="whatsapp_number" value={formData.whatsapp_number} onChange={handleInputChange} placeholder="+91 9876543210" />
+                            </div>
+                            <div className="form-group">
+                                <label>Password {editingUser ? '(leave blank to keep current)' : '*'}</label>
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleInputChange}
+                                    required={!editingUser}
+                                    placeholder={editingUser ? 'Leave blank to keep current password' : 'Minimum 6 characters'}
+                                    minLength={editingUser ? 0 : 6}
+                                />
                             </div>
 
-                            <div className="mt-6 pt-5 border-t border-gray-100 flex justify-between items-center">
-                                <span className="text-xs font-mono text-gray-400">#{user.id.toString().padStart(4, '0')}</span>
-                                <span className="flex items-center text-xs font-semibold text-[#D4AF37] group-hover:translate-x-1 transition-transform">
-                                    Manage Docs &rarr;
-                                </span>
+                            <div className="form-actions">
+                                <button type="button" className="btn-cancel" onClick={handleCancel}>Cancel</button>
+                                <button type="submit" className="btn-save">
+                                    <FiSave /> {editingUser ? 'Update Staff' : 'Create Staff'}
+                                </button>
                             </div>
-                        </div>
-                    ))}
+                        </form>
+                    </div>
                 </div>
             )}
+
+            {/* Staff Table */}
+            <div className="users-table-container">
+                <table className="users-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {staff.length === 0 ? (
+                            <tr>
+                                <td colSpan="5" className="no-users">No staff found. Add your first staff member!</td>
+                            </tr>
+                        ) : (
+                            staff.map((u) => (
+                                <tr key={u.id}>
+                                    <td>
+                                        <div className="user-name-cell">
+                                            {u.role === 'ADMIN' ? <FiShield /> : <FiUser />}
+                                            <span>{u.name}</span>
+                                            {u.id === currentUser?.id && <span className="current-user">(You)</span>}
+                                        </div>
+                                    </td>
+                                    <td>{u.email}</td>
+                                    <td>{u.phone_number || '-'}</td>
+                                    <td>
+                                        <div className="action-buttons">
+                                            <button
+                                                className="btn-edit-user"
+                                                onClick={() => navigate(`/hr/staff/${u.id}`)}
+                                                title="View Documents"
+                                                style={{ background: '#fef3c7', color: '#d97706' }}
+                                            >
+                                                <FiFolder />
+                                            </button>
+                                            <button
+                                                className="btn-edit-user"
+                                                onClick={() => handleEdit(u)}
+                                                title="Edit Staff"
+                                            >
+                                                <FiEdit2 />
+                                            </button>
+                                            <button
+                                                className="btn-delete-user"
+                                                onClick={() => handleDelete(u.id, u.name)}
+                                                disabled={u.id === currentUser?.id}
+                                                title={u.id === currentUser?.id ? 'Cannot delete your own account' : 'Delete Staff'}
+                                            >
+                                                <FiTrash2 />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };

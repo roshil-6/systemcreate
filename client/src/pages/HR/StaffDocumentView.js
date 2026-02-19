@@ -2,22 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
-import { useAuth } from '../../context/AuthContext';
 import './HR.css';
+import { FiEdit2, FiSave, FiX, FiFile, FiUpload } from 'react-icons/fi';
 
 const StaffDocumentView = () => {
     const { id } = useParams();
     const [documents, setDocuments] = useState({});
-    const [staffName, setStaffName] = useState('Staff Member'); // ideally fetch this
+    const [staffName, setStaffName] = useState('Staff Member');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [uploadingSlot, setUploadingSlot] = useState(null);
+    const [staffDetails, setStaffDetails] = useState(null);
+    const [isEditingDetails, setIsEditingDetails] = useState(false);
+    const [editFormData, setEditFormData] = useState({});
+    const [savingDetails, setSavingDetails] = useState(false);
+    const [viewingDoc, setViewingDoc] = useState(null);
+    const [viewerUrl, setViewerUrl] = useState(null);
 
-    // const { token } = useAuth(); // AuthContext doesn't expose token
-    const token = localStorage.getItem('token');
     const navigate = useNavigate();
-
-    // Create array of 10 slots
     const slots = Array.from({ length: 10 }, (_, i) => i + 1);
 
     useEffect(() => {
@@ -25,11 +27,38 @@ const StaffDocumentView = () => {
         fetchStaffDetails();
     }, [id]);
 
+    useEffect(() => {
+        if (!viewingDoc) {
+            if (viewerUrl) URL.revokeObjectURL(viewerUrl);
+            setViewerUrl(null);
+            return;
+        }
+        const fetchDocBlob = async () => {
+            try {
+                const response = await axios.get(`${API_BASE_URL}/api/hr/documents/${viewingDoc.id}/view`, {
+                    responseType: 'blob'
+                });
+                setViewerUrl(URL.createObjectURL(response.data));
+            } catch (err) {
+                alert('Failed to load document for viewing');
+            }
+        };
+        fetchDocBlob();
+        return () => { if (viewerUrl) URL.revokeObjectURL(viewerUrl); };
+    }, [viewingDoc]);
+
     const fetchStaffDetails = async () => {
         try {
             const response = await axios.get(`${API_BASE_URL}/api/hr/staff/${id}`);
             if (response.data) {
                 setStaffName(response.data.name);
+                setStaffDetails(response.data);
+                setEditFormData({
+                    name: response.data.name,
+                    email: response.data.email,
+                    phone_number: response.data.phone_number || '',
+                    whatsapp_number: response.data.whatsapp_number || ''
+                });
             }
         } catch (err) {
             console.error('Failed to fetch staff details', err);
@@ -39,12 +68,8 @@ const StaffDocumentView = () => {
     const fetchDocuments = async () => {
         try {
             const response = await axios.get(`${API_BASE_URL}/api/hr/staff/${id}/documents`);
-            const data = response.data;
-            // Convert list to object keyed by slot number
             const docsMap = {};
-            data.forEach(doc => {
-                docsMap[doc.slot_number] = doc;
-            });
+            response.data.forEach(doc => { docsMap[doc.slot_number] = doc; });
             setDocuments(docsMap);
         } catch (err) {
             setError(err.message || 'Failed to fetch documents');
@@ -53,57 +78,33 @@ const StaffDocumentView = () => {
         }
     };
 
-    const [viewingDoc, setViewingDoc] = useState(null);
-    const [viewerUrl, setViewerUrl] = useState(null);
+    const handleDetailChange = (e) => {
+        setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
+    };
 
-    // Clean up object URL when modal closes or doc changes
-    useEffect(() => {
-        if (!viewingDoc) {
-            if (viewerUrl) URL.revokeObjectURL(viewerUrl);
-            setViewerUrl(null);
-            return;
+    const handleSaveDetails = async () => {
+        try {
+            setSavingDetails(true);
+            await axios.put(`${API_BASE_URL}/api/users/${id}`, editFormData);
+            setIsEditingDetails(false);
+            fetchStaffDetails();
+        } catch (err) {
+            alert('Failed to update: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setSavingDetails(false);
         }
-
-        const fetchDocBlob = async () => {
-            try {
-                // For binary data (blob), we need to set responseType
-                const response = await axios.get(`${API_BASE_URL}/api/hr/documents/${viewingDoc.id}/view`, {
-                    responseType: 'blob'
-                });
-                const blob = response.data;
-                const url = URL.createObjectURL(blob);
-                setViewerUrl(url);
-            } catch (err) {
-                console.error(err);
-                alert('Failed to load document for viewing');
-            }
-        };
-        fetchDocBlob();
-
-        return () => {
-            if (viewerUrl) URL.revokeObjectURL(viewerUrl);
-        };
-    }, [viewingDoc]);
+    };
 
     const handleFileUpload = async (slot, file) => {
         if (!file) return;
-
         setUploadingSlot(slot);
         const formData = new FormData();
         formData.append('document', file);
-
         try {
             const response = await axios.post(`${API_BASE_URL}/api/hr/staff/${id}/documents/${slot}`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
-
-            const newDoc = response.data;
-            setDocuments(prev => ({
-                ...prev,
-                [slot]: newDoc
-            }));
+            setDocuments(prev => ({ ...prev, [slot]: response.data }));
         } catch (err) {
             alert('Upload failed: ' + (err.response?.data?.error || err.message));
         } finally {
@@ -113,17 +114,13 @@ const StaffDocumentView = () => {
 
     const handleDelete = async (slot) => {
         const doc = documents[slot];
-        if (!doc) return;
-
-        if (!window.confirm('Are you sure you want to delete this document?')) return;
-
+        if (!doc || !window.confirm('Delete this document?')) return;
         try {
             await axios.delete(`${API_BASE_URL}/api/hr/documents/${doc.id}`);
-
             setDocuments(prev => {
-                const newState = { ...prev };
-                delete newState[slot];
-                return newState;
+                const next = { ...prev };
+                delete next[slot];
+                return next;
             });
         } catch (err) {
             alert('Delete failed: ' + (err.response?.data?.error || err.message));
@@ -131,51 +128,44 @@ const StaffDocumentView = () => {
     };
 
     if (loading) return (
-        <div className="flex items-center justify-center min-h-screen text-blue-400">
-            <div className="text-xl animate-pulse">Loading documents...</div>
+        <div style={{ textAlign: 'center', padding: '60px', color: '#9ca3af', fontSize: '16px' }}>
+            Loading documents...
         </div>
     );
 
     return (
-        <div className="staff-docs-container relative">
+        <div className="staff-docs-container">
+
             {/* Document Viewer Modal */}
             {viewingDoc && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-6" onClick={() => setViewingDoc(null)}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                <div
+                    style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+                    onClick={() => setViewingDoc(null)}
+                >
+                    <div style={{ background: 'white', borderRadius: '20px', width: '100%', maxWidth: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #f3f4f6' }}>
                             <div>
-                                <h3 className="text-xl font-bold text-gray-800 truncate">{viewingDoc.file_name}</h3>
-                                <p className="text-sm text-gray-400">Uploaded on {new Date(viewingDoc.created_at).toLocaleDateString()}</p>
+                                <div style={{ fontWeight: 700, fontSize: '16px', color: '#111827' }}>{viewingDoc.file_name}</div>
+                                <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>Uploaded {new Date(viewingDoc.created_at).toLocaleDateString()}</div>
                             </div>
-                            <button onClick={() => setViewingDoc(null)} className="text-gray-400 hover:text-gray-800 p-2 rounded-full hover:bg-gray-100 transition-all">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+                            <button onClick={() => setViewingDoc(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <FiX />
                             </button>
                         </div>
-                        <div className="flex-1 bg-gray-50/50 overflow-auto flex items-center justify-center p-8 relative min-h-[300px]">
+                        <div style={{ flex: 1, background: '#f9fafb', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px', padding: '24px' }}>
                             {!viewerUrl ? (
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#D4AF37]"></div>
+                                <div style={{ width: '40px', height: '40px', border: '3px solid #e5e7eb', borderTopColor: '#D4AF37', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                            ) : viewingDoc.file_name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/) ? (
+                                <img src={viewerUrl} alt="Document" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '8px' }} />
                             ) : (
-                                viewingDoc.file_name.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/) ? (
-                                    <img src={viewerUrl} alt="Document" className="max-w-full max-h-full object-contain shadow-lg rounded-lg" />
-                                ) : (
-                                    <iframe src={viewerUrl} title="Document Viewer" className="w-full h-full min-h-[600px] border-none shadow-lg rounded-lg bg-white"></iframe>
-                                )
+                                <iframe src={viewerUrl} title="Document Viewer" style={{ width: '100%', minHeight: '500px', border: 'none', borderRadius: '8px', background: 'white' }} />
                             )}
                         </div>
-                        <div className="p-6 border-t border-gray-100 bg-white flex justify-end gap-3">
-                            <a
-                                href={viewerUrl}
-                                download={viewingDoc.file_name}
-                                className="px-6 py-2.5 bg-[#D4AF37] text-white rounded-xl hover:bg-[#b4941f] text-sm font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                                Download File
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            <a href={viewerUrl} download={viewingDoc.file_name} style={{ background: '#D4AF37', color: 'white', padding: '10px 20px', borderRadius: '10px', textDecoration: 'none', fontWeight: 600, fontSize: '14px' }}>
+                                Download
                             </a>
-                            <button onClick={() => setViewingDoc(null)} className="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 text-sm font-semibold transition-colors">
+                            <button onClick={() => setViewingDoc(null)} style={{ background: '#f3f4f6', border: 'none', borderRadius: '10px', padding: '10px 20px', cursor: 'pointer', fontWeight: 600, fontSize: '14px', color: '#374151' }}>
                                 Close
                             </button>
                         </div>
@@ -183,108 +173,143 @@ const StaffDocumentView = () => {
                 </div>
             )}
 
-            <div className="max-w-8xl mx-auto">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row items-center mb-12 relative z-50 justify-between">
-                    <div>
-                        <button
-                            onClick={() => navigate('/hr')}
-                            className="btn-back mb-6 inline-flex"
-                        >
-                            <span>&larr;</span> Back to Directory
-                        </button>
-                        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 tracking-tight">
-                            Documents for <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#D4AF37] to-[#b4941f]">{staffName}</span>
-                        </h1>
-                        <p className="text-gray-500 mt-2 text-lg">Secure document management & storage slots.</p>
-                    </div>
+            {/* Page Header */}
+            <div style={{ marginBottom: '40px' }}>
+                <button className="btn-back" onClick={() => navigate('/hr')} style={{ marginBottom: '20px' }}>
+                    ← Back to Directory
+                </button>
+                <h1 style={{ fontSize: '36px', marginBottom: '4px' }}>
+                    Documents — <span style={{ color: '#D4AF37', WebkitTextFillColor: '#D4AF37' }}>{staffName}</span>
+                </h1>
+                <p style={{ color: '#9ca3af', fontSize: '15px' }}>Staff ID: #{id.toString().padStart(4, '0')}</p>
+            </div>
 
-                    <div className="mt-4 md:mt-0 text-right hidden md:block">
-                        <div className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Agent ID</div>
-                        <div className="text-2xl font-mono text-gray-800">#{id.toString().padStart(4, '0')}</div>
+            {error && (
+                <div style={{ marginBottom: '24px', padding: '14px 18px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', color: '#dc2626', fontSize: '14px' }}>
+                    {error}
+                </div>
+            )}
+
+            {/* Staff Details Card */}
+            <div style={{ background: 'white', borderRadius: '20px', padding: '32px', marginBottom: '40px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid #f3f4f6', position: 'relative', overflow: 'hidden' }}>
+                {/* Gold accent */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: 'linear-gradient(90deg, #D4AF37, #b4941f)' }}></div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                        <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#111827', marginBottom: '4px' }}>Staff Profile</h2>
+                        <p style={{ color: '#D4AF37', fontSize: '13px', fontWeight: 500 }}>Personal Information & Contact Details</p>
                     </div>
+                    {!isEditingDetails ? (
+                        <button
+                            onClick={() => setIsEditingDetails(true)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', background: 'white', border: '1px solid #e5d8a0', borderRadius: '10px', color: '#D4AF37', fontWeight: 600, cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}
+                        >
+                            <FiEdit2 size={14} /> Edit Profile
+                        </button>
+                    ) : (
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => setIsEditingDetails(false)} style={{ padding: '10px', background: '#f3f4f6', border: 'none', borderRadius: '10px', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center' }}>
+                                <FiX size={18} />
+                            </button>
+                            <button onClick={handleSaveDetails} disabled={savingDetails} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', background: '#D4AF37', border: 'none', borderRadius: '10px', color: 'white', fontWeight: 700, cursor: 'pointer', fontSize: '14px', opacity: savingDetails ? 0.6 : 1 }}>
+                                <FiSave size={14} /> {savingDetails ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {error && (
-                    <div className="mb-8 p-6 bg-red-50 border border-red-100 text-red-600 rounded-2xl shadow-sm flex items-center gap-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {error}
+                {!isEditingDetails ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px' }}>
+                        {[
+                            { label: 'Full Name', value: staffDetails?.name },
+                            { label: 'Login ID / Email', value: staffDetails?.email },
+                            { label: 'Phone', value: staffDetails?.phone_number || '—' },
+                            { label: 'WhatsApp', value: staffDetails?.whatsapp_number || '—' },
+                        ].map(field => (
+                            <div key={field.label} style={{ padding: '16px', background: '#fafafa', borderRadius: '12px', border: '1px solid #f3f4f6' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>{field.label}</div>
+                                <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827', wordBreak: 'break-word' }}>{field.value || '—'}</div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                        {[
+                            { label: 'Full Name', name: 'name', type: 'text' },
+                            { label: 'Login ID / Email', name: 'email', type: 'email' },
+                            { label: 'Phone Number', name: 'phone_number', type: 'tel' },
+                            { label: 'WhatsApp', name: 'whatsapp_number', type: 'tel' },
+                        ].map(field => (
+                            <div key={field.name}>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#6b7280', marginBottom: '6px' }}>{field.label}</label>
+                                <input
+                                    type={field.type}
+                                    name={field.name}
+                                    value={editFormData[field.name] || ''}
+                                    onChange={handleDetailChange}
+                                    style={{ width: '100%', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: '10px', fontSize: '14px', outline: 'none', color: '#111827', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                                    onFocus={e => e.target.style.borderColor = '#D4AF37'}
+                                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                                />
+                            </div>
+                        ))}
                     </div>
                 )}
+            </div>
 
-                {/* Slots Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-8 relative z-0">
-                    {slots.map(slot => {
-                        const doc = documents[slot];
-                        const isUploading = uploadingSlot === slot;
+            {/* Document Slots */}
+            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#111827', marginBottom: '20px' }}>Document Storage</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '20px' }}>
+                {slots.map(slot => {
+                    const doc = documents[slot];
+                    const isUploading = uploadingSlot === slot;
 
-                        return (
-                            <div key={slot} className="doc-card">
-                                <div className="slot-badge">Slot {slot < 10 ? `0${slot}` : slot}</div>
+                    return (
+                        <div key={slot} className="doc-card">
+                            <div className="slot-badge">Slot {slot < 10 ? `0${slot}` : slot}</div>
 
-                                {doc ? (
-                                    <div className="file-present">
-                                        <div className="file-icon-large text-[#D4AF37]">
-                                            📄
+                            {doc ? (
+                                <div className="file-present">
+                                    <div className="file-icon-large">
+                                        <FiFile color="#D4AF37" />
+                                    </div>
+                                    <div style={{ textAlign: 'center', width: '100%', padding: '0 8px' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '12px', color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={doc.file_name}>
+                                            {doc.file_name}
                                         </div>
-
-                                        <div className="text-center w-full my-4">
-                                            <h4 className="font-bold text-gray-800 text-sm truncate w-full px-2" title={doc.file_name}>
-                                                {doc.file_name}
-                                            </h4>
-                                            <p className="text-xs text-gray-400 mt-1">
-                                                {new Date(doc.created_at).toLocaleDateString()}
-                                            </p>
-                                        </div>
-
-                                        <div className="doc-actions">
-                                            <button
-                                                className="btn-view"
-                                                onClick={() => setViewingDoc(doc)}
-                                            >
-                                                View
-                                            </button>
-                                            <button
-                                                className="btn-delete"
-                                                onClick={() => handleDelete(slot)}
-                                            >
-                                                Delete
-                                            </button>
+                                        <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px' }}>
+                                            {new Date(doc.created_at).toLocaleDateString()}
                                         </div>
                                     </div>
-                                ) : (
-                                    isUploading ? (
-                                        <div className="upload-zone">
-                                            <div className="upload-icon-circle">
-                                                <div className="w-6 h-6 border-2 border-gray-200 border-t-[#D4AF37] rounded-full animate-spin"></div>
-                                            </div>
-                                            <span className="text-sm font-semibold text-gray-400 animate-pulse">Uploading...</span>
-                                        </div>
-                                    ) : (
-                                        <label className="upload-zone group">
-                                            <div className="upload-icon-circle group-hover:scale-110">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-gray-300 group-hover:text-white transition-colors">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                                </svg>
-                                            </div>
-                                            <h5 className="text-gray-500 font-medium text-sm group-hover:text-[#D4AF37] transition-colors">Add Document</h5>
-                                            <span className="text-gray-300 text-xs mt-1">Tap to select</span>
-
-                                            <input
-                                                type="file"
-                                                className="hidden"
-                                                onChange={(e) => handleFileUpload(slot, e.target.files[0])}
-                                            />
-                                        </label>
-                                    )
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+                                    <div className="doc-actions">
+                                        <button className="btn-view" onClick={() => setViewingDoc(doc)}>View</button>
+                                        <button className="btn-delete" onClick={() => handleDelete(slot)}>Delete</button>
+                                    </div>
+                                </div>
+                            ) : isUploading ? (
+                                <div className="upload-zone" style={{ cursor: 'default' }}>
+                                    <div style={{ width: '32px', height: '32px', border: '3px solid #e5e7eb', borderTopColor: '#D4AF37', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                                    <span style={{ fontSize: '12px', color: '#9ca3af', marginTop: '10px', fontWeight: 600 }}>Uploading...</span>
+                                </div>
+                            ) : (
+                                <label className="upload-zone" style={{ cursor: 'pointer' }}>
+                                    <div className="upload-icon-circle">
+                                        <FiUpload size={18} color="#9ca3af" />
+                                    </div>
+                                    <span style={{ fontSize: '12px', color: '#9ca3af', fontWeight: 600, textAlign: 'center' }}>Add Document</span>
+                                    <span style={{ fontSize: '11px', color: '#d1d5db', marginTop: '4px' }}>Click to upload</span>
+                                    <input type="file" style={{ display: 'none' }} onChange={(e) => handleFileUpload(slot, e.target.files[0])} />
+                                </label>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+            `}</style>
         </div>
     );
 };
