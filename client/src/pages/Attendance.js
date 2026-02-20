@@ -10,9 +10,10 @@ const Attendance = () => {
   const [todayStatus, setTodayStatus] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const todayStr = new Date().toISOString().split('T')[0];
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
+    startDate: todayStr,
+    endDate: todayStr,
     staffId: '',
   });
   const [staffList, setStaffList] = useState([]);
