@@ -70,12 +70,17 @@ const Layout = ({ children }) => {
                 <span>Import & Export</span>
               </Link>
             )}
-          {user?.role?.toUpperCase() !== 'HR' && (
-            <Link to="/attendance" className={`nav-item ${isActive('/attendance') ? 'active' : ''}`}>
-              <FiClock className="nav-icon" />
-              <span>Attendance</span>
-            </Link>
-          )}
+          {(user?.role === 'ADMIN' ||
+            user?.role === 'HR' ||
+            user?.role === 'SALES_TEAM_HEAD' ||
+            user?.role === 'SALES_TEAM' ||
+            user?.role === 'PROCESSING' ||
+            user?.role === 'STAFF') && (
+              <Link to="/attendance" className={`nav-item ${isActive('/attendance') ? 'active' : ''}`}>
+                <FiClock className="nav-icon" />
+                <span>Attendance</span>
+              </Link>
+            )}
           {user?.role === 'ADMIN' && (
             <Link to="/users" className={`nav-item ${isActive('/users') ? 'active' : ''}`}>
               <FiSettings className="nav-icon" />

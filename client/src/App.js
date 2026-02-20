@@ -116,7 +116,7 @@ function App() {
             path="/attendance"
             element={
               <PrivateRoute>
-                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                <RoleRoute allowedRoles={[...DASHBOARD_ROLES, 'HR']}>
                   <AppLayout>
                     <Attendance />
                   </AppLayout>
