@@ -44,7 +44,7 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { name, email, password, role, phone_number, whatsapp_number } = req.body;
+      const { name, email, password, role, phone_number, whatsapp_number, dob } = req.body;
       const createdBy = req.user.id;
 
       // Check if email already exists
@@ -67,6 +67,7 @@ router.post(
         updated_at: new Date().toISOString(),
         phone_number: phone_number || null,
         whatsapp_number: whatsapp_number || null,
+        dob: dob || null,
       });
 
       // Log user creation activity
@@ -91,7 +92,7 @@ router.post(
 router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
-    const { name, email, password, role, phone_number, whatsapp_number } = req.body;
+    const { name, email, password, role, phone_number, whatsapp_number, dob } = req.body;
 
     const users = await db.getUsers({ id: userId });
     if (users.length === 0) {
@@ -121,6 +122,9 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     }
     if (whatsapp_number !== undefined) {
       updates.whatsapp_number = whatsapp_number;
+    }
+    if (dob !== undefined) {
+      updates.dob = dob;
     }
 
     const updatedUser = await db.updateUser(userId, updates);

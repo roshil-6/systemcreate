@@ -233,6 +233,49 @@ router.get('/staff/:id/photo', authenticate, async (req, res) => {
 });
 
 // Delete profile photo
+// Get upcoming birthdays (next 30 days)
+router.get('/birthdays/upcoming', authenticate, requireHrOrAdmin, async (req, res) => {
+    try {
+        // We'll fetch all users with DOB and filter in JS for simplicity/reliability across timezones
+        const users = await db.getUsers();
+        const staffWithDob = users.filter(u => u.dob);
+
+        const today = new Date();
+        const next30Days = new Date();
+        next30Days.setDate(today.getDate() + 30);
+
+        const upcomingBirthdays = staffWithDob.filter(u => {
+            const dob = new Date(u.dob);
+            const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+            const birthdayNextYear = new Date(today.getFullYear() + 1, dob.getMonth(), dob.getDate());
+
+            // Check if birthday falls between today and next 30 days
+            return (birthdayThisYear >= today && birthdayThisYear <= next30Days) ||
+                (birthdayNextYear >= today && birthdayNextYear <= next30Days);
+        }).map(u => ({
+            id: u.id,
+            name: u.name,
+            dob: u.dob,
+            profile_photo: u.profile_photo,
+            role: u.role
+        }));
+
+        // Sort by date (ignoring year)
+        upcomingBirthdays.sort((a, b) => {
+            const dateA = new Date(a.dob);
+            const dateB = new Date(b.dob);
+            const monthDiff = dateA.getMonth() - dateB.getMonth();
+            if (monthDiff !== 0) return monthDiff;
+            return dateA.getDate() - dateB.getDate();
+        });
+
+        res.json(upcomingBirthdays);
+    } catch (error) {
+        console.error('Upcoming Birthdays Error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 router.delete('/staff/:id/photo', authenticate, requireHrOrAdmin, async (req, res) => {
     try {
         const users = await db.getUsers({ id: req.params.id });

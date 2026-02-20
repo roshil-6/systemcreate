@@ -14,6 +14,7 @@ import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 import StaffList from './pages/HR/StaffList';
 import StaffDocumentView from './pages/HR/StaffDocumentView';
+import HRDashboard from './pages/HR/HRDashboard';
 import RoleRoute from './components/RoleRoute';
 
 // Layout wrapper for convenience

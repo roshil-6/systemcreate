@@ -24,6 +24,7 @@ const StaffList = () => {
         role: 'STAFF',
         phone_number: '',
         whatsapp_number: '',
+        dob: '',
     });
     const [formError, setFormError] = useState('');
 
@@ -64,6 +65,7 @@ const StaffList = () => {
             role: u.role,
             phone_number: u.phone_number || '',
             whatsapp_number: u.whatsapp_number || '',
+            dob: u.dob ? u.dob.split('T')[0] : '',
         });
         setFormError('');
         setShowForm(true);
@@ -72,7 +74,7 @@ const StaffList = () => {
     const handleCancel = () => {
         setShowForm(false);
         setEditingUser(null);
-        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
+        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '', dob: '' });
         setFormError('');
     };
 
@@ -167,6 +169,10 @@ const StaffList = () => {
                                 <input type="tel" name="whatsapp_number" value={formData.whatsapp_number} onChange={handleInputChange} placeholder="+91 9876543210" />
                             </div>
                             <div className="form-group">
+                                <label>Date of Birth</label>
+                                <input type="date" name="dob" value={formData.dob} onChange={handleInputChange} />
+                            </div>
+                            <div className="form-group">
                                 <label>Password {editingUser ? '(leave blank to keep current)' : '*'}</label>
                                 <input
                                     type="password"
@@ -198,6 +204,7 @@ const StaffList = () => {
                             <th>Name</th>
                             <th>Email</th>
                             <th>Phone</th>
+                            <th>DOB</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -211,13 +218,25 @@ const StaffList = () => {
                                 <tr key={u.id}>
                                     <td>
                                         <div className="user-name-cell">
-                                            {u.role === 'ADMIN' ? <FiShield /> : <FiUser />}
+                                            {u.profile_photo ? (
+                                                <img
+                                                    src={`${API_BASE_URL}/api/hr/staff/${u.id}/photo`}
+                                                    alt={u.name}
+                                                    className="staff-avatar-mini"
+                                                    style={{ width: '32px', height: '32px', borderRadius: '50%', marginRight: '10px', objectFit: 'cover' }}
+                                                />
+                                            ) : (
+                                                <div className="staff-initials-mini" style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#FFF4D6', color: '#D4AF37', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '12px', marginRight: '10px' }}>
+                                                    {u.name?.charAt(0).toUpperCase()}
+                                                </div>
+                                            )}
                                             <span>{u.name}</span>
                                             {u.id === currentUser?.id && <span className="current-user">(You)</span>}
                                         </div>
                                     </td>
                                     <td>{u.email}</td>
                                     <td>{u.phone_number || '-'}</td>
+                                    <td>{u.dob ? new Date(u.dob).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-'}</td>
                                     <td>
                                         <div className="action-buttons">
                                             <button

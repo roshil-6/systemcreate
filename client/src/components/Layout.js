@@ -60,6 +60,12 @@ const Layout = ({ children }) => {
               </Link>
             </>
           )}
+          {user?.role === 'HR' && (
+            <Link to="/hr" className={`nav-item ${isActive('/hr') && location.pathname === '/hr' ? 'active' : ''}`}>
+              <FiHome className="nav-icon" />
+              <span>HR Dashboard</span>
+            </Link>
+          )}
           {(user?.role === 'ADMIN' ||
             user?.role === 'SALES_TEAM_HEAD' ||
             user?.role === 'SALES_TEAM' ||
@@ -94,9 +100,9 @@ const Layout = ({ children }) => {
             </Link>
           )}
           {(user?.role === 'ADMIN' || user?.role === 'HR') && (
-            <Link to="/hr" className={`nav-item ${isActive('/hr') ? 'active' : ''}`}>
-              <FiFileText className="nav-icon" />
-              <span>HR Section</span>
+            <Link to="/hr/staff-list" className={`nav-item ${isActive('/hr/staff-list') ? 'active' : ''}`}>
+              <FiUsers className="nav-icon" />
+              <span>Staff Directory</span>
             </Link>
           )}
         </nav>

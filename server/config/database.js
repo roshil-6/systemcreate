@@ -145,6 +145,10 @@ const database = {
       queryText += ` AND managed_by = $${paramIndex++}`;
       params.push(filter.managed_by);
     }
+    if (filter.dob) {
+      queryText += ` AND dob = $${paramIndex++}`;
+      params.push(filter.dob);
+    }
 
     const result = await query(queryText, params, options);
     return result.rows;
@@ -160,8 +164,8 @@ const database = {
     const now = new Date().toISOString();
 
     await query(`
-      INSERT INTO users (id, name, email, password, role, team, managed_by, created_at, updated_at, phone_number, whatsapp_number)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO users (id, name, email, password, role, team, managed_by, created_at, updated_at, phone_number, whatsapp_number, dob)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [
       id,
       userData.name,
@@ -173,7 +177,8 @@ const database = {
       userData.created_at || now,
       userData.updated_at || now,
       userData.phone_number || null,
-      userData.whatsapp_number || null
+      userData.whatsapp_number || null,
+      userData.dob || null
     ], options);
 
     const users = await database.getUsers({ id }, options);
@@ -216,6 +221,10 @@ const database = {
     if (updates.whatsapp_number !== undefined) {
       updatesList.push(`whatsapp_number = $${paramIndex++}`);
       params.push(updates.whatsapp_number);
+    }
+    if (updates.dob !== undefined) {
+      updatesList.push(`dob = $${paramIndex++}`);
+      params.push(updates.dob);
     }
 
     updatesList.push(`updated_at = $${paramIndex++}`);
