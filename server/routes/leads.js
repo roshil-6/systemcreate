@@ -1377,6 +1377,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
 
         // Strategy 7: Try matching against original header values directly (case-insensitive)
         index = headerValues.findIndex(h => {
+          if (!h || !h.trim()) return false; // SKIP EMPTY HEADERS
           const hLower = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '');
 
           if (isStrictField) {
@@ -1407,10 +1408,11 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       for (const term of searchTerms) {
         const termLower = term.toLowerCase();
         // Check normalized headers
-        let idx = headers.findIndex(h => h === termLower || h.includes(termLower) || termLower.includes(h));
+        let idx = headers.findIndex(h => h && (h === termLower || h.includes(termLower) || termLower.includes(h)));
         if (idx !== -1) return idx;
         // Check original headers
         idx = headerValues.findIndex(h => {
+          if (!h || !h.trim()) return false;
           const hNorm = h.trim().toLowerCase().replace(/[^\w]/g, '_');
           return hNorm === termLower || hNorm.includes(termLower) || termLower.includes(hNorm);
         });
@@ -1692,7 +1694,9 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         // Map values using column indices
         const getValue = (index) => {
           if (index === -1 || index >= values.length) return '';
-          return values[index]?.trim() || '';
+          const val = values[index];
+          if (val === null || val === undefined) return '';
+          return String(val).trim(); // Fix: Force to String before trim to handle numbers/dates
         };
 
         // Get name (either from 'name' column OR 'first_name' + 'last_name')
@@ -1933,7 +1937,6 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           source: source || null,
           ielts_score: ieltsScore || null,
           created_by: userId,
-          created_at: now,
           created_at: now,
           updated_at: now,
           secondary_phone_number: secondaryPhoneNumber,
