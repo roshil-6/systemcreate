@@ -20,7 +20,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
 router.get('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const templateId = parseInt(req.params.id);
-    const templates = db.getEmailTemplates({ id: templateId });
+    const templates = await db.getEmailTemplates({ id: templateId });
     if (templates.length === 0) {
       return res.status(404).json({ error: 'Email template not found' });
     }
@@ -35,11 +35,11 @@ router.get('/:id', authenticate, requireAdmin, async (req, res) => {
 router.post('/', authenticate, requireAdmin, async (req, res) => {
   try {
     const { name, subject, body, type, active } = req.body;
-    
+
     if (!name || !subject || !body) {
       return res.status(400).json({ error: 'Name, subject, and body are required' });
     }
-    
+
     // Deactivate other templates of the same type if this one is active
     if (active) {
       const existingTemplates = await db.getEmailTemplates({ type: type || 'follow_up' });
@@ -49,7 +49,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
         }
       }
     }
-    
+
     const template = await db.createEmailTemplate({
       name,
       subject,
@@ -57,7 +57,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       type: type || 'follow_up',
       active: active !== undefined ? active : true,
     });
-    
+
     res.status(201).json(template);
   } catch (error) {
     console.error('Create email template error:', error);
@@ -70,12 +70,12 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
   try {
     const templateId = parseInt(req.params.id);
     const { name, subject, body, type, active } = req.body;
-    
-    const existingTemplates = db.getEmailTemplates({ id: templateId });
+
+    const existingTemplates = await db.getEmailTemplates({ id: templateId });
     if (existingTemplates.length === 0) {
       return res.status(404).json({ error: 'Email template not found' });
     }
-    
+
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (subject !== undefined) updates.subject = subject;
@@ -85,15 +85,15 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
       updates.active = active;
       // Deactivate other templates of the same type if this one is being activated
       if (active) {
-        const existingTemplates = db.getEmailTemplates({ type: type || existingTemplates[0].type });
-        for (const t of existingTemplates) {
+        const sameTypeTemplates = await db.getEmailTemplates({ type: type || existingTemplates[0].type });
+        for (const t of sameTypeTemplates) {
           if (t.id !== templateId && t.active) {
             await db.updateEmailTemplate(t.id, { active: false });
           }
         }
       }
     }
-    
+
     const updatedTemplate = await db.updateEmailTemplate(templateId, updates);
     res.json(updatedTemplate);
   } catch (error) {
@@ -122,16 +122,16 @@ router.post('/:id/test', authenticate, requireAdmin, async (req, res) => {
   try {
     const templateId = parseInt(req.params.id);
     const { testEmail } = req.body;
-    
+
     if (!testEmail) {
       return res.status(400).json({ error: 'Test email address is required' });
     }
-    
-    const templates = db.getEmailTemplates({ id: templateId });
+
+    const templates = await db.getEmailTemplates({ id: templateId });
     if (templates.length === 0) {
       return res.status(404).json({ error: 'Email template not found' });
     }
-    
+
     const template = templates[0];
     const testLead = {
       name: 'Test Client',
@@ -139,11 +139,11 @@ router.post('/:id/test', authenticate, requireAdmin, async (req, res) => {
       phone_number: '1234567890',
       program: 'Test Program',
     };
-    
+
     const result = await emailService.sendFollowUpEmail(testLead, template);
-    res.json({ 
-      message: 'Test email sent successfully', 
-      messageId: result.messageId 
+    res.json({
+      message: 'Test email sent successfully',
+      messageId: result.messageId
     });
   } catch (error) {
     console.error('Test email error:', error);
@@ -158,7 +158,7 @@ router.get('/logs/all', authenticate, requireAdmin, async (req, res) => {
     const filter = {};
     if (lead_id) filter.lead_id = parseInt(lead_id);
     if (template_id) filter.template_id = parseInt(template_id);
-    
+
     const logs = await db.getEmailLogs(filter);
     res.json(logs.slice(0, parseInt(limit)));
   } catch (error) {

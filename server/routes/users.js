@@ -93,7 +93,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     const userId = parseInt(req.params.id);
     const { name, email, password, role, phone_number, whatsapp_number } = req.body;
 
-    const users = db.getUsers({ id: userId });
+    const users = await db.getUsers({ id: userId });
     if (users.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -154,7 +154,7 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    const users = db.getUsers({ id: userId });
+    const users = await db.getUsers({ id: userId });
     if (users.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
