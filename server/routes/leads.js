@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const iconv = require('iconv-lite');
 const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
 
@@ -1173,18 +1174,48 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         });
       }
     } else {
-      // Parse CSV - handle different encodings and line endings
+      // Smart encoding detection: handle UTF-8 BOM, UTF-8, and Windows-1252 (ANSI/Latin-1)
+      // CSVs from Excel are often saved as Windows-1252 which causes ? for special chars
       let csvText;
       try {
-        // Try UTF-8 first, fallback to other encodings if needed
-        csvText = req.file.buffer.toString('utf-8');
+        const buf = req.file.buffer;
 
-        // Remove BOM if present (common in Excel exports)
-        if (csvText.charCodeAt(0) === 0xFEFF) {
-          csvText = csvText.slice(1);
+        // 1. Check for UTF-8 BOM (EF BB BF)
+        if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+          csvText = iconv.decode(buf.slice(3), 'utf-8');
+          console.log('✅ CSV decoded as UTF-8 (with BOM stripped)');
+
+          // 2. Check for UTF-16 LE BOM (FF FE)
+        } else if (buf[0] === 0xFF && buf[1] === 0xFE) {
+          csvText = iconv.decode(buf.slice(2), 'utf-16le');
+          console.log('✅ CSV decoded as UTF-16 LE');
+
+          // 3. Heuristic: detect Windows-1252 vs UTF-8
+          // If buffer contains bytes 0x80-0x9F (Windows-1252 control range) or invalid UTF-8
+          // sequences, decode as windows-1252 instead of UTF-8
+        } else {
+          const isValidUTF8 = iconv.encodingExists('utf-8') && (() => {
+            try {
+              // Try decoding as UTF-8 and re-encoding; if roundtrip has replacements it's not UTF-8
+              const asUtf8 = buf.toString('utf-8');
+              // Check for replacement character (U+FFFD) which Node inserts for invalid UTF-8
+              return !asUtf8.includes('\uFFFD');
+            } catch (e) {
+              return false;
+            }
+          })();
+
+          if (isValidUTF8) {
+            csvText = buf.toString('utf-8');
+            console.log('✅ CSV decoded as UTF-8');
+          } else {
+            // Fall back to Windows-1252 (covers ANSI/Latin-1 exports from Excel)
+            csvText = iconv.decode(buf, 'win1252');
+            console.log('✅ CSV decoded as Windows-1252 (Excel ANSI export)');
+          }
         }
 
-        console.log('✅ CSV file read, length:', csvText.length, 'bytes');
+        console.log('✅ CSV file read, length:', csvText.length, 'chars');
       } catch (error) {
         console.error('❌ Error reading CSV file:', error);
         return res.status(400).json({
