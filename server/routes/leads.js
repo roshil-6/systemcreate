@@ -1605,11 +1605,11 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     // Map all column indices
     // Also detect Meta Ads specific columns
     const metaAdsColumns = {
-      ad_name: findSimpleIndex(['ad name', 'ad_name', 'adname']),
-      campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname']),
-      form_name: findSimpleIndex(['form name', 'form_name', 'formname']),
-      lead_id: findSimpleIndex(['lead id', 'lead_id', 'leadid', 'id']),
-      created_time: findSimpleIndex(['created time', 'created_time', 'created date', 'created_date', 'date', 'timestamp']),
+      ad_name: findSimpleIndex(['ad name', 'ad_name', 'adname', 'ad', 'utm_content']),
+      campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname', 'campaign', 'utm_campaign', 'marketing_campaign']),
+      form_name: findSimpleIndex(['form name', 'form_name', 'formname', 'form']),
+      lead_id: findSimpleIndex(['lead id', 'lead_id', 'leadid', 'id', 'meta_id']),
+      created_time: findSimpleIndex(['created time', 'created_time', 'created date', 'created_date', 'date', 'timestamp', 'time']),
     };
 
     const columnIndices = {
@@ -1794,7 +1794,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
 
         // EXTRA STRICTNESS: If source is identical to name, it was probably a mis-mapping
         if (source && name && source.toLowerCase() === name.toLowerCase()) {
-          source = 'Direct/Import';
+          source = ''; // Reset so Meta Ads logic can provide a better source
         }
 
         // Build source from Meta Ads fields or use provided source
@@ -1806,6 +1806,11 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           if (metaAdName) metaParts.push(`Ad: ${metaAdName}`);
           if (metaFormName) metaParts.push(`Form: ${metaFormName}`);
           source = metaParts.join(' | ');
+        }
+
+        // Fallback for source if still empty
+        if (!source) {
+          source = 'Direct/Import';
         }
 
         // Build comment - combine existing comment with Meta Ads info
