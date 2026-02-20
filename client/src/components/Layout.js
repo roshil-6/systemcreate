@@ -99,12 +99,7 @@ const Layout = ({ children }) => {
               <span>Email Templates</span>
             </Link>
           )}
-          {(user?.role === 'ADMIN' || user?.role === 'HR') && (
-            <Link to="/hr/staff-list" className={`nav-item ${isActive('/hr/staff-list') ? 'active' : ''}`}>
-              <FiUsers className="nav-icon" />
-              <span>Staff Directory</span>
-            </Link>
-          )}
+
         </nav>
       </aside>
       <div className="main-content">
