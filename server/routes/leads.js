@@ -892,7 +892,7 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
       processing_status: 'Agreement Pending',
       assessment_authority: assessment_authority,
       occupation_mapped: occupation_mapped,
-      registration_fee_paid: registrationData = true, // Flag from form
+      registration_fee_paid: registration_fee_paid, // Flag from form
       amount_paid: 0,
     };
 

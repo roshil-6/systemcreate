@@ -169,9 +169,9 @@ router.get('/staff', authenticate, async (req, res) => {
     let staff = [];
 
     if (role === 'ADMIN') {
-      // Admin sees all staff
+      // Admin sees all users including other admins, except Rojisha (main admin)
       const allUsers = await db.getUsers();
-      staff = allUsers.filter(u => u.role !== 'ADMIN');
+      staff = allUsers.filter(u => u.email !== 'rojishahead@toniosenora.com');
     } else if (role === 'SALES_TEAM_HEAD') {
       // Sales team head sees only their team members (those managed by them)
       const teamMembers = await db.getUsers({ managed_by: userId });
@@ -204,9 +204,9 @@ router.get('/missing', authenticate, async (req, res) => {
     // Get all staff based on role
     let allStaff = [];
     if (role === 'ADMIN') {
-      // Admin sees all non-admin staff
+      // Admin sees all non-Rojisha users (including other admins)
       const allUsers = await db.getUsers();
-      allStaff = allUsers.filter(u => u.role !== 'ADMIN');
+      allStaff = allUsers.filter(u => u.email !== 'rojishahead@toniosenora.com');
     } else if (role === 'SALES_TEAM_HEAD') {
       // Sales team head sees themselves and their team members
       const teamMembers = await db.getUsers({ managed_by: userId });
