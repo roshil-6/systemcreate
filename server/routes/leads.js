@@ -1116,6 +1116,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
 
     let lines = [];
     let headerValues = [];
+    let dataRows = [];
 
     if (isExcel) {
       // Parse Excel file
@@ -1138,19 +1139,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         // First row is headers
         headerValues = jsonData[0].map(h => String(h || '').trim());
 
-        // Convert remaining rows to CSV-like format for processing
-        lines = [headerValues.join(',')]; // Header line
-        for (let i = 1; i < jsonData.length; i++) {
-          const row = jsonData[i].map(cell => {
-            const value = String(cell || '').trim();
-            // Escape commas and quotes in CSV format
-            if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value;
-          });
-          lines.push(row.join(','));
-        }
+        // Store data rows directly as arrays (SKIP THE HEADER ROW AT INDEX 0)
+        dataRows = jsonData.slice(1);
 
         console.log('✅ Excel file parsed:', {
           rows: jsonData.length,
@@ -1219,17 +1209,22 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       // Normalize all line endings to \n first
       csvText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-      // Split by lines and filter out completely empty lines (but keep lines with just commas)
-      lines = csvText.split('\n').filter(line => line.trim() || line.includes(','));
-      console.log('📊 CSV lines found:', lines.length);
+      // Split by lines and filter out completely empty lines
+      const rawLines = csvText.split('\n').filter(line => line.trim() || line.includes(','));
+      console.log('📊 CSV lines found:', rawLines.length);
 
-      if (lines.length < 2) {
-        console.error('❌ Bulk import: CSV file too short, only', lines.length, 'lines');
+      if (rawLines.length < 2) {
+        console.error('❌ Bulk import: CSV file too short, only', rawLines.length, 'lines');
         return res.status(400).json({
           error: 'CSV file must contain at least a header row and one data row',
-          details: `Found ${lines.length} line(s). Need at least 2 lines (header + data).`
+          details: `Found ${rawLines.length} line(s). Need at least 2 lines (header + data).`
         });
       }
+
+      // Parse all lines into arrays immediately to prevent comma-splitting bugs later
+      const allRows = rawLines.map(line => parseCSVLine(line.trim() || (line.includes(',') ? line : '')));
+      headerValues = allRows[0].map(h => String(h || '').trim());
+      dataRows = allRows.slice(1);
     }
 
     // Proper CSV parsing function (handle quoted values)
@@ -1253,15 +1248,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       return values;
     };
 
-    // Parse header - handle various CSV formats with proper CSV parsing
-    let headerLine = lines[0];
-    // Remove any remaining BOM or special characters
-    headerLine = headerLine.replace(/^\uFEFF/, '').trim();
-
-    // If headerValues not already set (from Excel), parse from CSV line
-    if (headerValues.length === 0) {
-      headerValues = parseCSVLine(headerLine);
-    }
+    // Headers are already set at this point (either from Excel or CSV parse above)
     // Normalize headers: trim, lowercase, remove quotes, replace spaces with underscores
     // BUT keep it simple - don't remove too many characters
     const headers = headerValues.map(h => {
@@ -1377,10 +1364,11 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
             return index;
           }
 
-          // Strategy 6: Substring match (normalized - phone matches phone_number)
+          // Strategy 6: Substring match (normalized - field matches header start/end)
           index = headers.findIndex(h => {
             const hNormalized = h.replace(/[_\s-]/g, '');
-            return hNormalized.includes(fieldNormalized) || fieldNormalized.includes(hNormalized);
+            // Only match if header contains field, not vice-versa (e.g. 'phone' matches 'phone_number')
+            return hNormalized.includes(fieldNormalized);
           });
           if (index !== -1) {
             console.log(`✅ Found "${field}" → "${headers[index]}" (substring normalized)`);
@@ -1661,7 +1649,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     }
 
     const results = {
-      total: lines.length - 1,
+      total: dataRows.length,
       created: 0,
       skipped: 0,
       errors: 0,
@@ -1690,22 +1678,15 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     };
 
     // Process each row
-    for (let i = 1; i < lines.length; i++) {
-      let line = lines[i].trim();
-      // Skip completely empty lines, but process lines with commas (even if mostly empty)
-      if (!line && !lines[i].includes(',')) continue;
+    for (let i = 0; i < dataRows.length; i++) {
+      const values = dataRows[i];
 
-      // If line is empty but has commas, keep it (might be a row with empty values)
-      if (!line && lines[i].includes(',')) {
-        line = lines[i];
-      }
+      // Skip empty rows (no data in any column)
+      if (!values || values.length === 0 || values.every(v => !String(v).trim())) continue;
 
       try {
-        // Parse CSV row using the same parser function (handle quoted values)
-        const values = parseCSVLine(line);
-
         // Ensure we have enough values (pad with empty strings if needed)
-        while (values.length < headers.length) {
+        while (values.length < headerValues.length) {
           values.push('');
         }
 
