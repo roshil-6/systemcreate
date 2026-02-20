@@ -62,7 +62,7 @@ router.get('/today', authenticate, async (req, res) => {
     const userId = req.user.id;
     const today = new Date().toISOString().split('T')[0];
 
-    const attendance = db.getAttendance({ user_id: userId, date: today });
+    const attendance = await db.getAttendance({ user_id: userId, date: today });
     const todayRecord = attendance[0];
 
     if (!todayRecord) {
@@ -85,7 +85,7 @@ router.get('/today', authenticate, async (req, res) => {
 async function getAccessibleUserIdsForAttendance(user) {
   const role = user.role;
   const userId = user.id;
-  
+
   if (role === 'ADMIN') {
     return null; // null means all users
   } else if (role === 'SALES_TEAM_HEAD') {
@@ -97,7 +97,7 @@ async function getAccessibleUserIdsForAttendance(user) {
   } else if (role === 'STAFF') {
     return [userId];
   }
-  
+
   return [userId];
 }
 
@@ -138,7 +138,7 @@ router.get('/history', authenticate, async (req, res) => {
 
     // Apply team-based filtering if needed
     if (role !== 'ADMIN' && !staffId) {
-      const accessibleUserIds = getAccessibleUserIdsForAttendance(req.user);
+      const accessibleUserIds = await getAccessibleUserIdsForAttendance(req.user);
       if (accessibleUserIds) {
         attendance = attendance.filter(a => accessibleUserIds.includes(a.user_id));
       }
@@ -167,7 +167,7 @@ router.get('/staff', authenticate, async (req, res) => {
     const role = req.user.role;
     const userId = req.user.id;
     let staff = [];
-    
+
     if (role === 'ADMIN') {
       // Admin sees all staff
       const allUsers = await db.getUsers();
@@ -180,7 +180,7 @@ router.get('/staff', authenticate, async (req, res) => {
       // Others see only themselves
       staff = [req.user];
     }
-    
+
     const staffList = staff.map(s => ({
       id: s.id,
       name: s.name,
@@ -200,7 +200,7 @@ router.get('/missing', authenticate, async (req, res) => {
     const role = req.user.role;
     const userId = req.user.id;
     const today = new Date().toISOString().split('T')[0];
-    
+
     // Get all staff based on role
     let allStaff = [];
     if (role === 'ADMIN') {
@@ -215,11 +215,11 @@ router.get('/missing', authenticate, async (req, res) => {
       // Others don't have access to this endpoint
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
     // Get today's attendance records
     const todayAttendance = await db.getAttendance({ date: today });
     const checkedInUserIds = new Set(todayAttendance.map(a => a.user_id));
-    
+
     // Find staff who didn't check in
     const missingAttendance = allStaff
       .filter(staff => !checkedInUserIds.has(staff.id))
@@ -229,7 +229,7 @@ router.get('/missing', authenticate, async (req, res) => {
         email: staff.email,
         role: staff.role,
       }));
-    
+
     res.json({
       date: today,
       missingCount: missingAttendance.length,

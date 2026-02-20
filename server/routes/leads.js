@@ -1539,10 +1539,18 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     if (firstNameIndex === -1) firstNameIndex = findDirectIndex(columnMapping.first_name);
     if (lastNameIndex === -1) lastNameIndex = findDirectIndex(columnMapping.last_name);
 
-    // NUCLEAR FALLBACK: Keyword search
-    if (nameIndex === -1) nameIndex = findKeywordIndex(['name', 'fullname', 'full_name', 'client']);
-    if (firstNameIndex === -1) firstNameIndex = findKeywordIndex(['first', 'fname', 'firstname']);
-    if (lastNameIndex === -1) lastNameIndex = findKeywordIndex(['last', 'lname', 'lastname', 'surname']);
+    // NUCLEAR FALLBACK: Keyword search — only use as last resort when nothing else worked
+    if (nameIndex === -1 && firstNameIndex === -1) {
+      // Only use nuclear keyword for name if no first_name found either
+      nameIndex = findKeywordIndex(['fullname', 'full_name', 'clientname', 'customername']);
+    }
+    // Don't nuclear-fallback first/last if nameIndex is already found (avoids Campaign Name matching)
+    if (nameIndex === -1 && firstNameIndex === -1) {
+      firstNameIndex = findKeywordIndex(['firstname', 'fname']);
+    }
+    if (nameIndex === -1 && lastNameIndex === -1) {
+      lastNameIndex = findKeywordIndex(['lastname', 'lname', 'surname']);
+    }
 
     const hasName = nameIndex !== -1 || (firstNameIndex !== -1 && lastNameIndex !== -1);
 
@@ -1563,8 +1571,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     // Fallback to direct search if matching failed
     if (phoneIndex === -1) phoneIndex = findDirectIndex(columnMapping.phone_number);
 
-    // NUCLEAR FALLBACK: Keyword search
-    if (phoneIndex === -1) phoneIndex = findKeywordIndex(['phone', 'mobile', 'contact', 'tel', 'number', 'cell']);
+    // NUCLEAR FALLBACK for phone: only use if nothing found yet
+    if (phoneIndex === -1) phoneIndex = findKeywordIndex(['phone', 'mobile', 'contact', 'tel', 'cell']);
 
     const hasPhone = phoneIndex !== -1;
 
