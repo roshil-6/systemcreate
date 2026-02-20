@@ -183,4 +183,68 @@ router.get('/documents/:id/view', authenticate, requireHrOrAdmin, async (req, re
     }
 });
 
+// --- Profile Photo ---
+
+const profilePhotoDir = path.join(__dirname, '../uploads/profile_photos');
+if (!fs.existsSync(profilePhotoDir)) fs.mkdirSync(profilePhotoDir, { recursive: true });
+
+const photoStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, profilePhotoDir),
+    filename: (req, file, cb) => cb(null, `profile_${req.params.id}${path.extname(file.originalname)}`),
+});
+const photoUpload = multer({
+    storage: photoStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Only image files allowed'));
+    }
+});
+
+// Upload profile photo
+router.post('/staff/:id/photo', authenticate, requireHrOrAdmin, photoUpload.single('photo'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+        const photoUrl = `/api/hr/staff/${req.params.id}/photo`;
+        await db.updateUser(parseInt(req.params.id), { profile_photo: req.file.filename });
+        res.json({ photo_url: photoUrl, filename: req.file.filename });
+    } catch (error) {
+        console.error('Profile photo upload error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Serve profile photo
+router.get('/staff/:id/photo', authenticate, async (req, res) => {
+    try {
+        const users = await db.getUsers({ id: req.params.id });
+        if (!users.length || !users[0].profile_photo) {
+            return res.status(404).json({ error: 'No photo' });
+        }
+        const filePath = path.join(profilePhotoDir, users[0].profile_photo);
+        if (fs.existsSync(filePath)) {
+            res.sendFile(filePath);
+        } else {
+            res.status(404).json({ error: 'Photo file not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Delete profile photo
+router.delete('/staff/:id/photo', authenticate, requireHrOrAdmin, async (req, res) => {
+    try {
+        const users = await db.getUsers({ id: req.params.id });
+        if (users.length && users[0].profile_photo) {
+            const filePath = path.join(profilePhotoDir, users[0].profile_photo);
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            await db.updateUser(parseInt(req.params.id), { profile_photo: null });
+        }
+        res.json({ message: 'Photo removed' });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 module.exports = router;

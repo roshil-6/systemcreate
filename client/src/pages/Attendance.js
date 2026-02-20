@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Attendance.css';
-import { FiClock, FiCheckCircle, FiXCircle, FiCalendar, FiUser, FiAlertCircle } from 'react-icons/fi';
+import { FiClock, FiCheckCircle, FiXCircle, FiCalendar, FiUser, FiAlertCircle, FiDownload } from 'react-icons/fi';
 
 const Attendance = () => {
   const { user } = useAuth();
@@ -21,7 +21,7 @@ const Attendance = () => {
   useEffect(() => {
     fetchTodayStatus();
     fetchHistory();
-    if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') {
+    if (user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD') {
       fetchStaffList();
       fetchMissingAttendance();
     }
@@ -98,10 +98,38 @@ const Attendance = () => {
     setFilters({ ...filters, [key]: value });
   };
 
+  const handleDownload = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/attendance/download/today`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `attendance_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Error downloading attendance: ' + (error.response?.data?.error || error.message));
+    }
+  };
+
   return (
     <div className="attendance-page">
       <div className="attendance-header">
         <h1 className="attendance-title">Attendance</h1>
+        {(user?.role === 'ADMIN' || user?.role === 'HR') && (
+          <button
+            onClick={handleDownload}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', background: '#D4AF37', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', fontSize: '14px' }}
+          >
+            <FiDownload size={15} /> Download Today
+          </button>
+        )}
       </div>
 
       {/* Today's Check-in Section */}
@@ -149,7 +177,7 @@ const Attendance = () => {
       )}
 
       {/* Missing Attendance Section */}
-      {(user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && missingAttendance && (
+      {(user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD') && missingAttendance && (
         <div className="attendance-section">
           <div className="missing-attendance-section">
             <div className="missing-attendance-header">
@@ -216,7 +244,7 @@ const Attendance = () => {
         <div className="attendance-history">
           <div className="history-header">
             <h2>Attendance History</h2>
-            {(user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && (
+            {(user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD') && (
               <div className="history-filters">
                 <select
                   value={filters.staffId}
@@ -256,7 +284,7 @@ const Attendance = () => {
               <table className="history-table">
                 <thead>
                   <tr>
-                    {(user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && <th>Staff Member</th>}
+                    {(user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD') && <th>Staff Member</th>}
                     <th>Date</th>
                     <th>Check-in</th>
                     <th>Check-out</th>
@@ -273,7 +301,7 @@ const Attendance = () => {
 
                     return (
                       <tr key={record.id}>
-                        {(user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && <td>{record.user_name}</td>}
+                        {(user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD') && <td>{record.user_name}</td>}
                         <td>{new Date(record.date).toLocaleDateString()}</td>
                         <td>{checkIn.toLocaleTimeString()}</td>
                         <td>{checkOut ? checkOut.toLocaleTimeString() : '-'}</td>

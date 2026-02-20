@@ -18,6 +18,8 @@ const StaffDocumentView = () => {
     const [savingDetails, setSavingDetails] = useState(false);
     const [viewingDoc, setViewingDoc] = useState(null);
     const [viewerUrl, setViewerUrl] = useState(null);
+    const [profilePhoto, setProfilePhoto] = useState(null);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     const navigate = useNavigate();
     const slots = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -25,6 +27,8 @@ const StaffDocumentView = () => {
     useEffect(() => {
         fetchDocuments();
         fetchStaffDetails();
+        // Check if profile photo exists
+        setProfilePhoto(`${API_BASE_URL}/api/hr/staff/${id}/photo`);
     }, [id]);
 
     useEffect(() => {
@@ -92,6 +96,34 @@ const StaffDocumentView = () => {
             alert('Failed to update: ' + (err.response?.data?.error || err.message));
         } finally {
             setSavingDetails(false);
+        }
+    };
+
+    const handlePhotoUpload = async (file) => {
+        if (!file) return;
+        setUploadingPhoto(true);
+        const form = new FormData();
+        form.append('photo', file);
+        try {
+            await axios.post(`${API_BASE_URL}/api/hr/staff/${id}/photo`, form, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            // Bust cache so new photo loads
+            setProfilePhoto(`${API_BASE_URL}/api/hr/staff/${id}/photo?t=${Date.now()}`);
+        } catch (err) {
+            alert('Photo upload failed: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setUploadingPhoto(false);
+        }
+    };
+
+    const handlePhotoDelete = async () => {
+        if (!window.confirm('Remove profile photo?')) return;
+        try {
+            await axios.delete(`${API_BASE_URL}/api/hr/staff/${id}/photo`);
+            setProfilePhoto(null);
+        } catch (err) {
+            alert('Failed to remove photo');
         }
     };
 
@@ -195,10 +227,39 @@ const StaffDocumentView = () => {
                 {/* Gold accent */}
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: 'linear-gradient(90deg, #D4AF37, #b4941f)' }}></div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '12px' }}>
-                    <div>
-                        <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#111827', marginBottom: '4px' }}>Staff Profile</h2>
-                        <p style={{ color: '#D4AF37', fontSize: '13px', fontWeight: 500 }}>Personal Information & Contact Details</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+                    {/* Profile Photo */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div style={{ position: 'relative', width: '80px', height: '80px', flexShrink: 0 }}>
+                            <div style={{ width: '80px', height: '80px', borderRadius: '50%', overflow: 'hidden', background: 'linear-gradient(135deg, #D4AF37, #b4941f)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', fontWeight: 700, color: 'white', boxShadow: '0 4px 12px rgba(212,175,55,0.3)' }}>
+                                {profilePhoto ? (
+                                    <img
+                                        src={profilePhoto}
+                                        alt="Profile"
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={() => setProfilePhoto(null)}
+                                    />
+                                ) : (
+                                    staffName.charAt(0).toUpperCase()
+                                )}
+                            </div>
+                            {/* Camera overlay to upload */}
+                            <label style={{ position: 'absolute', bottom: 0, right: 0, width: '26px', height: '26px', background: '#D4AF37', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.2)' }} title="Upload photo">
+                                {uploadingPhoto ? (
+                                    <div style={{ width: '10px', height: '10px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                                ) : (
+                                    <span style={{ color: 'white', fontSize: '12px' }}>📷</span>
+                                )}
+                                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handlePhotoUpload(e.target.files[0])} />
+                            </label>
+                        </div>
+                        <div>
+                            <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#111827', marginBottom: '4px' }}>Staff Profile</h2>
+                            <p style={{ color: '#D4AF37', fontSize: '13px', fontWeight: 500 }}>Personal Information & Contact Details</p>
+                            {profilePhoto && (
+                                <button onClick={handlePhotoDelete} style={{ marginTop: '6px', background: 'none', border: 'none', color: '#ef4444', fontSize: '12px', cursor: 'pointer', padding: 0 }}>Remove photo</button>
+                            )}
+                        </div>
                     </div>
                     {!isEditingDetails ? (
                         <button

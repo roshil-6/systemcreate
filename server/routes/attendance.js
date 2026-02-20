@@ -110,8 +110,8 @@ router.get('/history', authenticate, async (req, res) => {
 
     const filter = {};
 
-    if (role === 'ADMIN') {
-      // ADMIN can see all or filter by staff
+    if (role === 'ADMIN' || role === 'HR') {
+      // ADMIN and HR can see all or filter by staff
       if (staffId) {
         filter.user_id = parseInt(staffId);
       }
@@ -137,7 +137,7 @@ router.get('/history', authenticate, async (req, res) => {
     let attendance = await db.getAttendance(filter);
 
     // Apply team-based filtering if needed
-    if (role !== 'ADMIN' && !staffId) {
+    if (role !== 'ADMIN' && role !== 'HR' && !staffId) {
       const accessibleUserIds = await getAccessibleUserIdsForAttendance(req.user);
       if (accessibleUserIds) {
         attendance = attendance.filter(a => accessibleUserIds.includes(a.user_id));
@@ -168,8 +168,8 @@ router.get('/staff', authenticate, async (req, res) => {
     const userId = req.user.id;
     let staff = [];
 
-    if (role === 'ADMIN') {
-      // Admin sees all users including other admins, except Rojisha (main admin)
+    if (role === 'ADMIN' || role === 'HR') {
+      // Admin/HR sees all users including other admins, except Rojisha (main admin)
       const allUsers = await db.getUsers();
       staff = allUsers.filter(u => u.email !== 'rojishahead@toniosenora.com');
     } else if (role === 'SALES_TEAM_HEAD') {
@@ -203,8 +203,8 @@ router.get('/missing', authenticate, async (req, res) => {
 
     // Get all staff based on role
     let allStaff = [];
-    if (role === 'ADMIN') {
-      // Admin sees all non-Rojisha users (including other admins)
+    if (role === 'ADMIN' || role === 'HR') {
+      // Admin/HR sees all non-Rojisha users (including other admins)
       const allUsers = await db.getUsers();
       allStaff = allUsers.filter(u => u.email !== 'rojishahead@toniosenora.com');
     } else if (role === 'SALES_TEAM_HEAD') {
@@ -239,6 +239,47 @@ router.get('/missing', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('Get missing attendance error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+// Download today's attendance as CSV (Admin/HR only)
+router.get('/download/today', authenticate, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'ADMIN' && role !== 'HR') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const todayAttendance = await db.getAttendance({ date: today });
+
+    // Enrich with user names
+    const records = await Promise.all(todayAttendance.map(async a => {
+      const checkIn = new Date(a.check_in);
+      const checkOut = a.check_out ? new Date(a.check_out) : null;
+      const durationMins = checkOut ? Math.round((checkOut - checkIn) / 60000) : null;
+      return {
+        name: await db.getUserName(a.user_id) || 'Unknown',
+        date: today,
+        check_in: checkIn.toLocaleTimeString('en-IN'),
+        check_out: checkOut ? checkOut.toLocaleTimeString('en-IN') : 'Not checked out',
+        duration: durationMins !== null ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` : '-',
+      };
+    }));
+
+    // Build CSV
+    const header = 'Name,Date,Check-In,Check-Out,Duration\r\n';
+    const rows = records.map(r =>
+      `"${r.name}","${r.date}","${r.check_in}","${r.check_out}","${r.duration}"`
+    ).join('\r\n');
+
+    const csv = header + rows;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="attendance_${today}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Download attendance error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
