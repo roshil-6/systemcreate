@@ -254,30 +254,51 @@ router.get('/download/today', authenticate, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const todayAttendance = await db.getAttendance({ date: today });
 
-    // Enrich with user names
+    if (!todayAttendance || todayAttendance.length === 0) {
+      return res.status(404).json({ error: 'No attendance records found for today' });
+    }
+
+    // Enrich with user names and format for CSV
     const records = await Promise.all(todayAttendance.map(async a => {
-      const checkIn = new Date(a.check_in);
+      const checkIn = a.check_in ? new Date(a.check_in) : null;
       const checkOut = a.check_out ? new Date(a.check_out) : null;
-      const durationMins = checkOut ? Math.round((checkOut - checkIn) / 60000) : null;
+      const recordDate = a.date ? (typeof a.date === 'string' ? a.date : a.date.toISOString().split('T')[0]) : today;
+
+      const formatTime = (date) => {
+        if (!date || isNaN(date.getTime())) return '-';
+        // Using en-GB for HH:mm:ss format (24h) which is more reliable in Excel
+        return date.toLocaleTimeString('en-GB', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+      };
+
+      const durationMins = (checkIn && checkOut && !isNaN(checkIn.getTime()) && !isNaN(checkOut.getTime()))
+        ? Math.round((checkOut - checkIn) / 60000)
+        : null;
+
       return {
         name: await db.getUserName(a.user_id) || 'Unknown',
-        date: today,
-        check_in: checkIn.toLocaleTimeString('en-IN'),
-        check_out: checkOut ? checkOut.toLocaleTimeString('en-IN') : 'Not checked out',
+        date: recordDate,
+        check_in: formatTime(checkIn),
+        check_out: checkOut ? formatTime(checkOut) : 'Not Checked Out',
         duration: durationMins !== null ? `${Math.floor(durationMins / 60)}h ${durationMins % 60}m` : '-',
       };
     }));
 
-    // Build CSV
+    // Build CSV with UTF-8 BOM for Excel the correct display of characters
     const header = 'Name,Date,Check-In,Check-Out,Duration\r\n';
     const rows = records.map(r =>
       `"${r.name}","${r.date}","${r.check_in}","${r.check_out}","${r.duration}"`
     ).join('\r\n');
 
-    const csv = header + rows;
-    res.setHeader('Content-Type', 'text/csv');
+    const csvData = '\ufeff' + header + rows;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="attendance_${today}.csv"`);
-    res.send(csv);
+    res.status(200).send(csvData);
   } catch (error) {
     console.error('Download attendance error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });
