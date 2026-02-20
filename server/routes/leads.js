@@ -1136,7 +1136,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         }
 
         // First row is headers
-        headerValues = jsonData[0].map(h => String(h || '').trim()).filter(h => h.length > 0);
+        headerValues = jsonData[0].map(h => String(h || '').trim());
 
         // Convert remaining rows to CSV-like format for processing
         lines = [headerValues.join(',')]; // Header line
@@ -1270,7 +1270,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         .replace(/^["']+|["']+$/g, '') // Remove surrounding quotes
         .replace(/\s+/g, '_') // Replace spaces with underscores
         .replace(/[^\w_-]/g, ''); // Remove special characters except underscore and dash
-    }).filter(h => h.length > 0); // Remove empty headers
+    });
 
     console.log('📋 Raw header line:', headerLine);
     console.log('📋 Parsed header values:', headerValues);
@@ -1606,7 +1606,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     // Also detect Meta Ads specific columns
     const metaAdsColumns = {
       ad_name: findSimpleIndex(['ad name', 'ad_name', 'adname', 'ad', 'utm_content']),
-      campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname', 'campaign', 'utm_campaign', 'marketing_campaign']),
+      campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname', 'campaign', 'utm_campaign', 'marketing_campaign', 'ad_campaign']),
       form_name: findSimpleIndex(['form name', 'form_name', 'formname', 'form']),
       lead_id: findSimpleIndex(['lead id', 'lead_id', 'leadid', 'id', 'meta_id']),
       created_time: findSimpleIndex(['created time', 'created_time', 'created date', 'created_date', 'date', 'timestamp', 'time']),
