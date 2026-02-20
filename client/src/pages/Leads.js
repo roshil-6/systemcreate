@@ -689,11 +689,11 @@ const Leads = () => {
                     />
                   </th>
                 )}
-                <th style={{ width: '12%', minWidth: '150px' }}>Name</th>
+                <th style={{ width: '13%', minWidth: '150px' }}>Name</th>
                 <th style={{ width: '13%', minWidth: '130px' }}>Phone</th>
                 <th style={{ width: '16%', minWidth: '180px' }}>Email</th>
                 <th style={{ width: '80px' }}>Priority</th>
-                <th style={{ width: '12%' }}>Source</th>
+                <th style={{ width: '14%', minWidth: '200px' }}>Source</th>
                 <th style={{ width: '110px' }}>Follow-up Date</th>
 
                 <th style={{ width: '130px' }}>Date Added</th>
