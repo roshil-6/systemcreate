@@ -23,7 +23,7 @@ const StaffList = () => {
         password: '',
         role: 'STAFF',
         phone_number: '',
-        whatsapp_number: '',
+        office_number: '',
         dob: '',
     });
     const [formError, setFormError] = useState('');
@@ -51,7 +51,7 @@ const StaffList = () => {
 
     const openCreateForm = () => {
         setEditingUser(null);
-        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
+        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', office_number: '' });
         setFormError('');
         setShowForm(true);
     };
@@ -64,7 +64,7 @@ const StaffList = () => {
             password: '',
             role: u.role,
             phone_number: u.phone_number || '',
-            whatsapp_number: u.whatsapp_number || '',
+            office_number: u.office_number || '',
             dob: u.dob ? u.dob.split('T')[0] : '',
         });
         setFormError('');
@@ -74,7 +74,7 @@ const StaffList = () => {
     const handleCancel = () => {
         setShowForm(false);
         setEditingUser(null);
-        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '', dob: '' });
+        setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', office_number: '', dob: '' });
         setFormError('');
     };
 
@@ -165,8 +165,8 @@ const StaffList = () => {
                                 <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleInputChange} placeholder="+91 9876543210" />
                             </div>
                             <div className="form-group">
-                                <label>WhatsApp Number</label>
-                                <input type="tel" name="whatsapp_number" value={formData.whatsapp_number} onChange={handleInputChange} placeholder="+91 9876543210" />
+                                <label>Office Number</label>
+                                <input type="tel" name="office_number" value={formData.office_number} onChange={handleInputChange} placeholder="+91 9876543210" />
                             </div>
                             <div className="form-group">
                                 <label>Date of Birth</label>

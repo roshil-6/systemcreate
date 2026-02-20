@@ -164,7 +164,7 @@ const database = {
     const now = new Date().toISOString();
 
     await query(`
-      INSERT INTO users (id, name, email, password, role, team, managed_by, created_at, updated_at, phone_number, whatsapp_number, dob)
+      INSERT INTO users (id, name, email, password, role, team, managed_by, created_at, updated_at, phone_number, office_number, dob)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `, [
       id,
@@ -177,11 +177,11 @@ const database = {
       userData.created_at || now,
       userData.updated_at || now,
       userData.phone_number || null,
-      userData.whatsapp_number || null,
+      userData.office_number || null,
       userData.dob || null
     ], options);
 
-    const users = await database.getUsers({ id }, options);
+    const users = await this.getUsers({ id }, options);
     return users[0];
   },
 
@@ -218,9 +218,9 @@ const database = {
       updatesList.push(`phone_number = $${paramIndex++}`);
       params.push(updates.phone_number);
     }
-    if (updates.whatsapp_number !== undefined) {
-      updatesList.push(`whatsapp_number = $${paramIndex++}`);
-      params.push(updates.whatsapp_number);
+    if (updates.office_number !== undefined) {
+      updatesList.push(`office_number = $${paramIndex++}`);
+      params.push(updates.office_number);
     }
     if (updates.dob !== undefined) {
       updatesList.push(`dob = $${paramIndex++}`);
@@ -251,13 +251,20 @@ const database = {
       queryText += ` AND id = $${paramIndex++}`;
       params.push(Number(filter.id));
     }
-    if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
+    if (filter.assigned_staff_ids && Array.isArray(filter.assigned_staff_ids)) {
+      queryText += ` AND (assigned_staff_id = ANY($${paramIndex++}) OR assigned_staff_id IS NULL)`;
+      params.push(filter.assigned_staff_ids);
+    } else if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
       queryText += ` AND assigned_staff_id = $${paramIndex++}`;
       params.push(Number(filter.assigned_staff_id));
     }
     if (filter.status) {
       queryText += ` AND status = $${paramIndex++}`;
       params.push(filter.status);
+    }
+    if (filter.excludeStatus) {
+      queryText += ` AND status != $${paramIndex++}`;
+      params.push(filter.excludeStatus);
     }
     if (filter.search) {
       queryText += ` AND (name LIKE $${paramIndex} OR phone_number LIKE $${paramIndex + 1} OR email LIKE $${paramIndex + 2})`;
@@ -269,6 +276,11 @@ const database = {
     queryText += ' ORDER BY updated_at DESC, created_at DESC';
 
     const result = await query(queryText, params);
+    return result.rows;
+  },
+
+  getLeadPhones: async () => {
+    const result = await query('SELECT LOWER(phone_number) as phone_number, LOWER(email) as email FROM leads');
     return result.rows;
   },
 

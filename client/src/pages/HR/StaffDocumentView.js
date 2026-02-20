@@ -61,7 +61,7 @@ const StaffDocumentView = () => {
                     name: response.data.name,
                     email: response.data.email,
                     phone_number: response.data.phone_number || '',
-                    whatsapp_number: response.data.whatsapp_number || ''
+                    office_number: response.data.office_number || ''
                 });
             }
         } catch (err) {
@@ -286,7 +286,7 @@ const StaffDocumentView = () => {
                             { label: 'Full Name', value: staffDetails?.name },
                             { label: 'Login ID / Email', value: staffDetails?.email },
                             { label: 'Phone', value: staffDetails?.phone_number || '—' },
-                            { label: 'WhatsApp', value: staffDetails?.whatsapp_number || '—' },
+                            { label: 'Office Number', value: staffDetails?.office_number || '—' },
                         ].map(field => (
                             <div key={field.label} style={{ padding: '16px', background: '#fafafa', borderRadius: '12px', border: '1px solid #f3f4f6' }}>
                                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>{field.label}</div>
@@ -300,7 +300,7 @@ const StaffDocumentView = () => {
                             { label: 'Full Name', name: 'name', type: 'text' },
                             { label: 'Login ID / Email', name: 'email', type: 'email' },
                             { label: 'Phone Number', name: 'phone_number', type: 'tel' },
-                            { label: 'WhatsApp', name: 'whatsapp_number', type: 'tel' },
+                            { label: 'Office Number', name: 'office_number', type: 'tel' },
                         ].map(field => (
                             <div key={field.name}>
                                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#6b7280', marginBottom: '6px' }}>{field.label}</label>

@@ -17,7 +17,7 @@ const UserManagement = () => {
     password: '',
     role: 'STAFF',
     phone_number: '',
-    whatsapp_number: '',
+    office_number: '',
   });
   const [error, setError] = useState('');
 
@@ -77,7 +77,7 @@ const UserManagement = () => {
       }
       setShowForm(false);
       setEditingUser(null);
-      setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
+      setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', office_number: '' });
       fetchUsers();
     } catch (error) {
       setError(error.response?.data?.error || 'Error saving user');
@@ -92,7 +92,7 @@ const UserManagement = () => {
       password: '', // Don't show password
       role: userToEdit.role,
       phone_number: userToEdit.phone_number || '',
-      whatsapp_number: userToEdit.whatsapp_number || '',
+      office_number: userToEdit.office_number || '',
     });
     setShowForm(true);
     setError('');
@@ -119,7 +119,7 @@ const UserManagement = () => {
   const handleCancel = () => {
     setShowForm(false);
     setEditingUser(null);
-    setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', whatsapp_number: '' });
+    setFormData({ name: '', email: '', password: '', role: 'STAFF', phone_number: '', office_number: '' });
     setError('');
   };
 
@@ -222,11 +222,11 @@ const UserManagement = () => {
                 />
               </div>
               <div className="form-group">
-                <label>WhatsApp Number</label>
+                <label>Office Number</label>
                 <input
                   type="tel"
-                  name="whatsapp_number"
-                  value={formData.whatsapp_number}
+                  name="office_number"
+                  value={formData.office_number}
                   onChange={handleInputChange}
                   placeholder="+1234567890"
                 />

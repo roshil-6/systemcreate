@@ -82,9 +82,8 @@ router.get('/', authenticate, async (req, res) => {
       accessibleUserIds = [userId];
     }
 
-    // Apply role-based filtering
-    if (accessibleUserIds && accessibleUserIds.length === 1) {
-      filter.assigned_staff_id = accessibleUserIds[0];
+    if (accessibleUserIds && accessibleUserIds.length > 1) {
+      filter.assigned_staff_ids = accessibleUserIds;
     }
 
     if (status) {
@@ -95,18 +94,10 @@ router.get('/', authenticate, async (req, res) => {
       filter.search = search;
     }
 
+    // Performance: Filter out Registration Completed at database level
+    filter.excludeStatus = 'Registration Completed';
+
     let leads = await db.getLeads(filter);
-
-    // If multiple accessible users, filter leads
-    if (accessibleUserIds && accessibleUserIds.length > 1) {
-      leads = leads.filter(lead =>
-        !lead.assigned_staff_id || accessibleUserIds.includes(lead.assigned_staff_id)
-      );
-    }
-
-    // CRITICAL: Filter out "Registration Completed" leads - they should not appear in leads list
-    // They are now clients and should be in the clients section
-    leads = leads.filter(lead => lead.status !== 'Registration Completed');
 
     // OPTIMIZATION: Fetch all users once and create a lookup map
     // This replaces the N+1 query pattern where we fetched user name for every single lead
@@ -1321,7 +1312,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       assigned_staff: ['assigned_staff', 'assigned_to', 'staff', 'assigned_staff_id'],
       // Source: only explicit source columns — do NOT include 'ad name' / 'campaign name' etc.
       // (those contain 'name' and fuzzy-match onto the Name column causing source = lead name bug)
-      source: ['source', 'lead_source', 'leadsource', 'lead source', 'utm_source', 'channel', 'source_name'],
+      source: ['source', 'lead_source', 'leadsource', 'lead source', 'utm_source', 'channel', 'source_name', 'ad_source', 'marketing_source'],
       ielts_score: ['ielts_score', 'ielts', 'ielts_band', 'ielts score'],
     };
 
@@ -1658,25 +1649,13 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       email: columnIndices.email !== -1 ? 'found' : 'missing',
     });
 
-    // Fast duplicate check: only fetch phone_number and email columns (not all lead data)
-    // Using raw pool query for speed — avoids loading all lead fields
+    // Fast duplicate check: only fetch phone_number and email columns
     let existingPhones = new Set();
     let existingEmails = new Set();
     try {
-      const pool = db.pool || db._pool || db.client;
-      // Try db method first (lighter — only select needed columns)
-      if (db.getLeadPhones) {
-        const phoneRows = await db.getLeadPhones();
-        phoneRows.forEach(r => { if (r.phone_number) existingPhones.add(r.phone_number.toLowerCase()); });
-        phoneRows.forEach(r => { if (r.email) existingEmails.add(r.email.toLowerCase()); });
-      } else {
-        // Fallback: still use getLeads but only keep what we need
-        const existingLeads = await db.getLeads();
-        existingLeads.forEach(l => {
-          if (l.phone_number) existingPhones.add(l.phone_number.toLowerCase());
-          if (l.email) existingEmails.add(l.email.toLowerCase());
-        });
-      }
+      const phoneRows = await db.getLeadPhones();
+      phoneRows.forEach(r => { if (r.phone_number) existingPhones.add(r.phone_number.toLowerCase()); });
+      phoneRows.forEach(r => { if (r.email) existingEmails.add(r.email.toLowerCase()); });
     } catch (e) {
       console.warn('Could not prefetch existing leads for duplicate check:', e.message);
     }
@@ -1692,9 +1671,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     // Collect valid leads for batch insert
     const validLeads = [];
     const now = new Date().toISOString();
-    // CRITICAL: Imported leads should NOT be assigned automatically
-    // They should be "Unassigned" so anyone can pick them up
-    const assignedStaffId = null;
+    // OPTIMIZATION: Assign imported leads to the current staff member (if not Admin)
+    const assignedStaffId = role === 'ADMIN' ? null : userId;
 
     // Helper: Parse Date (handles Excel serials + strings)
     const parseDate = (val) => {
@@ -1813,6 +1791,11 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         // Get source and IELTS score
         let source = getValue(columnIndices.source);
         const ieltsScore = getValue(columnIndices.ielts_score);
+
+        // EXTRA STRICTNESS: If source is identical to name, it was probably a mis-mapping
+        if (source && name && source.toLowerCase() === name.toLowerCase()) {
+          source = 'Direct/Import';
+        }
 
         // Build source from Meta Ads fields or use provided source
         if (!source && (metaAdName || metaCampaignName || metaFormName)) {
@@ -1977,68 +1960,50 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       }
     }
 
-    // Batch insert all valid leads using PostgreSQL transaction
+    // Batch insert all valid leads using multi-row INSERT (EXTREMELY FAST)
     if (validLeads.length > 0) {
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
 
-        // Insert leads one by one in transaction
-        // Note: We let PostgreSQL auto-generate IDs using the sequence
-        for (const lead of validLeads) {
-          try {
-            await client.query(`
-              INSERT INTO leads (
-                name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code,
-                email, age, occupation, qualification, year_of_experience, country, program,
-                status, priority, comment, follow_up_date, follow_up_status,
-                assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
-            `, [
-              lead.name,
-              lead.phone_number || '',
-              lead.phone_country_code || '+91',
-              lead.whatsapp_number || null,
-              lead.whatsapp_country_code || '+91',
-              lead.email || null,
-              lead.age || null,
-              lead.occupation || null,
-              lead.qualification || null,
-              lead.year_of_experience || null,
-              lead.country || null,
-              lead.program || null,
-              lead.status || 'Unassigned',
-              lead.priority || null,
-              lead.comment || null,
-              lead.follow_up_date || null,
-              lead.follow_up_status || 'Pending',
-              lead.assigned_staff_id || null,
-              lead.source || null,
-              lead.ielts_score || null,
-              lead.created_by || null,
-              lead.created_at || new Date().toISOString(),
-              lead.updated_at || new Date().toISOString(),
-              lead.secondary_phone_number || null
-            ]);
+        // Maximum parameters per query is 65535 in Postgres
+        // Each lead has 24 fields. 65535 / 24 approx 2700 leads per batch.
+        const BATCH_SIZE = 500;
+        for (let i = 0; i < validLeads.length; i += BATCH_SIZE) {
+          const batch = validLeads.slice(i, i + BATCH_SIZE);
+          const placeholders = [];
+          const flatValues = [];
+          let paramIdx = 1;
 
-            // Update duplicate check sets
-            existingPhones.add(lead.phone_number.toLowerCase());
-            if (lead.email) {
-              existingEmails.add(lead.email.toLowerCase());
-            }
-          } catch (leadError) {
-            console.error(`❌ Error inserting lead ${lead.name}:`, leadError.message);
-            results.errors++;
-            results.errorRows.push({
-              row: 'batch',
-              message: `Error inserting ${lead.name}: ${leadError.message}`,
+          batch.forEach((lead, rowIdx) => {
+            const rowPlaceholders = [];
+            [
+              lead.name, lead.phone_number, lead.phone_country_code, lead.whatsapp_number, lead.whatsapp_country_code,
+              lead.email, lead.age, lead.occupation, lead.qualification, lead.year_of_experience, lead.country, lead.program,
+              lead.status, lead.priority, lead.comment, lead.follow_up_date, lead.follow_up_status,
+              lead.assigned_staff_id, lead.source, lead.ielts_score, lead.created_by, lead.created_at, lead.updated_at, lead.secondary_phone_number
+            ].forEach(val => {
+              rowPlaceholders.push(`$${paramIdx++}`);
+              flatValues.push(val);
             });
-          }
+            placeholders.push(`(${rowPlaceholders.join(', ')})`);
+          });
+
+          const queryText = `
+            INSERT INTO leads (
+              name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code,
+              email, age, occupation, qualification, year_of_experience, country, program,
+              status, priority, comment, follow_up_date, follow_up_status,
+              assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number
+            ) VALUES ${placeholders.join(', ')}
+          `;
+
+          await client.query(queryText, flatValues);
         }
 
         await client.query('COMMIT');
-        results.created = validLeads.length - results.errors;
-        console.log(`✅ Bulk import: Created ${results.created} leads in batch transaction`);
+        results.created = validLeads.length;
+        console.log(`✅ Bulk import: Created ${results.created} leads in optimized batch inserts`);
       } catch (error) {
         await client.query('ROLLBACK');
         console.error('❌ Batch insert error:', error);

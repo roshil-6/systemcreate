@@ -37,7 +37,7 @@ const Layout = ({ children }) => {
       <aside className="sidebar">
         <div className="sidebar-header">
           <img
-            src="https://toniosenora.com/assets/img/logo.png"
+            src="/logo.png"
             alt="Tonio & Senora"
             className="sidebar-logo"
           />

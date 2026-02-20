@@ -48,7 +48,11 @@ router.get('/staff', authenticate, requireHrOrAdmin, async (req, res) => {
             name: u.name,
             email: u.email,
             role: u.role,
-            team: u.team
+            team: u.team,
+            phone_number: u.phone_number,
+            office_number: u.office_number,
+            dob: u.dob,
+            profile_photo: u.profile_photo
         }));
 
         res.json(staffList);
@@ -71,7 +75,10 @@ router.get('/staff/:id', authenticate, requireHrOrAdmin, async (req, res) => {
             name: user.name,
             email: user.email,
             role: user.role,
-            team: user.team
+            team: user.team,
+            phone_number: user.phone_number,
+            office_number: user.office_number,
+            dob: user.dob
         });
     } catch (error) {
         console.error('HR Get Staff Error:', error);
