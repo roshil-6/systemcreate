@@ -1259,7 +1259,6 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         .replace(/[^\w_-]/g, ''); // Remove special characters except underscore and dash
     });
 
-    console.log('📋 Raw header line:', headerLine);
     console.log('📋 Parsed header values:', headerValues);
     console.log('📋 Normalized headers:', headers);
     console.log('📋 Looking for: first_name, last_name, phone');
