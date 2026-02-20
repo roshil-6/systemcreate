@@ -1319,8 +1319,9 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       follow_up_date: ['follow_up_date', 'followup_date', 'follow_up', 'next_followup', 'created time', 'created_time', 'created date', 'created_date'],
       follow_up_status: ['follow_up_status', 'followup_status', 'follow_up_status'],
       assigned_staff: ['assigned_staff', 'assigned_to', 'staff', 'assigned_staff_id'],
-      // Meta Ads source fields
-      source: ['source', 'lead_source', 'lead source', 'ad name', 'campaign name', 'ad_name', 'campaign_name', 'form name', 'form_name'],
+      // Source: only explicit source columns — do NOT include 'ad name' / 'campaign name' etc.
+      // (those contain 'name' and fuzzy-match onto the Name column causing source = lead name bug)
+      source: ['source', 'lead_source', 'leadsource', 'lead source', 'utm_source', 'channel', 'source_name'],
       ielts_score: ['ielts_score', 'ielts', 'ielts_band', 'ielts score'],
     };
 
@@ -1657,10 +1658,28 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       email: columnIndices.email !== -1 ? 'found' : 'missing',
     });
 
-    // Get all existing leads for duplicate checking (PostgreSQL)
-    const existingLeads = await db.getLeads();
-    const existingPhones = new Set(existingLeads.map(l => l.phone_number?.toLowerCase()));
-    const existingEmails = new Set(existingLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+    // Fast duplicate check: only fetch phone_number and email columns (not all lead data)
+    // Using raw pool query for speed — avoids loading all lead fields
+    let existingPhones = new Set();
+    let existingEmails = new Set();
+    try {
+      const pool = db.pool || db._pool || db.client;
+      // Try db method first (lighter — only select needed columns)
+      if (db.getLeadPhones) {
+        const phoneRows = await db.getLeadPhones();
+        phoneRows.forEach(r => { if (r.phone_number) existingPhones.add(r.phone_number.toLowerCase()); });
+        phoneRows.forEach(r => { if (r.email) existingEmails.add(r.email.toLowerCase()); });
+      } else {
+        // Fallback: still use getLeads but only keep what we need
+        const existingLeads = await db.getLeads();
+        existingLeads.forEach(l => {
+          if (l.phone_number) existingPhones.add(l.phone_number.toLowerCase());
+          if (l.email) existingEmails.add(l.email.toLowerCase());
+        });
+      }
+    } catch (e) {
+      console.warn('Could not prefetch existing leads for duplicate check:', e.message);
+    }
 
     const results = {
       total: lines.length - 1,

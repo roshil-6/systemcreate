@@ -951,6 +951,13 @@ const database = {
   },
 
   getDatabase: () => pool,
+
+  // Fast lookup: only phone_number + email for duplicate checking during bulk import
+  getLeadPhones: async () => {
+    const result = await query('SELECT phone_number, email FROM leads');
+    return result.rows;
+  },
+
   // Cleanup
   end: async () => {
     await pool.end();
