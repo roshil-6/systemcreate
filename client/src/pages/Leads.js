@@ -721,7 +721,7 @@ const Leads = () => {
                       />
                     </td>
                   )}
-                  <td>{lead.name}</td>
+                  <td className="name-cell" title={lead.name}>{lead.name}</td>
                   <td style={{ maxWidth: '130px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${lead.phone_country_code || ''} ${lead.phone_number || ''}`}>
                     {(() => {
                       const rawPhone = `${lead.phone_country_code || ''} ${lead.phone_number || ''}`;

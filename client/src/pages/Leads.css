@@ -249,6 +249,13 @@
   text-overflow: ellipsis;
 }
 
+.name-cell {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .checkbox-column {
   width: 40px;
   text-align: center;

@@ -1798,9 +1798,11 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         }
 
         // Build source from Meta Ads fields or use provided source
-        if (!source && (metaAdName || metaCampaignName || metaFormName)) {
+        // USER REQUEST: Prioritize Campaign Name as the source
+        if (metaCampaignName) {
+          source = metaCampaignName;
+        } else if (!source && (metaAdName || metaFormName)) {
           const metaParts = [];
-          if (metaCampaignName) metaParts.push(`Campaign: ${metaCampaignName}`);
           if (metaAdName) metaParts.push(`Ad: ${metaAdName}`);
           if (metaFormName) metaParts.push(`Form: ${metaFormName}`);
           source = metaParts.join(' | ');
