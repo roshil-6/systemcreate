@@ -1123,57 +1123,74 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       try {
         console.log('📊 Parsing Excel file...');
         const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
+        // SCAN ALL SHEETS: The user might have a summary sheet first
+        let foundSheet = null;
+        let foundHeaderIndex = -1;
+        let foundHeaders = [];
+        let foundDataRows = [];
 
-        // Convert to JSON with header rows
-        const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        console.log(`📊 Workbook has ${workbook.SheetNames.length} sheet(s): ${workbook.SheetNames.join(', ')}`);
 
-        // FIND ACTUAL HEADER ROW: Look for a row that actually contains Name and Phone columns
-        let headerRowIndex = -1;
-        for (let i = 0; i < allRowsRaw.length; i++) {
-          const row = allRowsRaw[i].map(h => String(h || '').trim());
-          if (row.filter(v => v).length < 2) continue;
+        for (const sheetName of workbook.SheetNames) {
+          const worksheet = workbook.Sheets[sheetName];
+          const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-          // Simple check for Name and Phone related keywords
-          const hasNameKW = row.some(h => {
-            const low = h.toLowerCase().replace(/[_\s-]/g, '');
-            return ['name', 'fullname', 'fname', 'lname', 'client', 'student'].some(k => low.includes(k));
-          });
-          const hasPhoneKW = row.some(h => {
-            const low = h.toLowerCase().replace(/[_\s-]/g, '');
-            return ['phone', 'mobile', 'contact', 'whatsapp', 'call', 'cell', 'tel'].some(k => low.includes(k));
-          });
+          if (allRowsRaw.length < 2) continue; // Skip empty/tiny sheets
 
-          if (hasNameKW && hasPhoneKW) {
-            headerRowIndex = i;
-            break;
-          }
-        }
+          // Try to find a header row in THIS sheet
+          let localHeaderIndex = -1;
+          for (let i = 0; i < Math.min(allRowsRaw.length, 20); i++) { // Check first 20 rows
+            const row = allRowsRaw[i].map(h => String(h || '').trim());
+            if (row.filter(v => v).length < 2) continue;
 
-        // FALLBACK: If no row matches both, pick the first row with >= 3 non-empty values
-        if (headerRowIndex === -1) {
-          for (let i = 0; i < allRowsRaw.length; i++) {
-            if (allRowsRaw[i].filter(v => String(v || '').trim()).length >= 3) {
-              headerRowIndex = i;
+            const hasNameKW = row.some(h => {
+              const low = h.toLowerCase().replace(/[_\s-]/g, '');
+              return ['name', 'fullname', 'fname', 'lname', 'client', 'student'].some(k => low.includes(k));
+            });
+            const hasPhoneKW = row.some(h => {
+              const low = h.toLowerCase().replace(/[_\s-]/g, '');
+              return ['phone', 'mobile', 'contact', 'whatsapp', 'call', 'cell', 'tel'].some(k => low.includes(k));
+            });
+
+            if (hasNameKW && hasPhoneKW) {
+              localHeaderIndex = i;
               break;
             }
           }
+
+          if (localHeaderIndex !== -1) {
+            foundSheet = sheetName;
+            foundHeaderIndex = localHeaderIndex;
+            foundHeaders = allRowsRaw[localHeaderIndex].map(h => String(h || '').trim());
+            foundDataRows = allRowsRaw.slice(localHeaderIndex + 1);
+            console.log(`✅ Valid data found in sheet: "${sheetName}" at row ${localHeaderIndex}`);
+            break; // Stop at first valid sheet
+          }
         }
 
-        if (headerRowIndex === -1 || headerRowIndex >= allRowsRaw.length - 1) {
-          return res.status(400).json({
-            error: 'Could not find a valid data sheet',
-            details: `Found ${allRowsRaw.length} row(s), but no valid header row with data columns was detected.`
-          });
+        if (!foundSheet) {
+          console.warn('⚠️ No sheet matched Name+Phone keywords. Falling back to first sheet with data.');
+          const firstSheet = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheet];
+          const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+          // Basic fallback: find first row with >=3 values
+          let fallbackIdx = allRowsRaw.findIndex(r => r.filter(v => String(v || '').trim()).length >= 3);
+          if (fallbackIdx === -1) fallbackIdx = 0;
+
+          foundSheet = firstSheet;
+          foundHeaderIndex = fallbackIdx;
+          foundHeaders = allRowsRaw[fallbackIdx].map(h => String(h || '').trim());
+          foundDataRows = allRowsRaw.slice(fallbackIdx + 1);
         }
 
-        headerValues = allRowsRaw[headerRowIndex].map(h => String(h || '').trim());
-        dataRows = allRowsRaw.slice(headerRowIndex + 1);
+        headerValues = foundHeaders;
+        dataRows = foundDataRows;
 
-        console.log('✅ Excel parsing (Deep Discovery):', {
-          totalRows: allRowsRaw.length,
-          headerRowUsed: headerRowIndex,
+        console.log('✅ Excel parsing (Multi-Sheet Discovery):', {
+          sheetUsed: foundSheet,
+          totalRows: dataRows.length + 1,
+          headerRowUsed: foundHeaderIndex,
           dataRowsCount: dataRows.length,
           foundHeaders: headerValues
         });
