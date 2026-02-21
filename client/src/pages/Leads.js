@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Leads.css';
-import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2 } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock } from 'react-icons/fi';
 
 const Leads = () => {
   const { user, logout } = useAuth();
@@ -31,13 +31,23 @@ const Leads = () => {
     follow_up_status: '',
   });
   const [bulkEditLoading, setBulkEditLoading] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [importHistory, setImportHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || '';
     const urlStatus = searchParams.get('status') || '';
+    const showHistory = searchParams.get('showHistory') === 'true';
+
     setSearch(urlSearch);
     setSearchInput(urlSearch);
     setStatusFilter(urlStatus);
+
+    if (showHistory) {
+      setShowHistoryModal(true);
+      fetchImportHistory();
+    }
   }, [searchParams]);
 
   useEffect(() => {
@@ -343,6 +353,48 @@ const Leads = () => {
     }
   };
 
+  const handleViewLastImport = async () => {
+    // Redirect to history modal instead of direct download
+    setShowHistoryModal(true);
+    fetchImportHistory();
+  };
+
+  const fetchImportHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/leads/import-history`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setImportHistory(response.data || []);
+    } catch (error) {
+      console.error('Error fetching import history:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const downloadHistoryFile = async (importId, originalName) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/leads/import-history/${importId}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', originalName || 'imported_file.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Failed to download file');
+    }
+  };
+
   const statusOptions = ['Unassigned', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
 
   const getStatusColor = (status) => {
@@ -406,7 +458,16 @@ const Leads = () => {
           <FiArrowLeft /> Back to Dashboard
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <h1>Clients (Leads)</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <h1>Clients (Leads)</h1>
+            <button
+              className="header-history-btn"
+              onClick={() => { setShowHistoryModal(true); fetchImportHistory(); }}
+              title="View full history of imported Excel files"
+            >
+              <FiClock /> Import History
+            </button>
+          </div>
         </div>
       </div>
 
@@ -666,6 +727,86 @@ const Leads = () => {
         </div>
       )}
 
+      {/* Import History Modal */}
+      {showHistoryModal && (
+        <div className="modal-overlay" onClick={() => setShowHistoryModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px', width: '95%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0 }}>Import History</h2>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}
+              >&times;</button>
+            </div>
+
+            {historyLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>Loading history...</div>
+            ) : importHistory.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No import history found.</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid #eee', textAlign: 'left' }}>
+                      <th style={{ padding: '12px' }}>Date</th>
+                      <th style={{ padding: '12px' }}>Filename</th>
+                      <th style={{ padding: '12px' }}>Total</th>
+                      <th style={{ padding: '12px' }}>Success</th>
+                      <th style={{ padding: '12px' }}>Skipped</th>
+                      <th style={{ padding: '12px' }}>Errors</th>
+                      <th style={{ padding: '12px' }}>By</th>
+                      <th style={{ padding: '12px' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importHistory.map((item) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                        <td style={{ padding: '12px' }}>{new Date(item.created_at).toLocaleString()}</td>
+                        <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.original_filename}>
+                          {item.original_filename}
+                        </td>
+                        <td style={{ padding: '12px' }}><strong>{item.total_rows}</strong></td>
+                        <td style={{ padding: '12px', color: 'green' }}>{item.successful_rows}</td>
+                        <td style={{ padding: '12px', color: 'orange' }}>{item.skipped_rows}</td>
+                        <td style={{ padding: '12px', color: 'red' }}>{item.error_rows}</td>
+                        <td style={{ padding: '12px' }}>{item.creator_name || 'System'}</td>
+                        <td style={{ padding: '12px' }}>
+                          <button
+                            onClick={() => downloadHistoryFile(item.id, item.original_filename)}
+                            style={{
+                              padding: '6px 10px',
+                              backgroundColor: '#f3f4f6',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <FiDownload size={14} /> Download
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
+              <button
+                className="btn-secondary"
+                onClick={() => setShowHistoryModal(false)}
+                style={{ padding: '8px 20px' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lead Details Modal */}
 
 
@@ -689,16 +830,16 @@ const Leads = () => {
                     />
                   </th>
                 )}
-                <th style={{ width: '13%', minWidth: '150px' }}>Name</th>
-                <th style={{ width: '13%', minWidth: '130px' }}>Phone</th>
-                <th style={{ width: '16%', minWidth: '180px' }}>Email</th>
+                <th className="sticky-name" style={{ minWidth: '150px' }}>Name</th>
+                <th style={{ minWidth: '130px' }}>Phone</th>
+                <th style={{ minWidth: '180px' }}>Email</th>
                 <th style={{ width: '80px' }}>Priority</th>
-                <th style={{ width: '14%', minWidth: '200px' }}>Source</th>
+                <th style={{ minWidth: '200px' }}>Source</th>
                 <th style={{ width: '110px' }}>Follow-up Date</th>
 
-                <th style={{ width: '130px' }}>Date Added</th>
+                <th style={{ width: '110px' }}>Date Added</th>
                 <th style={{ width: '100px' }}>Lead Status</th>
-                <th style={{ width: '12%', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
+                <th style={{ width: '120px', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Actions</th>
               </tr>
             </thead>
@@ -721,14 +862,20 @@ const Leads = () => {
                       />
                     </td>
                   )}
-                  <td className="name-cell" title={lead.name}>{lead.name}</td>
-                  <td style={{ maxWidth: '130px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${lead.phone_country_code || ''} ${lead.phone_number || ''}`}>
-                    {(() => {
-                      const rawPhone = `${lead.phone_country_code || ''} ${lead.phone_number || ''}`;
-                      // Clean "Yes" from phone number display
-                      const cleanPhone = rawPhone.replace(/^(yes|no)([\s-:]+)?/i, '').trim();
-                      return cleanPhone || '-';
-                    })()}
+                  <td className="name-cell sticky-name" title={lead.name}>{lead.name}</td>
+                  <td style={{ maxWidth: '130px' }} title={`${lead.phone_country_code || ''} ${lead.phone_number || ''}${lead.secondary_phone_number ? '\nSec: ' + lead.secondary_phone_number : ''}`}>
+                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {(() => {
+                        const rawPhone = `${lead.phone_country_code || ''} ${lead.phone_number || ''}`;
+                        const cleanPhone = rawPhone.replace(/^(yes|no)([\s-:]+)?/i, '').trim();
+                        return cleanPhone || '-';
+                      })()}
+                    </div>
+                    {lead.secondary_phone_number && (
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        Sec: {lead.secondary_phone_number}
+                      </div>
+                    )}
                   </td>
                   <td style={{ maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={lead.email || ''}>
                     {lead.email || '-'}

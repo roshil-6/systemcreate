@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './BulkImport.css';
-import { FiUpload, FiDownload, FiCheckCircle, FiXCircle, FiArrowLeft } from 'react-icons/fi';
+import { FiUpload, FiDownload, FiCheckCircle, FiXCircle, FiArrowLeft, FiClock } from 'react-icons/fi';
 
 const BulkImport = () => {
   const { user } = useAuth();
@@ -222,6 +222,25 @@ const BulkImport = () => {
         <button className="btn-export-all" onClick={handleExportLeads}>
           <FiDownload /> Export Leads
         </button>
+        <button
+          className="btn-view-history"
+          onClick={() => navigate('/leads?showHistory=true')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '10px 16px',
+            background: '#D4AF37',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          <FiClock /> View Import History
+        </button>
       </div>
 
       <div className="bulk-import-content">
@@ -341,7 +360,7 @@ const BulkImport = () => {
                     <span className="stat-value success">{result.created}</span>
                   </div>
                   <div className="stat-item">
-                    <span className="stat-label">Skipped (Duplicates):</span>
+                    <span className="stat-label">Skipped (Duplicates or Missing Data):</span>
                     <span className="stat-value warning">{result.skipped}</span>
                   </div>
                   <div className="stat-item">
@@ -349,13 +368,30 @@ const BulkImport = () => {
                     <span className="stat-value error">{result.errors}</span>
                   </div>
                 </div>
+                {result.skipped > 0 && (
+                  <div className="skip-notice" style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
+                    <p>💡 Tip: {result.skipped} leads were skipped because their phone number or email already exists in the CRM, or they were missing required fields.</p>
+                  </div>
+                )}
+                {result.skippedRows && result.skippedRows.length > 0 && (
+                  <div className="skipped-details" style={{ marginTop: '20px' }}>
+                    <h4 style={{ color: '#856404' }}>Skipped Rows (Duplicates):</h4>
+                    <ul style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #ffeeba', padding: '10px', borderRadius: '4px', background: '#fff' }}>
+                      {result.skippedRows.map((skip, index) => (
+                        <li key={index} style={{ fontSize: '12px', marginBottom: '4px' }}>
+                          Row {skip.row}: {skip.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {result.errorRows && result.errorRows.length > 0 && (
-                  <div className="error-details">
-                    <h4>Rows with Errors:</h4>
-                    <ul>
+                  <div className="error-details" style={{ marginTop: '20px' }}>
+                    <h4 style={{ color: '#721c24' }}>Rows with Errors:</h4>
+                    <ul style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #f5c6cb', padding: '10px', borderRadius: '4px', background: '#fff' }}>
                       {result.errorRows.map((error, index) => (
-                        <li key={index}>
-                          Row {error.row}: {error.message}
+                        <li key={index} style={{ fontSize: '12px', marginBottom: '4px' }}>
+                          Row {error.row}: {error.message || error.error}
                         </li>
                       ))}
                     </ul>
@@ -416,7 +452,7 @@ const BulkImport = () => {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
 
