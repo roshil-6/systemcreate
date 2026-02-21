@@ -22,7 +22,7 @@ const { startEmailScheduler } = require('./services/emailScheduler');
 const fixCompletedActionsType = require('./scripts/fixCompletedActionsType');
 
 const app = express();
-const PORT = process.env.PORT || 5002;
+const PORT = process.env.PORT || 5005;
 
 // --- READINESS STATE ---
 let isDatabaseReady = false;

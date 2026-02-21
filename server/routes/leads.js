@@ -5,6 +5,8 @@ const XLSX = require('xlsx');
 const iconv = require('iconv-lite');
 const db = require('../config/database');
 const { authenticate } = require('../middleware/auth');
+const fs = require('fs');
+const path = require('path');
 
 const router = express.Router();
 
@@ -137,8 +139,8 @@ router.get('/staff/list', authenticate, async (req, res) => {
     // Admin can assign to anyone
     if (role === 'ADMIN') {
       const allUsers = await db.getUsers();
-      // Filter out other Admins if desired, but keep for now
-      users = allUsers.filter(u => u.role !== 'ADMIN');
+      // Allow Admin to see everyone including other admins
+      users = allUsers;
     }
     // Sales Team Head can assign to self + team
     else if (role === 'SALES_TEAM_HEAD') {
@@ -414,6 +416,58 @@ router.get('/version-check', (req, res) => {
     timestamp: new Date().toISOString(),
     message: 'Backend is running the LATEST (1.6.1) code with Crash Fixes'
   });
+});
+
+// List all previous imports
+router.get('/import-history', authenticate, async (req, res) => {
+  try {
+    const result = await db.query('SELECT h.*, u.name as creator_name FROM import_history h LEFT JOIN users u ON h.created_by = u.id ORDER BY h.created_at DESC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ API ERROR: /import-history:', error);
+    res.status(500).json({ error: 'Failed to fetch import history', details: error.message });
+  }
+});
+
+// Download a specific file from history
+router.get('/import-history/:id/download', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query('SELECT filename, original_filename FROM import_history WHERE id = $1', [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
+
+    const { filename, original_filename } = result.rows[0];
+    const filePath = path.join(__dirname, '../uploads/imports', filename);
+
+    if (fs.existsSync(filePath)) {
+      res.download(filePath, original_filename);
+    } else {
+      res.status(404).json({ error: 'File not found on server' });
+    }
+  } catch (error) {
+    console.error('❌ API ERROR: /import-history/download:', error.message);
+    res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+// Keep the "last-imported-file" for backward compatibility if needed, but point to latest history record
+router.get('/last-imported-file', authenticate, async (req, res) => {
+  try {
+    const result = await db.query('SELECT filename, original_filename FROM import_history ORDER BY created_at DESC LIMIT 1');
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No recent import found' });
+
+    const { filename, original_filename } = result.rows[0];
+    const filePath = path.join(__dirname, '../uploads/imports', filename);
+
+    if (fs.existsSync(filePath)) {
+      res.download(filePath, original_filename);
+    } else {
+      res.status(404).json({ error: 'File not found' });
+    }
+  } catch (error) {
+    console.error('❌ API ERROR: /last-imported-file:', error.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Get single lead
@@ -1049,998 +1103,504 @@ router.get('/staff/list', authenticate, async (req, res) => {
   }
 });
 
-// Bulk import leads from CSV
-router.post('/bulk-import', authenticate, (req, res, next) => {
-  console.log('📥 Bulk import - Before multer middleware');
-  console.log('   User:', req.user?.id, req.user?.name, req.user?.role);
-  console.log('   Content-Type:', req.headers['content-type']);
-  console.log('   Content-Length:', req.headers['content-length']);
-
-  upload.single('file')(req, res, (err) => {
-    if (err) {
-      console.error('❌ Multer error:', err.message);
-      console.error('   Error code:', err.code);
-      console.error('   Error field:', err.field);
-      return res.status(400).json({
-        error: 'File upload error',
-        details: err.message || 'Invalid file format. Please upload a CSV file.'
-      });
+// Robust CSV parser that handles escaped quotes ""
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
     }
-    console.log('✅ Multer middleware passed');
-    next();
-  });
-}, async (req, res) => {
-  try {
-    console.log('📥 Bulk import - After multer middleware');
-    console.log('   User:', req.user?.id, req.user?.name, req.user?.role);
-    console.log('   File:', req.file ? {
-      filename: req.file.originalname,
-      size: req.file.size,
-      mimetype: req.file.mimetype,
-      fieldname: req.file.fieldname
-    } : 'NO FILE');
-    console.log('   Body keys:', Object.keys(req.body));
+  }
+  result.push(current.trim());
+  return result;
+}
 
+
+router.post('/bulk-import', authenticate, upload.single('file'), async (req, res) => {
+  try {
     const role = req.user.role;
     const userId = req.user.id;
+    if (!['ADMIN', 'SALES_TEAM_HEAD', 'SALES_TEAM', 'PROCESSING', 'STAFF'].includes(role)) return res.status(403).json({ error: 'Access denied' });
+    if (!req.file) return res.status(400).json({ error: 'File is required' });
 
-    // Allow ADMIN and all staff roles
-    const canImport = role === 'ADMIN' || role === 'SALES_TEAM_HEAD' || role === 'SALES_TEAM' || role === 'PROCESSING' || role === 'STAFF';
-    if (!canImport) {
-      console.error('❌ Bulk import: Access denied for role:', role);
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    if (!req.file) {
-      console.error('❌ Bulk import: No file provided');
-      console.error('   Request body keys:', Object.keys(req.body));
-      console.error('   Request files:', req.files);
-      console.error('   Content-Type:', req.headers['content-type']);
-      return res.status(400).json({
-        error: 'CSV file is required',
-        details: 'Please select a CSV file to upload. Make sure the file input name is "file".'
-      });
-    }
-
-    console.log('✅ Bulk import: File received:', {
-      filename: req.file.originalname,
-      size: req.file.size,
-      mimetype: req.file.mimetype
-    });
-
-    // Determine file type and parse accordingly
-    const isExcel = req.file.originalname.toLowerCase().endsWith('.xlsx') ||
-      req.file.originalname.toLowerCase().endsWith('.xls') ||
-      req.file.mimetype.includes('spreadsheet') ||
-      req.file.mimetype.includes('excel');
-
-    let lines = [];
-    let headerValues = [];
-    let dataRows = [];
+    const isExcel = req.file.originalname.toLowerCase().endsWith('.xlsx') || req.file.originalname.toLowerCase().endsWith('.xls');
+    const sheetsData = [];
 
     if (isExcel) {
-      // Parse Excel file
-      try {
-        console.log('📊 Parsing Excel file...');
-        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-        // SCAN ALL SHEETS: The user might have a summary sheet first
-        let foundSheet = null;
-        let foundHeaderIndex = -1;
-        let foundHeaders = [];
-        let foundDataRows = [];
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      for (const sheetName of workbook.SheetNames) {
+        const sLower = sheetName.toLowerCase();
+        if (['old', 'archive', 'summary', 'total', 'deleted', 'junk', 'temp', 'back', 'sheet2', 'sheet3'].some(k => sLower.includes(k))) continue;
+        const worksheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        if (rows.length === 0) continue;
 
-        console.log(`📊 Workbook has ${workbook.SheetNames.length} sheet(s): ${workbook.SheetNames.join(', ')}`);
-
-        for (const sheetName of workbook.SheetNames) {
-          const worksheet = workbook.Sheets[sheetName];
-          const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
-          if (allRowsRaw.length < 2) continue; // Skip empty/tiny sheets
-
-          // Try to find a header row in THIS sheet
-          let localHeaderIndex = -1;
-          for (let i = 0; i < Math.min(allRowsRaw.length, 20); i++) { // Check first 20 rows
-            const row = allRowsRaw[i].map(h => String(h || '').trim());
-            if (row.filter(v => v).length < 2) continue;
-
-            const hasNameKW = row.some(h => {
-              const low = h.toLowerCase().replace(/[_\s-]/g, '');
-              return ['name', 'fullname', 'fname', 'lname', 'client', 'student'].some(k => low.includes(k));
-            });
-            const hasPhoneKW = row.some(h => {
-              const low = h.toLowerCase().replace(/[_\s-]/g, '');
-              return ['phone', 'mobile', 'contact', 'whatsapp', 'call', 'cell', 'tel'].some(k => low.includes(k));
-            });
-
-            if (hasNameKW && hasPhoneKW) {
-              localHeaderIndex = i;
-              break;
-            }
-          }
-
-          if (localHeaderIndex !== -1) {
-            foundSheet = sheetName;
-            foundHeaderIndex = localHeaderIndex;
-            foundHeaders = allRowsRaw[localHeaderIndex].map(h => String(h || '').trim());
-            foundDataRows = allRowsRaw.slice(localHeaderIndex + 1);
-            console.log(`✅ Valid data found in sheet: "${sheetName}" at row ${localHeaderIndex}`);
-            break; // Stop at first valid sheet
-          }
+        let headerIdx = -1;
+        for (let i = 0; i < Math.min(rows.length, 30); i++) {
+          const r = (rows[i] || []).map(h => String(h || '').trim().toLowerCase().replace(/[^\w]/g, ''));
+          // Look for any row that has at least 2 common CRM headers
+          const matches = ['name', 'phone', 'mobile', 'contact', 'email', 'source', 'status'].filter(k => r.some(rh => rh.includes(k)));
+          if (matches.length >= 2) { headerIdx = i; break; }
         }
 
-        if (!foundSheet) {
-          console.warn('⚠️ No sheet matched Name+Phone keywords. Falling back to first sheet with data.');
-          const firstSheet = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheet];
-          const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-
-          // Basic fallback: find first row with >=3 values
-          let fallbackIdx = allRowsRaw.findIndex(r => r.filter(v => String(v || '').trim()).length >= 3);
-          if (fallbackIdx === -1) fallbackIdx = 0;
-
-          foundSheet = firstSheet;
-          foundHeaderIndex = fallbackIdx;
-          foundHeaders = allRowsRaw[fallbackIdx].map(h => String(h || '').trim());
-          foundDataRows = allRowsRaw.slice(fallbackIdx + 1);
+        if (headerIdx !== -1) {
+          sheetsData.push({ sheetName, headerValues: rows[headerIdx].map(h => String(h || '').trim()), dataRows: rows.slice(headerIdx + 1) });
+        } else {
+          // If no header found, assume row 0 is header but definitely treat first column as Name
+          sheetsData.push({ sheetName, headerValues: rows[0].map((h, idx) => String(h || `Column ${idx + 1}`).trim()), dataRows: rows.slice(1) });
         }
-
-        if (!foundSheet) {
-          console.warn('⚠️ No sheet matched Name+Phone keywords. Checking for headerless data...');
-          // Try to find ANY sheet with data
-          for (const sheetName of workbook.SheetNames) {
-            const worksheet = workbook.Sheets[sheetName];
-            const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-            if (allRowsRaw.length > 0 && allRowsRaw.some(r => r.filter(v => v).length >= 2)) {
-              foundSheet = sheetName;
-              foundHeaderIndex = -1; // -1 means NO HEADER (synthetic headers)
-              foundHeaders = allRowsRaw[0].map((_, idx) => `Column ${idx + 1}`);
-              foundDataRows = allRowsRaw; // Include EVERYTHING as data
-              console.log(`📡 Headerless data discovery in sheet: "${sheetName}"`);
-              break;
-            }
-          }
-        }
-
-        if (!foundSheet) {
-          return res.status(400).json({
-            error: 'Could not find any data in the Excel file',
-            details: 'The file seems to be empty or has no readable sheets.'
-          });
-        }
-
-        headerValues = foundHeaders;
-        dataRows = foundDataRows;
-
-        console.log('✅ Excel parsing (Multi-Sheet Discovery):', {
-          sheetUsed: foundSheet,
-          totalRows: dataRows.length + 1,
-          headerRowUsed: foundHeaderIndex,
-          dataRowsCount: dataRows.length,
-          foundHeaders: headerValues
-        });
-      } catch (error) {
-        console.error('❌ Error parsing Excel file:', error);
-        return res.status(400).json({
-          error: 'Error parsing Excel file',
-          details: error.message
-        });
       }
     } else {
-      // Smart encoding detection: handle UTF-8 BOM, UTF-8, and Windows-1252 (ANSI/Latin-1)
-      // CSVs from Excel are often saved as Windows-1252 which causes ? for special chars
-      let csvText;
-      try {
-        const buf = req.file.buffer;
+      // SMART ENCODING: Check for BOM (UTF-8 or UTF-16LE), then try UTF-8, then fallback
+      const buffer = req.file.buffer;
+      let text;
 
-        // 1. Check for UTF-8 BOM (EF BB BF)
-        if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
-          csvText = iconv.decode(buf.slice(3), 'utf-8');
-          console.log('✅ CSV decoded as UTF-8 (with BOM stripped)');
+      // UTF-8 BOM: 0xEF 0xBB 0xBF
+      if (buffer.length >= 3 && buffer[0] === 0xEF && buffer[1] === 0xBB && buffer[2] === 0xBF) {
+        console.log('💎 UTF-8 BOM detected');
+        text = iconv.decode(buffer.slice(3), 'utf8');
+      }
+      // UTF-16LE BOM: 0xFF 0xFE
+      else if (buffer.length >= 2 && buffer[0] === 0xFF && buffer[1] === 0xFE) {
+        console.log('💎 UTF-16LE BOM detected');
+        text = iconv.decode(buffer.slice(2), 'utf16le');
+      }
+      else {
+        const utf8Text = iconv.decode(buffer, 'utf8');
+        const corruptionCount = (utf8Text.match(/\ufffd/g) || []).length;
 
-          // 2. Check for UTF-16 LE BOM (FF FE)
-        } else if (buf[0] === 0xFF && buf[1] === 0xFE) {
-          csvText = iconv.decode(buf.slice(2), 'utf-16le');
-          console.log('✅ CSV decoded as UTF-16 LE');
-
-          // 3. Heuristic: detect Windows-1252 vs UTF-8
-          // If buffer contains bytes 0x80-0x9F (Windows-1252 control range) or invalid UTF-8
-          // sequences, decode as windows-1252 instead of UTF-8
+        // ONLY fallback if corruption is massive (e.g. >50 chars or >5% of file)
+        // This prevents a single emoji/bad char from destroying the whole file
+        if (corruptionCount > 50 || (corruptionCount > 0 && corruptionCount > (utf8Text.length * 0.05))) {
+          console.log(`⚠️ Massive UTF-8 corruption detected (${corruptionCount} errors), trying Win1252...`);
+          text = iconv.decode(buffer, 'win1252');
         } else {
-          const isValidUTF8 = iconv.encodingExists('utf-8') && (() => {
-            try {
-              // Try decoding as UTF-8 and re-encoding; if roundtrip has replacements it's not UTF-8
-              const asUtf8 = buf.toString('utf-8');
-              // Check for replacement character (U+FFFD) which Node inserts for invalid UTF-8
-              return !asUtf8.includes('\uFFFD');
-            } catch (e) {
-              return false;
-            }
-          })();
-
-          if (isValidUTF8) {
-            csvText = buf.toString('utf-8');
-            console.log('✅ CSV decoded as UTF-8');
-          } else {
-            // Fall back to Windows-1252 (covers ANSI/Latin-1 exports from Excel)
-            csvText = iconv.decode(buf, 'win1252');
-            console.log('✅ CSV decoded as Windows-1252 (Excel ANSI export)');
-          }
-        }
-
-        console.log('✅ CSV file read, length:', csvText.length, 'chars');
-      } catch (error) {
-        console.error('❌ Error reading CSV file:', error);
-        return res.status(400).json({
-          error: 'Error reading CSV file',
-          details: error.message
-        });
-      }
-
-      // Handle different line endings (Windows \r\n, Unix \n, Mac \r)
-      // Normalize all line endings to \n first
-      csvText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-      // Split by lines and filter out completely empty lines
-      const rawLines = csvText.split('\n').filter(line => line.trim() || line.includes(','));
-      console.log('📊 CSV lines found:', rawLines.length);
-
-      if (rawLines.length < 2) {
-        console.error('❌ Bulk import: CSV file too short, only', rawLines.length, 'lines');
-        return res.status(400).json({
-          error: 'CSV file must contain at least a header row and one data row',
-          details: `Found ${rawLines.length} line(s). Need at least 2 lines (header + data).`
-        });
-      }
-
-      // Parse all lines into arrays immediately
-      const allRowsRaw = rawLines.map(line => parseCSVLine(line.trim() || (line.includes(',') ? line : '')));
-
-      // FIND ACTUAL HEADER ROW: Deep discovery
-      let headerRowIndex = -1;
-      for (let i = 0; i < allRowsRaw.length; i++) {
-        const row = allRowsRaw[i].map(h => String(h || '').trim());
-        if (row.filter(v => v).length < 2) continue;
-
-        const hasNameKW = row.some(h => {
-          const low = h.toLowerCase().replace(/[_\s-]/g, '');
-          return ['name', 'fullname', 'fname', 'lname', 'client', 'student'].some(k => low.includes(k));
-        });
-        const hasPhoneKW = row.some(h => {
-          const low = h.toLowerCase().replace(/[_\s-]/g, '');
-          return ['phone', 'mobile', 'contact', 'whatsapp', 'call', 'cell', 'tel'].some(k => low.includes(k));
-        });
-
-        if (hasNameKW && hasPhoneKW) {
-          headerRowIndex = i;
-          break;
+          text = utf8Text;
         }
       }
 
-      // Fallback
-      if (headerRowIndex === -1) {
-        for (let i = 0; i < allRowsRaw.length; i++) {
-          if (allRowsRaw[i].filter(v => String(v || '').trim()).length >= 3) {
-            headerRowIndex = i;
-            break;
-          }
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const rawLines = text.split('\n');
+      const allRowsRaw = [];
+      let currentLine = '';
+      for (const line of rawLines) {
+        if (currentLine) currentLine += '\n' + line;
+        else currentLine = line;
+        const quoteCount = (currentLine.match(/"/g) || []).length;
+        if (quoteCount % 2 === 0) {
+          allRowsRaw.push(parseCSVLine(currentLine));
+          currentLine = '';
         }
       }
-
-      if (headerRowIndex === -1 || headerRowIndex >= allRowsRaw.length - 1) {
-        return res.status(400).json({
-          error: 'Could not find a valid header row in CSV',
-          details: `Parsed ${allRowsRaw.length} line(s), but no row containing both Name and Phone was detected.`
-        });
-      }
-
-      headerValues = allRowsRaw[headerRowIndex].map(h => String(h || '').trim());
-      dataRows = allRowsRaw.slice(headerRowIndex + 1);
-    }
-
-    // Proper CSV parsing function (handle quoted values)
-    const parseCSVLine = (line) => {
-      const values = [];
-      let current = '';
-      let inQuotes = false;
-
-      for (let j = 0; j < line.length; j++) {
-        const char = line[j];
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          values.push(current.trim());
-          current = '';
+      if (currentLine) allRowsRaw.push(parseCSVLine(currentLine)); // Fallback for unmatched quote
+      if (allRowsRaw.length > 0) {
+        let headerIdx = -1;
+        for (let i = 0; i < Math.min(allRowsRaw.length, 30); i++) {
+          const r = (allRowsRaw[i] || []).map(h => String(h || '').trim().toLowerCase().replace(/[^\w]/g, ''));
+          const matches = ['name', 'phone', 'mobile', 'contact', 'email', 'source', 'status'].filter(k => r.some(rh => rh.includes(k)));
+          if (matches.length >= 2) { headerIdx = i; break; }
+        }
+        if (headerIdx !== -1) {
+          sheetsData.push({ sheetName: 'CSV', headerValues: allRowsRaw[headerIdx].map(h => String(h || '').trim()), dataRows: allRowsRaw.slice(headerIdx + 1) });
         } else {
-          current += char;
-        }
-      }
-      values.push(current.trim()); // Add last value
-      return values;
-    };
-
-    // --- OMNI-DISCOVERY: HEURISTIC MAPPING ---
-    // If we have data rows, inspect them to guess columns for Name, Phone, Email
-    const heuristicMapping = { name: -1, phone: -1, email: -1 };
-
-    if (dataRows.length > 0) {
-      const sample = dataRows[0];
-      for (let idx = 0; idx < sample.length; idx++) {
-        const val = String(sample[idx] || '').trim();
-        const valLower = val.toLowerCase();
-
-        // 1. Email detection
-        if (heuristicMapping.email === -1 && valLower.includes('@') && valLower.includes('.')) {
-          heuristicMapping.email = idx;
-          console.log(`🧠 Heuristic: Column ${idx} looks like Email ("${val}")`);
-          continue;
-        }
-
-        // 2. Phone detection (digits, leading +, p: prefix)
-        const digitsOnly = val.replace(/\D/g, '');
-        if (heuristicMapping.phone === -1 && (valLower.includes('p:') || (digitsOnly.length >= 7 && digitsOnly.length <= 15))) {
-          heuristicMapping.phone = idx;
-          console.log(`🧠 Heuristic: Column ${idx} looks like Phone ("${val}")`);
-          continue;
-        }
-
-        // 3. Name detection (Column 0 fallback if non-email/non-phone)
-        if (idx === 0 && heuristicMapping.name === -1 && val.length > 2) {
-          heuristicMapping.name = idx;
-          console.log(`🧠 Heuristic: Column ${idx} looks like Name ("${val}")`);
+          sheetsData.push({ sheetName: 'CSV', headerValues: allRowsRaw[0].map((h, idx) => String(h || `Column ${idx + 1}`).trim()), dataRows: allRowsRaw.slice(1) });
         }
       }
     }
 
-    // Headers normalization
-    const headers = headerValues.map(h => {
-      return h.trim()
-        .toLowerCase()
-        .replace(/^["']+|["']+$/g, '')
-        .replace(/\s+/g, '_')
-        .replace(/[^\w_-]/g, '');
-    });
+    if (sheetsData.length === 0) return res.status(400).json({ error: 'No valid data found in file' });
 
-    // Column mapping - support multiple column name variations
-    // Includes Meta Ads (Facebook Ads) export format support
-    const columnMapping = {
-      // Name fields (can be first_name + last_name OR name)
-      // Meta Ads format: "First Name", "Last Name"
-      name: ['name', 'full_name', 'fullname', 'full name'],
-      first_name: ['first_name', 'firstname', 'fname', 'first name', 'firstname'],
-      last_name: ['last_name', 'lastname', 'lname', 'surname', 'last name'],
-
-      // Phone fields
-      // Meta Ads format: "Phone Number"
-      phone_number: ['phone_number', 'phone', 'phone_no', 'mobile', 'mobile_number', 'contact_number', 'phone number', 'phonenumber'],
-      phone_country_code: ['phone_country_code', 'country_code', 'phone_code', 'country code', 'phone code'],
-      whatsapp_number: ['whatsapp_number', 'whatsapp', 'whatsapp_no', 'whatsapp number'],
-      whatsapp_country_code: ['whatsapp_country_code', 'whatsapp_country_code', 'whatsapp country code'],
-
-      // Other fields
-      // Meta Ads format: "Email"
-      email: ['email', 'email_address', 'e_mail', 'email address'],
-      age: ['age'],
-      occupation: ['occupation', 'job', 'profession'],
-      qualification: ['qualification', 'education', 'educational_qualification'],
-      year_of_experience: ['year_of_experience', 'work_experience_years', 'experience_years', 'years_of_experience', 'experience'],
-      country: ['country', 'country_of_interest', 'current_country', 'country of interest'],
-      program: ['program', 'course', 'course_program'],
-      status: ['status', 'lead_status', 'leadstatus', 'lead status'],
-      priority: ['priority'],
-      // Comment mapping: removed Meta-ads specific terms to prevent source collisions
-      comment: ['comment', 'notes', 'note', 'remarks'],
-      follow_up_date: ['follow_up_date', 'followup_date', 'follow_up', 'next_followup', 'created time', 'created_time', 'created date', 'created_date'],
-      follow_up_status: ['follow_up_status', 'followup_status', 'follow_up_status'],
-      assigned_staff: ['assigned_staff', 'assigned_to', 'staff', 'assigned_staff_id', 'agent', 'agent_name', 'staff_name'],
-      // Source: only explicit source columns
-      source: ['source', 'lead_source', 'leadsource', 'lead source', 'utm_source', 'channel', 'source_name', 'ad_source', 'marketing_source'],
-      ielts_score: ['ielts_score', 'ielts', 'ielts_band', 'ielts score'],
-    };
-
-    // Find column indices for each field
-    const findColumnIndex = (fieldNames) => {
-      for (const field of fieldNames) {
-        const fieldLower = field.toLowerCase().trim();
-
-        // STRICT EXACT MATCH ONLY for short fields (like 'age', 'id')
-        const isStrictField = ['age', 'id', 'sex'].includes(fieldLower) || fieldLower.length <= 3;
-
-        // Strategy 1 & 2: Check headers
-        let index = -1;
-
-        if (isStrictField) {
-          // Strict check against ORIGINAL headers
-          index = headerValues.findIndex(h => {
-            const hLower = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '');
-            return hLower === fieldLower;
-          });
-          if (index !== -1) return index;
-          continue; // If strict field not found exactly, DO NOT fuzzy match
-        }
-
-        // Strategy 2: Exact match with original header values (case-insensitive)
-        index = headerValues.findIndex((h, idx) => {
-          const normalized = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '').replace(/\s+/g, '_').replace(/[^\w_-]/g, '');
-          return normalized === fieldLower;
-        });
-        if (index !== -1) {
-          console.log(`✅ Found "${field}" → "${headerValues[index]}" (exact from original)`);
-          return index;
-        }
-
-        // STRICT CHECK: For short fields (like 'age', 'id'), SKIP fuzzy matching (Strategies 3-6)
-        // to prevent 'age' matching 'agent', 'agency', etc.
-        const isShortField = fieldLower.replace(/[_\s-]/g, '').length <= 3;
-
-        if (!isShortField) {
-          // Strategy 3: Starts with match (phone matches phone_number, but not vice versa)
-          index = headers.findIndex(h => h.startsWith(fieldLower));
-          if (index !== -1) {
-            console.log(`✅ Found "${field}" → "${headers[index]}" (starts with)`);
-            return index;
-          }
-
-          // Strategy 4: Contains match (header contains field - phone_number contains phone)
-          index = headers.findIndex(h => h.includes(fieldLower));
-          if (index !== -1) {
-            console.log(`✅ Found "${field}" → "${headers[index]}" (contains)`);
-            return index;
-          }
-
-          // Strategy 5: Match without underscores/spaces/dashes
-          const fieldNormalized = fieldLower.replace(/[_\s-]/g, '');
-          index = headers.findIndex(h => {
-            const hNormalized = h.replace(/[_\s-]/g, '');
-            return hNormalized === fieldNormalized;
-          });
-          if (index !== -1) {
-            console.log(`✅ Found "${field}" → "${headers[index]}" (normalized)`);
-            return index;
-          }
-
-          // Strategy 6: Substring match (normalized - field matches header start/end)
-          index = headers.findIndex(h => {
-            const hNormalized = h.replace(/[_\s-]/g, '');
-            // Only match if header contains field, not vice-versa (e.g. 'phone' matches 'phone_number')
-            return hNormalized.includes(fieldNormalized);
-          });
-          if (index !== -1) {
-            console.log(`✅ Found "${field}" → "${headers[index]}" (substring normalized)`);
-            return index;
-          }
-        }
-
-        // Strategy 7: Try matching against original header values directly (case-insensitive)
-        index = headerValues.findIndex(h => {
-          if (!h || !h.trim()) return false; // SKIP EMPTY HEADERS
-          const hLower = h.trim().toLowerCase().replace(/^["']+|["']+$/g, '');
-
-          if (isStrictField) {
-            // Strict equality only for short fields
-            return hLower === fieldLower;
-          }
-
-          return hLower === fieldLower || hLower.includes(fieldLower) || fieldLower.includes(hLower);
-        });
-        if (index !== -1) {
-          console.log(`✅ Found "${field}" → "${headerValues[index]}" (direct original match)`);
-          return index;
-        }
-      }
-      console.log(`❌ NOT FOUND after all strategies: ${fieldNames.join(', ')}`);
-      console.log(`   Available normalized headers: ${headers.join(', ')}`);
-      console.log(`   Available original headers: ${headerValues.join(', ')}`);
-      return -1;
-    };
-
-    // Check for required fields
-    console.log('📋 Bulk import: Headers found:', headers);
-    console.log('📋 Total headers:', headers.length);
-    console.log('📋 Original header values:', headerValues);
-
-    // --- MULTI-PASS ROBUST COLUMN MAPPING ---
-    const detectedIndices = {};
-    const usedIndices = new Set();
-
-    const solveField = (field, searchTerms, strategy) => {
-      if (detectedIndices[field] !== undefined && detectedIndices[field] !== -1) return;
-
-      for (const term of searchTerms) {
-        const termLower = term.toLowerCase().trim();
-        const termNorm = termLower.replace(/[_\s-]/g, '');
-
-        for (let idx = 0; idx < headerValues.length; idx++) {
-          if (usedIndices.has(idx)) continue;
-
-          const hRaw = (headerValues[idx] || '').trim();
-          if (!hRaw) continue;
-
-          const hLower = hRaw.toLowerCase();
-          const hNorm = hLower.replace(/[_\s-]/g, '');
-
-          let isMatch = false;
-
-          if (strategy === 'exact') {
-            isMatch = (hLower === termLower || hNorm === termNorm);
-          } else if (strategy === 'fuzzy') {
-            // Fuzzy: normalized header contains normalized term
-            isMatch = (hNorm.includes(termNorm) || termNorm.includes(hNorm));
-
-            // CRITICAL: Prevent dangerous collisions for 'name' field
-            if (isMatch && field === 'name') {
-              const dangerousKeywords = ['campaign', 'ad', 'form', 'agent', 'staff', 'user', 'assigned', 'source', 'utm'];
-              if (dangerousKeywords.some(k => hLower.includes(k))) {
-                isMatch = false;
-              }
-            }
-          }
-
-          if (isMatch) {
-            detectedIndices[field] = idx;
-            usedIndices.add(idx);
-            console.log(`📍 Pass [${strategy}] mapped [${field}] to header "${hRaw}" (Index ${idx})`);
-            return;
-          }
-        }
-      }
-    };
-
-    // PASS 1: Exact matches for ALL fields
-    const allFields = Object.keys(columnMapping);
-    allFields.forEach(f => solveField(f, columnMapping[f], 'exact'));
-
-    // PASS 2: Fuzzy matches for remaining fields (excluding name-collisions)
-    allFields.forEach(f => solveField(f, columnMapping[f], 'fuzzy'));
-
-    // Helper for Meta Ads search (not used for core mapping to avoid collisions)
-    const findSimpleIndex = (searchTerms) => {
-      for (const term of searchTerms) {
-        const termLower = term.toLowerCase().trim();
-        const idx = headerValues.findIndex(h => h && h.trim().toLowerCase().replace(/[_\s-]/g, '').includes(termLower.replace(/[_\s-]/g, '')));
-        if (idx !== -1) return idx;
-      }
-      return -1;
-    };
-
-    // Special case: Meta Ads specific columns
-    const metaAdsColumns = {
-      ad_name: findSimpleIndex(['ad name', 'ad_name', 'adname', 'ad', 'utm_content']),
-      campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname', 'campaign', 'utm_campaign', 'marketing_campaign', 'ad_campaign']),
-      form_name: findSimpleIndex(['form name', 'form_name', 'formname', 'form']),
-      lead_id: findSimpleIndex(['lead id', 'lead_id', 'leadid', 'id', 'meta_id']),
-      created_time: findSimpleIndex(['created time', 'created_time', 'created date', 'created_date', 'date', 'timestamp', 'time']),
-    };
-
-    const columnIndices = {
-      name: detectedIndices.name !== undefined ? detectedIndices.name : heuristicMapping.name,
-      first_name: detectedIndices.first_name !== undefined ? detectedIndices.first_name : -1,
-      last_name: detectedIndices.last_name !== undefined ? detectedIndices.last_name : -1,
-      phone_number: detectedIndices.phone_number !== undefined ? detectedIndices.phone_number : heuristicMapping.phone,
-      phone_country_code: detectedIndices.phone_country_code !== undefined ? detectedIndices.phone_country_code : -1,
-      whatsapp_number: detectedIndices.whatsapp_number !== undefined ? detectedIndices.whatsapp_number : -1,
-      whatsapp_country_code: detectedIndices.whatsapp_country_code !== undefined ? detectedIndices.whatsapp_country_code : -1,
-      email: detectedIndices.email !== undefined ? detectedIndices.email : heuristicMapping.email,
-      age: detectedIndices.age !== undefined ? detectedIndices.age : -1,
-      occupation: detectedIndices.occupation !== undefined ? detectedIndices.occupation : -1,
-      qualification: detectedIndices.qualification !== undefined ? detectedIndices.qualification : -1,
-      year_of_experience: detectedIndices.year_of_experience !== undefined ? detectedIndices.year_of_experience : -1,
-      country: detectedIndices.country !== undefined ? detectedIndices.country : -1,
-      program: detectedIndices.program !== undefined ? detectedIndices.program : -1,
-      status: detectedIndices.status !== undefined ? detectedIndices.status : -1,
-      priority: detectedIndices.priority !== undefined ? detectedIndices.priority : -1,
-      comment: detectedIndices.comment !== undefined ? detectedIndices.comment : -1,
-      follow_up_date: detectedIndices.follow_up_date !== undefined ? detectedIndices.follow_up_date : -1,
-      follow_up_status: detectedIndices.follow_up_status !== undefined ? detectedIndices.follow_up_status : -1,
-      assigned_staff: detectedIndices.assigned_staff !== undefined ? detectedIndices.assigned_staff : -1,
-      source: detectedIndices.source !== undefined ? detectedIndices.source : -1,
-      ielts_score: detectedIndices.ielts_score !== undefined ? detectedIndices.ielts_score : -1,
-      meta_ad_name: metaAdsColumns.ad_name,
-      meta_campaign_name: metaAdsColumns.campaign_name,
-      meta_form_name: metaAdsColumns.form_name,
-      meta_lead_id: metaAdsColumns.lead_id,
-      meta_created_time: metaAdsColumns.created_time,
-    };
-
-    // Validation
-    const hasName = columnIndices.name !== -1 || (columnIndices.first_name !== -1 && columnIndices.last_name !== -1);
-    const hasPhone = columnIndices.phone_number !== -1;
-
-    if (!hasName || !hasPhone) {
-      console.error('❌ Bulk import: Missing required columns');
-      return res.status(400).json({
-        error: 'Missing required columns: name, phone_number',
-        details: `Found columns: ${headerValues.join(', ')}. Required: name (or first_name+last_name) and phone`,
-        availableColumns: headerValues
-      });
-    }
-
-    console.log('✅ Column mapping successful:', {
-      name: columnIndices.name !== -1 ? 'found' : (columnIndices.first_name !== -1 && columnIndices.last_name !== -1 ? 'first_name + last_name' : 'missing'),
-      phone: columnIndices.phone_number !== -1 ? 'found' : 'missing',
-      email: columnIndices.email !== -1 ? 'found' : 'missing',
-    });
-
-    // Fast duplicate check: only fetch phone_number and email columns
-    let existingPhones = new Set();
-    let existingEmails = new Set();
-    try {
-      const phoneRows = await db.getLeadPhones();
-      phoneRows.forEach(r => { if (r.phone_number) existingPhones.add(r.phone_number.toLowerCase()); });
-      phoneRows.forEach(r => { if (r.email) existingEmails.add(r.email.toLowerCase()); });
-    } catch (e) {
-      console.warn('Could not prefetch existing leads for duplicate check:', e.message);
-    }
-
-    const results = {
-      total: dataRows.length,
-      created: 0,
-      skipped: 0,
-      errors: 0,
-      errorRows: [],
-    };
-
-    // Collect valid leads for batch insert
     const validLeads = [];
-    const now = new Date().toISOString();
-    // OPTIMIZATION: Assign imported leads to the current staff member (if not Admin)
-    const assignedStaffId = role === 'ADMIN' ? null : userId;
+    const results = { total: 0, created: 0, skipped: 0, errors: 0, errorRows: [], skippedRows: [] };
+    const existingPhones = new Set();
+    const existingEmails = new Set();
 
-    // Helper: Parse Date (handles Excel serials + strings)
-    const parseDate = (val) => {
-      if (!val) return null;
-      // Excel Serial Date (e.g. 46023)
-      // ~25569 is 1970-01-01 in Excel serial days (1900 system)
-      const num = Number(val);
-      if (!isNaN(num) && num > 10000 && num < 90000) {
-        return new Date((num - 25569) * 86400 * 1000).toISOString();
-      }
-      // Standard Date
-      const d = new Date(val);
-      if (!isNaN(d.getTime())) return d.toISOString();
-      return null;
+    const phoneData = await db.getLeadPhones();
+    phoneData.forEach(r => { if (r.phone_number) existingPhones.add(String(r.phone_number).toLowerCase().replace(/\D/g, '')); });
+
+    const emailData = await db.getLeadEmails();
+    emailData.forEach(r => { if (r.email) existingEmails.add(String(r.email).toLowerCase().trim()); });
+
+    const cachedUsers = await db.getUsers();
+    const columnMapping = {
+      name: ['name', 'full name', 'fullname', 'client name', 'student name', 'candidate name', 'applicant', 'client', 'student', 'lead name', 'name *', 'full name *', 'customer name', 'beneficiary'],
+      first_name: ['first name', 'fname', 'given name'],
+      last_name: ['last name', 'lname', 'surname', 'family name'],
+      phone_number: ['phone', 'mobile', 'contact', 'whatsapp', 'tel', 'phone no', 'mobile no', 'phone_number', 'contact_number', 'p:', 'phone:', 'contact no', 'mobile number'],
+      phone_country_code: ['country code', 'phone code', 'dial code', 'cc', 'phone_country_code', 'dial_code', 'country_code_phone', 'code'],
+      whatsapp_number: ['whatsapp', 'wa', 'wa number', 'whatsapp number', 'whatsapp_no'],
+      email: ['email', 'e-mail', 'mail id', 'email address', 'email_id'],
+      country: ['country', 'nation', 'destination'],
+      program: ['program', 'course', 'degree', 'interest'],
+      occupation: ['occupation', 'job title', 'job', 'designation', 'work', 'employment', 'profession', 'job_title'],
+      source: ['campaign name', 'campaign_name', 'campaign', 'source', 'lead source', 'lead_source', 'leadsource', 'utm_source', 'utm_medium', 'channel'],
+      assigned_staff: ['assigned', 'assign to', 'staff', 'sales representative', 'counselor', 'assigned_to', 'allotted to'],
+      comment: ['comment', 'remark', 'note', 'details', 'description', 'message', 'activity', 'feedback'],
+      status: ['status', 'lead status', 'stage', 'disposition'],
+      priority: ['priority', 'lead priority', 'level', 'urgency', 'type', 'interest level'],
+      follow_up_date: ['follow up date', 'next follow up', 'callback date', 'remind on', 'followup_date'],
+      follow_up_status: ['follow up status', 'next action'],
+      ielts_score: ['ielts', 'ielts score', 'band score', 'score'],
+      secondary_phone_number: ['secondary phone', 'secondary number', 'alternate no', 'alternative number', 'emergency contact', 'alternate number', 'extra phone', 'phone 2', 'mobile 2', 'contact 2', 'second number', 'second phone', 'alternate', 'sec phone', 'other no', 'other number', 'other phone', 'mobile no 2', 'phone no 2']
     };
 
-    // Process each row
-    for (let i = 0; i < dataRows.length; i++) {
-      const values = dataRows[i];
+    // Helper for robust name cleaning (removes underscores, symbols, leading junk)
+    function cleanName(val) {
+      if (!val) return '';
+      // Remove wrapping underscores, dashes, at-symbols (handles _ADI_, @ADI, -ADI-)
+      let n = String(val).trim().replace(/^[\_\-\@\*\s]+|[\_\-\@\*\s]+$/g, '');
+      // If it's still wrapped in quotes or brackets
+      n = n.replace(/^[\'\(\[]+|[\'\]\)]+$/g, '');
+      return n.trim();
+    }
+    // SAVE UPLOADED FILE FOR HISTORY (Once per file, not per sheet)
+    let uniqueFilename = '';
+    try {
+      const importDir = path.join(__dirname, '../uploads/imports');
+      if (!fs.existsSync(importDir)) fs.mkdirSync(importDir, { recursive: true });
 
-      // Skip empty rows (no data in any column)
-      if (!values || values.length === 0 || values.every(v => !String(v).trim())) continue;
+      const timestamp = Date.now();
+      const safeOriginalName = req.file.originalname.replace(/[^a-zA-Z0-9\.]/g, '_');
+      uniqueFilename = `${timestamp}_${safeOriginalName}`;
 
-      try {
-        // Ensure we have enough values (pad with empty strings if needed)
-        while (values.length < headerValues.length) {
-          values.push('');
-        }
+      const filePath = path.join(importDir, uniqueFilename);
+      fs.writeFileSync(filePath, req.file.buffer);
+      console.log(`💾 Saved import file: ${filePath}`);
+    } catch (err) {
+      console.error('❌ Failed to save import file:', err.message);
+    }
 
-        // Map values using column indices
-        const getValue = (index) => {
-          if (index === -1 || index >= values.length) return '';
-          const val = values[index];
-          if (val === null || val === undefined) return '';
-          return String(val).trim(); // Fix: Force to String before trim to handle numbers/dates
-        };
+    function parseDate(val) {
+      if (!val) return null;
+      const num = Number(val);
+      if (!isNaN(num) && num > 10000 && num < 90000) return new Date((num - 25569) * 86400 * 1000).toISOString();
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    }
 
-        // Get name (either from 'name' column OR 'first_name' + 'last_name')
-        let name = '';
-        if (columnIndices.name !== -1) {
-          name = getValue(columnIndices.name);
-        } else if (columnIndices.first_name !== -1 && columnIndices.last_name !== -1) {
-          const firstName = getValue(columnIndices.first_name);
-          const lastName = getValue(columnIndices.last_name);
-          name = `${firstName} ${lastName}`.trim();
-        }
+    for (const sheet of sheetsData) {
+      const { headerValues, dataRows, sheetName } = sheet;
+      console.log(`📂 Processing Sheet: ${sheetName}`);
+      console.log(`📋 Raw Headers: [${headerValues.join(' | ')}]`);
+      results.total += dataRows.length;
 
-        // Get phone number and extract country code if present
-        let phoneNumber = getValue(columnIndices.phone_number);
-        let phoneCountryCode = getValue(columnIndices.phone_country_code);
-        let secondaryPhoneNumber = null;
+      const colIdx = {};
+      Object.keys(columnMapping).forEach(f => colIdx[f] = -1);
+      const usedIndices = new Set();
 
-        // If phone number starts with +, extract country code
-        if (phoneNumber && phoneNumber.startsWith('+') && !phoneCountryCode) {
-          // Try to extract country code (common formats: +91, +971, +1, etc.)
-          const match = phoneNumber.match(/^(\+\d{1,3})(.+)$/);
-          if (match) {
-            phoneCountryCode = match[1]; // e.g., +91
-            phoneNumber = match[2].trim(); // e.g., 9876543210
-          }
-        }
+      const solve = (field, searchTerms, strategy) => {
+        if (colIdx[field] !== -1) return;
+        for (const term of searchTerms) {
+          // STRIP ALL NON-ALPHANUMERIC for matching (strips *, spacing, symbols)
+          const tNorm = term.toLowerCase().replace(/[^a-z0-9]/g, '');
+          for (let idx = 0; idx < headerValues.length; idx++) {
+            if (usedIndices.has(idx)) continue;
+            const hRaw = (headerValues[idx] || '').trim().toLowerCase();
+            const hNorm = hRaw.replace(/[^a-z0-9]/g, '');
+            if (!hNorm) continue; // CRITICAL: Skip empty/anonymous headers during mapping
 
-        // Fix repeating phone numbers (common CSV export error)
-        // Fix repeating phone numbers (common CSV export error)
-        if (phoneNumber && typeof phoneNumber === 'string') {
-          // Normalize ALL whitespace (including NBSP, tabs) to a single space
-          const cleanVal = phoneNumber.replace(/[\s\u00A0]+/g, ' ').trim();
-
-          // Method 1: Split by delimiters (space, comma, semicolon, slash, dash)
-          // Since we normalized to space, splitting by space is robust
-          const parts = cleanVal.split(/[ ,;/]+| - /).filter(p => p.trim().length > 0);
-
-          if (parts.length >= 2) {
-            phoneNumber = parts[0]; // Keep only first part
-
-            // Move second part to secondary if empty
-            if (!secondaryPhoneNumber) {
-              secondaryPhoneNumber = parts[1];
-            }
-          }
-          // Method 2: Check concatenated duplication (e.g. "123123") - ONLY if single part
-          else if (parts.length === 1 && cleanVal.length > 10 && cleanVal.length % 2 === 0) {
-            const half = cleanVal.length / 2;
-            if (cleanVal.substring(0, half) === cleanVal.substring(half)) {
-              phoneNumber = cleanVal.substring(0, half);
-              if (!secondaryPhoneNumber) {
-                secondaryPhoneNumber = cleanVal.substring(half);
+            let match = (strategy === 'exact') ? (hRaw === term.toLowerCase() || hNorm === tNorm) : (hNorm.includes(tNorm) || tNorm.includes(hNorm));
+            if (match) {
+              // REFINED NAME DETECTION: Skip if header suggests numbers, IDs, or broad details
+              const blackList = ['phone', 'mobile', 'contact', 'whatsapp', 'source', 'assigned', 'staff', 'id', 'no', 'remark', 'comment', 'details', 'description', 'message', 'info', 'age', 'qualification', 'score', 'date'];
+              if (field === 'name' && blackList.some(k => hRaw.includes(k))) match = false;
+              if (field === 'secondary_phone_number' && ['age', 'qualification', 'score', 'date', 'source', 'status'].some(k => hRaw.includes(k))) match = false;
+              if (match) {
+                colIdx[field] = idx;
+                usedIndices.add(idx);
+                console.log(`📍 Found [${field}] at index ${idx} in ${sheetName} (Header: "${hRaw}")`);
+                return;
               }
             }
           }
         }
+      };
 
-        // Get other fields
-        const email = getValue(columnIndices.email);
-        const age = getValue(columnIndices.age);
-        const occupation = getValue(columnIndices.occupation);
-        const qualification = getValue(columnIndices.qualification);
-        const yearOfExperience = getValue(columnIndices.year_of_experience);
-        const country = getValue(columnIndices.country);
-        const program = getValue(columnIndices.program);
-        let status = getValue(columnIndices.status);
-        const priority = getValue(columnIndices.priority);
+      // Apply mapping strategies
+      ['name', 'phone_number', 'phone_country_code', 'secondary_phone_number', 'email', 'assigned_staff', 'source', 'status', 'priority'].forEach(f => solve(f, columnMapping[f], 'exact'));
+      Object.keys(columnMapping).forEach(f => solve(f, columnMapping[f], 'exact'));
+      Object.keys(columnMapping).forEach(f => solve(f, columnMapping[f], 'fuzzy'));
 
-        // Get Meta Ads specific fields
-        const metaAdName = getValue(columnIndices.meta_ad_name);
-        const metaCampaignName = getValue(columnIndices.meta_campaign_name);
-        const metaFormName = getValue(columnIndices.meta_form_name);
-        const metaLeadId = getValue(columnIndices.meta_lead_id);
-        const metaCreatedTime = getValue(columnIndices.meta_created_time);
+      // STICK TO EXACT HEADERS IF POSSIBLE
+      ['name', 'phone_number', 'secondary_phone_number', 'email', 'assigned_staff', 'source', 'status', 'priority'].forEach(f => solve(f, columnMapping[f], 'exact'));
+      Object.keys(columnMapping).forEach(f => solve(f, columnMapping[f], 'exact'));
+      Object.keys(columnMapping).forEach(f => solve(f, columnMapping[f], 'fuzzy'));
 
-        // Get source and IELTS score
-        let source = getValue(columnIndices.source);
-        const ieltsScore = getValue(columnIndices.ielts_score);
+      // If Name still unmapped, take Index 0
+      if (colIdx.name === -1 && colIdx.first_name === -1) {
+        colIdx.name = 0;
+        console.log(`🎯 Name fallback to Index 0`);
+      }
 
-        // EXTRA STRICTNESS: If source is identical to name, it was probably a mis-mapping
-        if (source && name && source.toLowerCase() === name.toLowerCase()) {
-          source = ''; // Reset so Meta Ads logic can provide a better source
-        }
+      console.log(`📊 Final Mapping for ${sheetName}:`, JSON.stringify(colIdx, null, 2));
 
-        // Build source from Meta Ads fields or use provided source
-        // If source was not found in a dedicated column, try to build it from Meta Ads fields
-        if (!source || source === 'Direct/Import') {
-          if (metaCampaignName) {
-            source = metaCampaignName;
-          } else if (metaAdName || metaFormName) {
-            const metaParts = [];
-            if (metaAdName) metaParts.push(`Ad: ${metaAdName}`);
-            if (metaFormName) metaParts.push(`Form: ${metaFormName}`);
-            source = metaParts.join(' | ');
+      // Process rows for this sheet
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        if (!row || row.length === 0 || row.every(v => !String(v).trim())) continue;
+        try {
+          const g = (idx) => (idx === -1 || idx >= row.length) ? '' : String(row[idx] || '').trim();
+          let nameRaw = colIdx.name !== -1 ? g(colIdx.name) : `${g(colIdx.first_name)} ${g(colIdx.last_name)}`.trim();
+          let name = cleanName(nameRaw);
+          let email = g(colIdx.email).toLowerCase();
+          let phone = '';
+          let secPhone = '';
+
+          // Validate name - if it ended up empty after cleaning or is purely numbers, fallback to raw col 0
+          if (!name || /^\d+$/.test(name.replace(/\s/g, ''))) {
+            name = cleanName(g(0)) || nameRaw || `Row ${i + 1}`;
           }
-        }
 
-        // Fallback for source if still empty
-        if (!source) {
-          source = 'Direct/Import';
-        }
+          // Try to get phone and country code from mapped columns
+          let mappedPhone = g(colIdx.phone_number).replace(/[^\d+]/g, '');
+          let mappedSecPhone = g(colIdx.secondary_phone_number).replace(/[^\d+]/g, '');
+          let mappedCC = g(colIdx.phone_country_code).replace(/[^\d+]/g, '');
+          if (mappedCC && !mappedCC.startsWith('+')) mappedCC = '+' + mappedCC;
 
-        // Build comment - combine existing comment with Meta Ads info
-        let comment = getValue(columnIndices.comment) || '';
-        if (metaLeadId || metaCreatedTime || metaAdName || metaCampaignName) {
-          const metaInfo = [];
-          if (metaLeadId) metaInfo.push(`Lead ID: ${metaLeadId}`);
-          if (metaCreatedTime) metaInfo.push(`Created: ${metaCreatedTime}`);
-          if (metaAdName && !source) metaInfo.push(`Ad: ${metaAdName}`);
-          if (metaCampaignName && !source) metaInfo.push(`Campaign: ${metaCampaignName}`);
-          if (metaFormName) metaInfo.push(`Form: ${metaFormName}`);
-
-          if (metaInfo.length > 0) {
-            const metaInfoStr = `Meta Ads: ${metaInfo.join(', ')}`;
-            comment = comment ? `${comment} | ${metaInfoStr}` : metaInfoStr;
-          }
-        }
-
-        // If no comment but we have source, use source as comment
-        if (!comment && source) {
-          comment = source;
-        }
-
-        const followUpDate = parseDate(getValue(columnIndices.follow_up_date) || metaCreatedTime); // Use Meta created time if no follow_up_date
-        const followUpStatus = getValue(columnIndices.follow_up_status) || 'Pending';
-        const whatsappNumber = getValue(columnIndices.whatsapp_number);
-        const whatsappCountryCode = getValue(columnIndices.whatsapp_country_code);
-
-        // Handle assigned_staff - can be name or ID
-        let finalAssignedStaffId = assignedStaffId; // Default to current user or null for admin
-        const assignedStaffValue = getValue(columnIndices.assigned_staff);
-        if (assignedStaffValue) {
-          // Try to find user by name (case-insensitive) or email
-          const allUsers = await db.getUsers();
-          const matchedUser = allUsers.find(u =>
-            u.name.toLowerCase() === assignedStaffValue.toLowerCase() ||
-            u.email.toLowerCase() === assignedStaffValue.toLowerCase()
-          );
-          if (matchedUser) {
-            finalAssignedStaffId = matchedUser.id;
-            console.log(`✅ Found staff "${assignedStaffValue}" → ID: ${matchedUser.id}`);
-          } else {
-            console.log(`⚠️ Staff "${assignedStaffValue}" not found, using default assignment`);
-          }
-        }
-
-        // Validate required fields
-
-        // Skip empty rows (fixes trailing empty lines issue)
-        if (!name && !phoneNumber && !email && !status) {
-          continue;
-        }
-
-        // Handle missing name
-        if (!name) {
-          name = `Unknown Lead (Row ${i + 1})`;
-          comment = comment ? `${comment} | Name missing in import` : 'Name missing in import';
-        }
-
-        // Handle missing phone
-        if (!phoneNumber) {
-          // Create unique dummy phone to bypass NOT NULL constraint
-          // format: 000-timestamp-row
-          phoneNumber = `000-${Date.now().toString().slice(-6)}-${i}`;
-          comment = comment ? `${comment} | Phone missing in import` : 'Phone missing in import';
-        }
-
-        /* 
-        // Strict check removed effectively
-        if (!name || !phoneNumber) { ... } 
-        */
-
-        // Check for duplicates using in-memory sets (FAST!)
-        if (existingPhones.has(phoneNumber.toLowerCase())) {
-          results.skipped++;
-          continue;
-        }
-
-        if (email && existingEmails.has(email.toLowerCase())) {
-          results.skipped++;
-          continue;
-        }
-
-        // Map status values (handle different status formats)
-        if (!status) {
-          status = 'Unassigned';
-        } else {
-          // Normalize status values
-          const statusLower = status.toLowerCase();
-          if (statusLower.includes('new') || statusLower.includes('pending') || statusLower.includes('unassigned')) {
-            status = 'Unassigned';
-          } else if (statusLower.includes('follow') || statusLower.includes('followup')) {
-            status = 'Follow-up';
-          } else if (statusLower.includes('prospect')) {
-            status = 'Prospect';
-          } else if (statusLower.includes('not eligible') || statusLower.includes('ineligible')) {
-            status = 'Not Eligible';
-          } else if (statusLower.includes('not interested') || statusLower.includes('uninterested')) {
-            status = 'Not Interested';
-          } else if (statusLower.includes('registration') || statusLower.includes('completed')) {
-            status = 'Registration Completed';
-          } else {
-            // Check if it matches a valid status exactly
-            const validStatuses = ['Unassigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
-            if (!validStatuses.includes(status)) {
-              status = 'Unassigned'; // Default to Unassigned if unknown
+          // IDENTIFY PHONE CANDIDATES: Collect all unique numeric strings from the entire row
+          const rowCandidates = [];
+          for (let j = 0; j < row.length; j++) {
+            const val = String(row[j] || '').trim();
+            const lowVal = val.toLowerCase();
+            const cleaned = val.replace(/\D/g, '');
+            const isGarbage = ['yrs', 'age', 'qualification', 'score', 'date', 'interest', 'course', 'exp'].some(k => lowVal.includes(k));
+            // MOBILE NUMBER HARDENING: Minimum 10 digits for scanner
+            if (cleaned.length >= 10 && cleaned.length <= 16 && !isGarbage) {
+              const fullVal = val.replace(/[^\d+]/g, '');
+              if (!rowCandidates.includes(fullVal)) rowCandidates.push(fullVal);
             }
           }
-        }
 
-        // Validate priority
-        let finalPriority = priority || null;
-        if (finalPriority) {
-          const validPriorities = ['hot', 'warm', 'cold', 'not interested', 'not eligible'];
-          if (!validPriorities.includes(finalPriority.toLowerCase())) {
-            finalPriority = null;
+          // Distinguish between CRM-duplicates and unique-to-import
+          const uniqueCandidates = rowCandidates.filter(c => !existingPhones.has(c.replace(/\D/g, '')));
+          const emailIsDupe = email && existingEmails.has(email);
+
+          if (emailIsDupe) {
+            results.skipped++;
+            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Email ${email} already in CRM` });
+            continue;
           }
-        }
 
-        // Add to batch insert array
-        validLeads.push({
-          name,
-          phone_number: phoneNumber,
-          phone_country_code: phoneCountryCode || '+91',
-          whatsapp_number: (whatsappNumber && whatsappNumber !== '-' && whatsappNumber.trim().length > 0) ? whatsappNumber : null,
-          whatsapp_country_code: whatsappCountryCode || '+91',
-          email: email || null,
-          age: age || null,
-          occupation: occupation || null,
-          qualification: qualification || null,
-          year_of_experience: yearOfExperience || null,
-          country: country || null,
-          program: program || null,
-          status,
-          priority: finalPriority,
-          comment: comment || null,
-          follow_up_date: followUpDate || null,
-          follow_up_status: followUpStatus || 'Pending',
-          assigned_staff_id: finalAssignedStaffId,
-          source: source || null,
-          ielts_score: ieltsScore || null,
-          created_by: userId,
-          created_at: now,
-          updated_at: now,
-          secondary_phone_number: secondaryPhoneNumber,
-        });
-      } catch (error) {
-        results.errors++;
-        results.errorRows.push({
-          row: i + 1,
-          message: error.message || 'Error processing row',
-        });
+          phone = '';
+          secPhone = '';
+
+          // 1. Prioritize mapped phone (Ensure it's actually a number, at least 7 digits)
+          if (mappedPhone && mappedPhone.replace(/\D/g, '').length >= 7 && !existingPhones.has(mappedPhone.replace(/\D/g, ''))) {
+            phone = mappedPhone;
+          }
+          // 2. If no mapped phone or it's a dupe, use scanner
+          if (!phone && uniqueCandidates.length > 0) {
+            phone = uniqueCandidates[0];
+          }
+
+          // 3. Handle secondary phone (Ensure it's actually a number, at least 7 digits)
+          if (mappedSecPhone && mappedSecPhone.replace(/\D/g, '').length >= 7 && mappedSecPhone !== phone && !existingPhones.has(mappedSecPhone.replace(/\D/g, ''))) {
+            secPhone = mappedSecPhone;
+          }
+          // 4. Fill from candidates if still empty
+          if (!secPhone) {
+            secPhone = uniqueCandidates.find(c => c.replace(/\D/g, '') !== phone.replace(/\D/g, '')) || '';
+          }
+
+          if (i < 10) {
+            console.log(`✅ ROW ${i + 1}: Name="${name}" | Phone="${phone}" (CC: "${mappedCC}") | Sec="${secPhone}"`);
+            if (i < 3) console.log(`   📝 Raw Data: [${row.slice(0, 10).join(' | ')}${row.length > 10 ? ' ...' : ''}]`);
+          }
+
+          if (!phone && rowCandidates.length > 0) {
+            // All candidates are already in CRM
+            results.skipped++;
+            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Phone(s) ${rowCandidates.join(', ')} already in CRM` });
+            continue;
+          }
+
+          // If phone is missing but row is otherwise valid, it's allowed (nullable)
+          if (!phone) phone = '';
+
+          // INTELLIGENT COUNTRY CODE IDENTIFICATION
+          let phoneCountryCode = mappedCC;
+          let leadCountry = (g(colIdx.country) || '').toLowerCase();
+
+          if (phone) {
+            // 1. If phone has a '+' prefix, extract correctly
+            if (phone.startsWith('+')) {
+              if (phone.startsWith('+91')) { phoneCountryCode = '+91'; phone = phone.substring(3); }
+              else if (phone.startsWith('+971')) { phoneCountryCode = '+971'; phone = phone.substring(4); }
+              else if (phone.startsWith('+1')) { phoneCountryCode = '+1'; phone = phone.substring(2); }
+              else if (phone.startsWith('+44')) { phoneCountryCode = '+44'; phone = phone.substring(3); }
+              else {
+                const match = phone.match(/^\+\d{1,3}/);
+                if (match) {
+                  phoneCountryCode = match[0];
+                  phone = phone.substring(match[0].length);
+                }
+              }
+            }
+            // 2. Fallback to patterns if no CC from column or prefix
+            if (!phoneCountryCode) {
+              if (phone.length === 12 && phone.startsWith('91')) {
+                phoneCountryCode = '+91';
+                phone = phone.substring(2);
+              } else if (phone.length === 11 && phone.startsWith('0')) {
+                phoneCountryCode = '+91';
+                phone = phone.substring(1);
+              } else if (/^[6789]\d{9}$/.test(phone) || phone.length === 10) {
+                phoneCountryCode = '+91';
+              }
+            }
+            // 3. Last resort: Country column
+            if (!phoneCountryCode) {
+              if (leadCountry.includes('india') || leadCountry === 'in') phoneCountryCode = '+91';
+              else if (leadCountry.includes('uae') || leadCountry.includes('emirates')) phoneCountryCode = '+971';
+            }
+          }
+
+          if (i < 10) {
+            console.log(`✅ ROW ${i + 1}: Name="${name}" | Phone="${phone}" | CC="${phoneCountryCode}" | Sec="${secPhone}"`);
+          }
+
+          let staffId = null;
+          const assignedText = g(colIdx.assigned_staff);
+          if (assignedText) {
+            const u = cachedUsers.find(u =>
+              u.name.toLowerCase() === assignedText.toLowerCase() ||
+              u.email.toLowerCase() === assignedText.toLowerCase() ||
+              (u.name.toLowerCase().includes(assignedText.toLowerCase()) && assignedText.length > 3)
+            );
+            if (u) staffId = u.id;
+          }
+
+          let st = g(colIdx.status) || 'Unassigned';
+          const sl = st.toLowerCase();
+
+          // AUTO-ASSIGN LOGIC: If staffId is found, the status should be 'Assigned' 
+          // (unless the user explicitly provided a more specific status like 'Follow-up')
+          if (staffId && (sl === 'unassigned' || !st)) {
+            st = 'Assigned';
+          } else if (sl.includes('follow')) {
+            st = 'Follow-up';
+          } else if (sl.includes('prospect')) {
+            st = 'Prospect';
+          } else if (sl.includes('eligible')) {
+            st = 'Not Eligible';
+          } else if (sl.includes('interested')) {
+            st = 'Not Interested';
+          } else if (sl.includes('completed')) {
+            st = 'Registration Completed';
+          } else if (!staffId) {
+            st = 'Unassigned';
+          }
+
+          const now = new Date().toISOString();
+          const fileComment = g(colIdx.comment);
+          validLeads.push({
+            name, phone_number: phone, phone_country_code: phoneCountryCode,
+            whatsapp_number: g(colIdx.whatsapp_number) || null,
+            whatsapp_country_code: phoneCountryCode || '+91',
+            email: email || null, country: g(colIdx.country) || null, program: g(colIdx.program) || null,
+            occupation: g(colIdx.occupation) || null,
+            status: st, priority: g(colIdx.priority) || 'Medium',
+            comment: fileComment || 'Bulk Imported',
+            follow_up_date: parseDate(g(colIdx.follow_up_date)), follow_up_status: g(colIdx.follow_up_status) || 'Pending',
+            assigned_staff_id: staffId, source: g(colIdx.source) || 'Bulk Import',
+            ielts_score: g(colIdx.ielts_score) || null, created_by: userId, created_at: now, updated_at: now,
+            secondary_phone_number: secPhone || null
+          });
+        } catch (e) { results.errors++; results.errorRows.push({ row: i + 1, sheet: sheetName, message: e.message }); }
       }
     }
 
-    // Batch insert all valid leads using multi-row INSERT (EXTREMELY FAST)
     if (validLeads.length > 0) {
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
-
-        // Maximum parameters per query is 65535 in Postgres
-        // Each lead has 24 fields. 65535 / 24 approx 2700 leads per batch.
-        const BATCH_SIZE = 500;
+        const BATCH_SIZE = 1000; // Increased batch size for much faster imports
         for (let i = 0; i < validLeads.length; i += BATCH_SIZE) {
           const batch = validLeads.slice(i, i + BATCH_SIZE);
           const placeholders = [];
           const flatValues = [];
-          let paramIdx = 1;
+          let pIdx = 1;
+          batch.forEach(l => {
+            const vals = [
+              l.name, l.phone_number, l.phone_country_code, l.whatsapp_number, l.email,
+              l.country, l.program, l.occupation, l.status, l.priority, l.comment,
+              l.follow_up_date, l.follow_up_status, l.assigned_staff_id, l.source, l.ielts_score,
+              l.created_by, l.created_at, l.updated_at, l.secondary_phone_number
+            ];
+            const rowP = vals.map(() => `$${pIdx++}`);
+            flatValues.push(...vals);
+            placeholders.push(`(${rowP.join(', ')})`);
+          });
+          const query = `INSERT INTO leads (
+            name, phone_number, phone_country_code, whatsapp_number, email,
+            country, program, occupation, status, priority, comment,
+            follow_up_date, follow_up_status, assigned_staff_id, source, ielts_score,
+            created_by, created_at, updated_at, secondary_phone_number
+          ) VALUES ${placeholders.join(', ')} RETURNING id`;
+          const leadResult = await client.query(query, flatValues);
 
-          batch.forEach((lead, rowIdx) => {
-            const rowPlaceholders = [];
-            [
-              lead.name, lead.phone_number, lead.phone_country_code, lead.whatsapp_number, lead.whatsapp_country_code,
-              lead.email, lead.age, lead.occupation, lead.qualification, lead.year_of_experience, lead.country, lead.program,
-              lead.status, lead.priority, lead.comment, lead.follow_up_date, lead.follow_up_status,
-              lead.assigned_staff_id, lead.source, lead.ielts_score, lead.created_by, lead.created_at, lead.updated_at, lead.secondary_phone_number
-            ].forEach(val => {
-              rowPlaceholders.push(`$${paramIdx++}`);
-              flatValues.push(val);
-            });
-            placeholders.push(`(${rowPlaceholders.join(', ')})`);
+          // CREATE AUTOMATIC ACTIVITY COMMENTS
+          const leadIds = leadResult.rows.map(r => r.id);
+          const commentPlaceholders = [];
+          const commentValues = [];
+          let cIdx = 1;
+          const importTime = new Date().toISOString();
+
+          leadIds.forEach((id, idx) => {
+            const leadData = batch[idx];
+            // Use the actual comment from Excel if it's meaningful, otherwise fallback to system notice
+            const excelComment = leadData.comment && leadData.comment !== 'Bulk Imported' ? leadData.comment : null;
+            const commentText = excelComment || `System: Lead imported from ${leadData.source || 'Bulk Import'}. Initial Status: ${leadData.status}.`;
+
+            commentValues.push(id, userId, commentText, importTime);
+            commentPlaceholders.push(`($${cIdx++}, $${cIdx++}, $${cIdx++}, $${cIdx++})`);
           });
 
-          const queryText = `
-            INSERT INTO leads (
-              name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code,
-              email, age, occupation, qualification, year_of_experience, country, program,
-              status, priority, comment, follow_up_date, follow_up_status,
-              assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number
-            ) VALUES ${placeholders.join(', ')}
-          `;
-
-          await client.query(queryText, flatValues);
+          if (commentPlaceholders.length > 0) {
+            await client.query(`INSERT INTO comments (lead_id, user_id, comment, created_at) VALUES ${commentPlaceholders.join(', ')}`, commentValues);
+          }
         }
-
         await client.query('COMMIT');
         results.created = validLeads.length;
-        console.log(`✅ Bulk import: Created ${results.created} leads in optimized batch inserts`);
-      } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('❌ Batch insert error:', error);
-        results.errors += validLeads.length;
-        results.errorRows.push({
-          row: 'batch',
-          message: error.message || 'Batch insert failed',
-        });
-      } finally {
-        client.release();
-      }
-    }
 
-    res.json({
-      success: true,
-      ...results,
-    });
+        // RECORD TO IMPORT HISTORY
+        try {
+          await client.query(`
+            INSERT INTO import_history 
+            (filename, original_filename, total_rows, successful_rows, skipped_rows, error_rows, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `, [
+            uniqueFilename,
+            req.file.originalname,
+            results.total,
+            results.created,
+            results.skipped,
+            results.errors,
+            userId
+          ]);
+        } catch (historyErr) {
+          console.error('⚠️ Failed to log import history:', historyErr.message);
+        }
+      } catch (e) { await client.query('ROLLBACK'); throw e; }
+      finally { client.release(); }
+    }
+    res.json({ success: true, ...results });
   } catch (error) {
-    console.error('Bulk import error:', error);
-    res.status(500).json({
-      error: 'Server error',
-      details: error.message
-    });
+    console.error('Bulk Import Error:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
   }
 });
 
