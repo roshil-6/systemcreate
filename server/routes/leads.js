@@ -1291,13 +1291,12 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       program: ['program', 'course', 'course_program'],
       status: ['status', 'lead_status', 'leadstatus', 'lead status'],
       priority: ['priority'],
-      // Meta Ads fields that can go into comment: Ad Name, Campaign Name, Form Name, etc.
-      comment: ['comment', 'notes', 'note', 'remarks', 'ad name', 'campaign name', 'form name', 'ad_name', 'campaign_name', 'form_name', 'ad_name', 'campaign_name', 'form_name'],
+      // Comment mapping: removed Meta-ads specific terms to prevent source collisions
+      comment: ['comment', 'notes', 'note', 'remarks'],
       follow_up_date: ['follow_up_date', 'followup_date', 'follow_up', 'next_followup', 'created time', 'created_time', 'created date', 'created_date'],
       follow_up_status: ['follow_up_status', 'followup_status', 'follow_up_status'],
-      assigned_staff: ['assigned_staff', 'assigned_to', 'staff', 'assigned_staff_id'],
-      // Source: only explicit source columns — do NOT include 'ad name' / 'campaign name' etc.
-      // (those contain 'name' and fuzzy-match onto the Name column causing source = lead name bug)
+      assigned_staff: ['assigned_staff', 'assigned_to', 'staff', 'assigned_staff_id', 'agent', 'agent_name', 'staff_name'],
+      // Source: only explicit source columns
       source: ['source', 'lead_source', 'leadsource', 'lead source', 'utm_source', 'channel', 'source_name', 'ad_source', 'marketing_source'],
       ielts_score: ['ielts_score', 'ielts', 'ielts_band', 'ielts score'],
     };
@@ -1403,196 +1402,71 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     console.log('📋 Total headers:', headers.length);
     console.log('📋 Original header values:', headerValues);
 
-    // DIRECT FALLBACK: Check original headers if normalized matching fails
-    const findDirectIndex = (searchTerms) => {
+    // --- MULTI-PASS ROBUST COLUMN MAPPING ---
+    const detectedIndices = {};
+    const usedIndices = new Set();
+
+    const solveField = (field, searchTerms, strategy) => {
+      if (detectedIndices[field] !== undefined && detectedIndices[field] !== -1) return;
+
       for (const term of searchTerms) {
-        const termLower = term.toLowerCase();
-        // Check normalized headers
-        let idx = headers.findIndex(h => h && (h === termLower || h.includes(termLower) || termLower.includes(h)));
-        if (idx !== -1) return idx;
-        // Check original headers
-        idx = headerValues.findIndex(h => {
-          if (!h || !h.trim()) return false;
-          const hNorm = h.trim().toLowerCase().replace(/[^\w]/g, '_');
-          return hNorm === termLower || hNorm.includes(termLower) || termLower.includes(hNorm);
-        });
-        if (idx !== -1) return idx;
-      }
-      return -1;
-    };
+        const termLower = term.toLowerCase().trim();
+        const termNorm = termLower.replace(/[_\s-]/g, '');
 
-    // NUCLEAR OPTION: Keyword-based search as last resort - ULTRA AGGRESSIVE
-    const findKeywordIndex = (keywords) => {
-      for (const keyword of keywords) {
-        const keywordLower = keyword.toLowerCase().replace(/[_\s-]/g, '');
-        // Search in original headers - try multiple variations
-        const idx = headerValues.findIndex((h, i) => {
-          const hLower = h.toLowerCase().replace(/[_\s-]/g, '');
-          const hOriginal = h.toLowerCase();
+        for (let idx = 0; idx < headerValues.length; idx++) {
+          if (usedIndices.has(idx)) continue;
 
-          // Try exact match (normalized)
-          if (hLower === keywordLower) return true;
+          const hRaw = (headerValues[idx] || '').trim();
+          if (!hRaw) continue;
 
-          // Try contains match (normalized)
-          if (hLower.includes(keywordLower) || keywordLower.includes(hLower)) return true;
+          const hLower = hRaw.toLowerCase();
+          const hNorm = hLower.replace(/[_\s-]/g, '');
 
-          // Try original with underscores/spaces
-          if (hOriginal.includes(keywordLower) || keywordLower.includes(hOriginal.replace(/[_\s-]/g, ''))) return true;
+          let isMatch = false;
 
-          // Try partial match - "first" matches "first_name"
-          const keywordParts = keywordLower.split('_');
-          if (keywordParts.length > 0) {
-            const mainKeyword = keywordParts[0];
-            if (hLower.includes(mainKeyword) && mainKeyword.length >= 3) return true;
+          if (strategy === 'exact') {
+            isMatch = (hLower === termLower || hNorm === termNorm);
+          } else if (strategy === 'fuzzy') {
+            // Fuzzy: normalized header contains normalized term
+            isMatch = (hNorm.includes(termNorm) || termNorm.includes(hNorm));
+
+            // CRITICAL: Prevent dangerous collisions for 'name' field
+            if (isMatch && field === 'name') {
+              const dangerousKeywords = ['campaign', 'ad', 'form', 'agent', 'staff', 'user', 'assigned', 'source', 'utm'];
+              if (dangerousKeywords.some(k => hLower.includes(k))) {
+                isMatch = false;
+              }
+            }
           }
 
-          return false;
-        });
-        if (idx !== -1) {
-          console.log(`✅ Found via keyword search: "${keyword}" → "${headerValues[idx]}"`);
-          return idx;
+          if (isMatch) {
+            detectedIndices[field] = idx;
+            usedIndices.add(idx);
+            console.log(`📍 Pass [${strategy}] mapped [${field}] to header "${hRaw}" (Index ${idx})`);
+            return;
+          }
         }
       }
-      return -1;
     };
 
-    // SIMPLE DIRECT CHECK: Search original header values directly (case-insensitive)
-    // This is the most reliable method for common column names
+    // PASS 1: Exact matches for ALL fields
+    const allFields = Object.keys(columnMapping);
+    allFields.forEach(f => solveField(f, columnMapping[f], 'exact'));
+
+    // PASS 2: Fuzzy matches for remaining fields (excluding name-collisions)
+    allFields.forEach(f => solveField(f, columnMapping[f], 'fuzzy'));
+
+    // Helper for Meta Ads search (not used for core mapping to avoid collisions)
     const findSimpleIndex = (searchTerms) => {
       for (const term of searchTerms) {
         const termLower = term.toLowerCase().trim();
-        // Check original header values directly with multiple strategies
-        const idx = headerValues.findIndex((h, i) => {
-          // Remove quotes and trim
-          const hClean = h.trim().replace(/^["']+|["']+$/g, '');
-          const hLower = hClean.toLowerCase();
-
-          // Strategy 1: Exact match
-          if (hLower === termLower) return true;
-
-          // Strategy 2: Match without special characters
-          const hNormalized = hLower.replace(/[^\w]/g, '_');
-          const termNormalized = termLower.replace(/[^\w]/g, '_');
-          if (hNormalized === termNormalized) return true;
-
-          // Strategy 3: Match without underscores/spaces
-          const hNoUnderscore = hLower.replace(/[_\s-]/g, '');
-          const termNoUnderscore = termLower.replace(/[_\s-]/g, '');
-          if (hNoUnderscore === termNoUnderscore) return true;
-
-          // Strategy 4: Contains match (bidirectional) - DISABLED (Too aggressive, e.g. 'age' matches 'agent')
-          // if (hLower.includes(termLower) || termLower.includes(hLower)) return true;
-
-          // Strategy 5: Check normalized headers too
-          if (i < headers.length && headers[i]) {
-            const normHeader = headers[i].toLowerCase();
-            if (normHeader === termLower) return true;
-            /* 
-            if (normHeader === termLower ||
-              normHeader.includes(termLower) ||
-              termLower.includes(normHeader)) return true; 
-            */
-          }
-
-          return false;
-        });
-        if (idx !== -1) {
-          console.log(`✅ Simple direct match: "${term}" → "${headerValues[idx]}" (index: ${idx})`);
-          return idx;
-        }
+        const idx = headerValues.findIndex(h => h && h.trim().toLowerCase().replace(/[_\s-]/g, '').includes(termLower.replace(/[_\s-]/g, '')));
+        if (idx !== -1) return idx;
       }
       return -1;
     };
 
-    // Check for name (either 'name' OR 'first_name' + 'last_name')
-    // START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
-    let nameIndex = findSimpleIndex(['name', 'full_name', 'fullname', 'client', 'client_name', 'student', 'student_name', 'prospect', 'prospect_name', 'customer', 'customer_name']);
-    let firstNameIndex = findSimpleIndex(['first_name', 'firstname', 'fname', 'first']);
-    let lastNameIndex = findSimpleIndex(['last_name', 'lastname', 'lname', 'surname', 'last']);
-
-    // Then try the complex matching if simple check failed
-    if (nameIndex === -1) nameIndex = findColumnIndex(columnMapping.name);
-    if (firstNameIndex === -1) firstNameIndex = findColumnIndex(columnMapping.first_name);
-    if (lastNameIndex === -1) lastNameIndex = findColumnIndex(columnMapping.last_name);
-
-    // Fallback to direct search if matching failed
-    if (nameIndex === -1) nameIndex = findDirectIndex(columnMapping.name);
-    if (firstNameIndex === -1) firstNameIndex = findDirectIndex(columnMapping.first_name);
-    if (lastNameIndex === -1) lastNameIndex = findDirectIndex(columnMapping.last_name);
-
-    // NUCLEAR FALLBACK: Keyword search — only use as last resort when nothing else worked
-    if (nameIndex === -1 && firstNameIndex === -1) {
-      // Only use nuclear keyword for name if no first_name found either
-      nameIndex = findKeywordIndex(['fullname', 'full_name', 'clientname', 'customername']);
-    }
-    // Don't nuclear-fallback first/last if nameIndex is already found (avoids Campaign Name matching)
-    if (nameIndex === -1 && firstNameIndex === -1) {
-      firstNameIndex = findKeywordIndex(['firstname', 'fname']);
-    }
-    if (nameIndex === -1 && lastNameIndex === -1) {
-      lastNameIndex = findKeywordIndex(['lastname', 'lname', 'surname']);
-    }
-
-    const hasName = nameIndex !== -1 || (firstNameIndex !== -1 && lastNameIndex !== -1);
-
-    console.log('🔍 Name column check:', {
-      nameIndex,
-      firstNameIndex,
-      lastNameIndex,
-      hasName
-    });
-
-    // Check for phone - try multiple variations
-    // START WITH SIMPLE DIRECT CHECK FIRST (most reliable for common column names)
-    let phoneIndex = findSimpleIndex(['phone', 'phone_number', 'mobile', 'mobile_number', 'contact_number', 'phone_no', 'cell', 'cell_phone', 'telephone', 'contact', 'whatsapp', 'call']);
-
-    // Then try the complex matching if simple check failed
-    if (phoneIndex === -1) phoneIndex = findColumnIndex(columnMapping.phone_number);
-
-    // Fallback to direct search if matching failed
-    if (phoneIndex === -1) phoneIndex = findDirectIndex(columnMapping.phone_number);
-
-    // NUCLEAR FALLBACK for phone: only use if nothing found yet
-    if (phoneIndex === -1) phoneIndex = findKeywordIndex(['phone', 'mobile', 'contact', 'tel', 'cell']);
-
-    const hasPhone = phoneIndex !== -1;
-
-    console.log('🔍 Phone column check:', {
-      phoneIndex,
-      hasPhone,
-      searchedFor: columnMapping.phone_number
-    });
-
-    if (!hasName) {
-      console.error('❌ Bulk import: Missing name column');
-      console.error('   Available normalized headers:', headers);
-      console.error('   Available original headers:', headerValues);
-      console.error('   Searched for name:', columnMapping.name);
-      console.error('   Searched for first_name:', columnMapping.first_name);
-      console.error('   Searched for last_name:', columnMapping.last_name);
-      console.error('   nameIndex:', nameIndex, 'firstNameIndex:', firstNameIndex, 'lastNameIndex:', lastNameIndex);
-      return res.status(400).json({
-        error: 'Missing required columns: name, phone_number',
-        details: `Found columns: ${headerValues.join(', ')}. Required: name OR (first_name + last_name), and phone_number OR phone`,
-        availableColumns: headerValues // Return original headers for user reference
-      });
-    }
-
-    if (!hasPhone) {
-      console.error('❌ Bulk import: Missing phone column');
-      console.error('   Available normalized headers:', headers);
-      console.error('   Available original headers:', headerValues);
-      console.error('   Searched for phone:', columnMapping.phone_number);
-      console.error('   phoneIndex:', phoneIndex);
-      return res.status(400).json({
-        error: 'Missing required columns: name, phone_number',
-        details: `Found columns: ${headerValues.join(', ')}. Required: phone_number, phone, or mobile`,
-        availableColumns: headerValues // Return original headers for user reference
-      });
-    }
-
-    // Map all column indices
-    // Also detect Meta Ads specific columns
+    // Special case: Meta Ads specific columns
     const metaAdsColumns = {
       ad_name: findSimpleIndex(['ad name', 'ad_name', 'adname', 'ad', 'utm_content']),
       campaign_name: findSimpleIndex(['campaign name', 'campaign_name', 'campaignname', 'campaign', 'utm_campaign', 'marketing_campaign', 'ad_campaign']),
@@ -1602,35 +1476,47 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     };
 
     const columnIndices = {
-      name: nameIndex,
-      first_name: firstNameIndex,
-      last_name: lastNameIndex,
-      phone_number: phoneIndex,
-      phone_country_code: findColumnIndex(columnMapping.phone_country_code),
-      whatsapp_number: findColumnIndex(columnMapping.whatsapp_number),
-      whatsapp_country_code: findColumnIndex(columnMapping.whatsapp_country_code),
-      email: findColumnIndex(columnMapping.email),
-      age: findColumnIndex(columnMapping.age),
-      occupation: findColumnIndex(columnMapping.occupation),
-      qualification: findColumnIndex(columnMapping.qualification),
-      year_of_experience: findColumnIndex(columnMapping.year_of_experience),
-      country: findColumnIndex(columnMapping.country),
-      program: findColumnIndex(columnMapping.program),
-      status: findColumnIndex(columnMapping.status),
-      priority: findColumnIndex(columnMapping.priority),
-      comment: findColumnIndex(columnMapping.comment),
-      follow_up_date: findColumnIndex(columnMapping.follow_up_date),
-      follow_up_status: findColumnIndex(columnMapping.follow_up_status),
-      assigned_staff: findColumnIndex(columnMapping.assigned_staff),
-      source: findColumnIndex(columnMapping.source),
-      ielts_score: findColumnIndex(columnMapping.ielts_score),
-      // Meta Ads specific columns
+      name: detectedIndices.name !== undefined ? detectedIndices.name : -1,
+      first_name: detectedIndices.first_name !== undefined ? detectedIndices.first_name : -1,
+      last_name: detectedIndices.last_name !== undefined ? detectedIndices.last_name : -1,
+      phone_number: detectedIndices.phone_number !== undefined ? detectedIndices.phone_number : -1,
+      phone_country_code: detectedIndices.phone_country_code !== undefined ? detectedIndices.phone_country_code : -1,
+      whatsapp_number: detectedIndices.whatsapp_number !== undefined ? detectedIndices.whatsapp_number : -1,
+      whatsapp_country_code: detectedIndices.whatsapp_country_code !== undefined ? detectedIndices.whatsapp_country_code : -1,
+      email: detectedIndices.email !== undefined ? detectedIndices.email : -1,
+      age: detectedIndices.age !== undefined ? detectedIndices.age : -1,
+      occupation: detectedIndices.occupation !== undefined ? detectedIndices.occupation : -1,
+      qualification: detectedIndices.qualification !== undefined ? detectedIndices.qualification : -1,
+      year_of_experience: detectedIndices.year_of_experience !== undefined ? detectedIndices.year_of_experience : -1,
+      country: detectedIndices.country !== undefined ? detectedIndices.country : -1,
+      program: detectedIndices.program !== undefined ? detectedIndices.program : -1,
+      status: detectedIndices.status !== undefined ? detectedIndices.status : -1,
+      priority: detectedIndices.priority !== undefined ? detectedIndices.priority : -1,
+      comment: detectedIndices.comment !== undefined ? detectedIndices.comment : -1,
+      follow_up_date: detectedIndices.follow_up_date !== undefined ? detectedIndices.follow_up_date : -1,
+      follow_up_status: detectedIndices.follow_up_status !== undefined ? detectedIndices.follow_up_status : -1,
+      assigned_staff: detectedIndices.assigned_staff !== undefined ? detectedIndices.assigned_staff : -1,
+      source: detectedIndices.source !== undefined ? detectedIndices.source : -1,
+      ielts_score: detectedIndices.ielts_score !== undefined ? detectedIndices.ielts_score : -1,
       meta_ad_name: metaAdsColumns.ad_name,
       meta_campaign_name: metaAdsColumns.campaign_name,
       meta_form_name: metaAdsColumns.form_name,
       meta_lead_id: metaAdsColumns.lead_id,
       meta_created_time: metaAdsColumns.created_time,
     };
+
+    // Validation
+    const hasName = columnIndices.name !== -1 || (columnIndices.first_name !== -1 && columnIndices.last_name !== -1);
+    const hasPhone = columnIndices.phone_number !== -1;
+
+    if (!hasName || !hasPhone) {
+      console.error('❌ Bulk import: Missing required columns');
+      return res.status(400).json({
+        error: 'Missing required columns: name, phone_number',
+        details: `Found columns: ${headerValues.join(', ')}. Required: name (or first_name+last_name) and phone`,
+        availableColumns: headerValues
+      });
+    }
 
     console.log('✅ Column mapping successful:', {
       name: columnIndices.name !== -1 ? 'found' : (columnIndices.first_name !== -1 && columnIndices.last_name !== -1 ? 'first_name + last_name' : 'missing'),
@@ -1782,14 +1668,16 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         }
 
         // Build source from Meta Ads fields or use provided source
-        // USER REQUEST: Prioritize Campaign Name as the source
-        if (metaCampaignName) {
-          source = metaCampaignName;
-        } else if (!source && (metaAdName || metaFormName)) {
-          const metaParts = [];
-          if (metaAdName) metaParts.push(`Ad: ${metaAdName}`);
-          if (metaFormName) metaParts.push(`Form: ${metaFormName}`);
-          source = metaParts.join(' | ');
+        // If source was not found in a dedicated column, try to build it from Meta Ads fields
+        if (!source || source === 'Direct/Import') {
+          if (metaCampaignName) {
+            source = metaCampaignName;
+          } else if (metaAdName || metaFormName) {
+            const metaParts = [];
+            if (metaAdName) metaParts.push(`Ad: ${metaAdName}`);
+            if (metaFormName) metaParts.push(`Form: ${metaFormName}`);
+            source = metaParts.join(' | ');
+          }
         }
 
         // Fallback for source if still empty
@@ -1826,8 +1714,8 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         // Handle assigned_staff - can be name or ID
         let finalAssignedStaffId = assignedStaffId; // Default to current user or null for admin
         const assignedStaffValue = getValue(columnIndices.assigned_staff);
-        if (assignedStaffValue && role === 'ADMIN') {
-          // Try to find user by name (case-insensitive)
+        if (assignedStaffValue) {
+          // Try to find user by name (case-insensitive) or email
           const allUsers = await db.getUsers();
           const matchedUser = allUsers.find(u =>
             u.name.toLowerCase() === assignedStaffValue.toLowerCase() ||
@@ -1837,7 +1725,7 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
             finalAssignedStaffId = matchedUser.id;
             console.log(`✅ Found staff "${assignedStaffValue}" → ID: ${matchedUser.id}`);
           } else {
-            console.log(`⚠️ Staff "${assignedStaffValue}" not found, lead will be unassigned`);
+            console.log(`⚠️ Staff "${assignedStaffValue}" not found, using default assignment`);
           }
         }
 
