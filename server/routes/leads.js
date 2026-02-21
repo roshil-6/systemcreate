@@ -1126,24 +1126,41 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        // Convert to JSON with header row
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        // Convert to JSON with header rows to find the actual header
+        const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-        if (jsonData.length < 2) {
+        // FIND ACTUAL HEADER ROW: Skip empty rows at the beginning
+        let headerRowIndex = -1;
+        for (let i = 0; i < allRowsRaw.length; i++) {
+          const row = allRowsRaw[i];
+          // A header row should have at least 2 non-empty values to be valid
+          const nonEmptyCount = row.filter(v => String(v || '').trim()).length;
+          if (nonEmptyCount >= 2) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        if (headerRowIndex === -1 || headerRowIndex >= allRowsRaw.length - 1) {
           return res.status(400).json({
-            error: 'Excel file must contain at least a header row and one data row',
-            details: `Found ${jsonData.length} row(s). Need at least 2 rows (header + data).`
+            error: 'Could not find a valid data sheet',
+            details: `Found ${allRowsRaw.length} row(s), but no valid header row with data was detected.`
           });
         }
 
-        // First row is headers
-        headerValues = jsonData[0].map(h => String(h || '').trim());
+        // Extract headers and data
+        headerValues = allRowsRaw[headerRowIndex].map(h => String(h || '').trim());
+        dataRows = allRowsRaw.slice(headerRowIndex + 1);
 
-        // Store data rows directly as arrays (SKIP THE HEADER ROW AT INDEX 0)
-        dataRows = jsonData.slice(1);
+        console.log('✅ Excel parsing (Robust):', {
+          totalRows: allRowsRaw.length,
+          headerRowUsed: headerRowIndex,
+          dataRowsCount: dataRows.length,
+          sheet: sheetName
+        });
 
         console.log('✅ Excel file parsed:', {
-          rows: jsonData.length,
+          rows: allRowsRaw.length,
           headers: headerValues.length,
           sheet: sheetName
         });
@@ -1221,10 +1238,29 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         });
       }
 
-      // Parse all lines into arrays immediately to prevent comma-splitting bugs later
-      const allRows = rawLines.map(line => parseCSVLine(line.trim() || (line.includes(',') ? line : '')));
-      headerValues = allRows[0].map(h => String(h || '').trim());
-      dataRows = allRows.slice(1);
+      // Parse all lines into arrays immediately
+      const allRowsRaw = rawLines.map(line => parseCSVLine(line.trim() || (line.includes(',') ? line : '')));
+
+      // FIND ACTUAL HEADER ROW: Skip empty rows at the beginning
+      let headerRowIndex = -1;
+      for (let i = 0; i < allRowsRaw.length; i++) {
+        const row = allRowsRaw[i];
+        const nonEmptyCount = row.filter(v => String(v || '').trim()).length;
+        if (nonEmptyCount >= 2) {
+          headerRowIndex = i;
+          break;
+        }
+      }
+
+      if (headerRowIndex === -1 || headerRowIndex >= allRowsRaw.length - 1) {
+        return res.status(400).json({
+          error: 'Could not find a valid header row in CSV',
+          details: `Parsed ${allRowsRaw.length} line(s), but none looked like a header row.`
+        });
+      }
+
+      headerValues = allRowsRaw[headerRowIndex].map(h => String(h || '').trim());
+      dataRows = allRowsRaw.slice(headerRowIndex + 1);
     }
 
     // Proper CSV parsing function (handle quoted values)
