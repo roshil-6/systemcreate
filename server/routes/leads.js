@@ -1126,43 +1126,56 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
 
-        // Convert to JSON with header rows to find the actual header
+        // Convert to JSON with header rows
         const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-        // FIND ACTUAL HEADER ROW: Skip empty rows at the beginning
+        // FIND ACTUAL HEADER ROW: Look for a row that actually contains Name and Phone columns
         let headerRowIndex = -1;
         for (let i = 0; i < allRowsRaw.length; i++) {
-          const row = allRowsRaw[i];
-          // A header row should have at least 2 non-empty values to be valid
-          const nonEmptyCount = row.filter(v => String(v || '').trim()).length;
-          if (nonEmptyCount >= 2) {
+          const row = allRowsRaw[i].map(h => String(h || '').trim());
+          if (row.filter(v => v).length < 2) continue;
+
+          // Simple check for Name and Phone related keywords
+          const hasNameKW = row.some(h => {
+            const low = h.toLowerCase().replace(/[_\s-]/g, '');
+            return ['name', 'fullname', 'fname', 'lname', 'client', 'student'].some(k => low.includes(k));
+          });
+          const hasPhoneKW = row.some(h => {
+            const low = h.toLowerCase().replace(/[_\s-]/g, '');
+            return ['phone', 'mobile', 'contact', 'whatsapp', 'call', 'cell', 'tel'].some(k => low.includes(k));
+          });
+
+          if (hasNameKW && hasPhoneKW) {
             headerRowIndex = i;
             break;
+          }
+        }
+
+        // FALLBACK: If no row matches both, pick the first row with >= 3 non-empty values
+        if (headerRowIndex === -1) {
+          for (let i = 0; i < allRowsRaw.length; i++) {
+            if (allRowsRaw[i].filter(v => String(v || '').trim()).length >= 3) {
+              headerRowIndex = i;
+              break;
+            }
           }
         }
 
         if (headerRowIndex === -1 || headerRowIndex >= allRowsRaw.length - 1) {
           return res.status(400).json({
             error: 'Could not find a valid data sheet',
-            details: `Found ${allRowsRaw.length} row(s), but no valid header row with data was detected.`
+            details: `Found ${allRowsRaw.length} row(s), but no valid header row with data columns was detected.`
           });
         }
 
-        // Extract headers and data
         headerValues = allRowsRaw[headerRowIndex].map(h => String(h || '').trim());
         dataRows = allRowsRaw.slice(headerRowIndex + 1);
 
-        console.log('✅ Excel parsing (Robust):', {
+        console.log('✅ Excel parsing (Deep Discovery):', {
           totalRows: allRowsRaw.length,
           headerRowUsed: headerRowIndex,
           dataRowsCount: dataRows.length,
-          sheet: sheetName
-        });
-
-        console.log('✅ Excel file parsed:', {
-          rows: allRowsRaw.length,
-          headers: headerValues.length,
-          sheet: sheetName
+          foundHeaders: headerValues
         });
       } catch (error) {
         console.error('❌ Error parsing Excel file:', error);
@@ -1241,21 +1254,41 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       // Parse all lines into arrays immediately
       const allRowsRaw = rawLines.map(line => parseCSVLine(line.trim() || (line.includes(',') ? line : '')));
 
-      // FIND ACTUAL HEADER ROW: Skip empty rows at the beginning
+      // FIND ACTUAL HEADER ROW: Deep discovery
       let headerRowIndex = -1;
       for (let i = 0; i < allRowsRaw.length; i++) {
-        const row = allRowsRaw[i];
-        const nonEmptyCount = row.filter(v => String(v || '').trim()).length;
-        if (nonEmptyCount >= 2) {
+        const row = allRowsRaw[i].map(h => String(h || '').trim());
+        if (row.filter(v => v).length < 2) continue;
+
+        const hasNameKW = row.some(h => {
+          const low = h.toLowerCase().replace(/[_\s-]/g, '');
+          return ['name', 'fullname', 'fname', 'lname', 'client', 'student'].some(k => low.includes(k));
+        });
+        const hasPhoneKW = row.some(h => {
+          const low = h.toLowerCase().replace(/[_\s-]/g, '');
+          return ['phone', 'mobile', 'contact', 'whatsapp', 'call', 'cell', 'tel'].some(k => low.includes(k));
+        });
+
+        if (hasNameKW && hasPhoneKW) {
           headerRowIndex = i;
           break;
+        }
+      }
+
+      // Fallback
+      if (headerRowIndex === -1) {
+        for (let i = 0; i < allRowsRaw.length; i++) {
+          if (allRowsRaw[i].filter(v => String(v || '').trim()).length >= 3) {
+            headerRowIndex = i;
+            break;
+          }
         }
       }
 
       if (headerRowIndex === -1 || headerRowIndex >= allRowsRaw.length - 1) {
         return res.status(400).json({
           error: 'Could not find a valid header row in CSV',
-          details: `Parsed ${allRowsRaw.length} line(s), but none looked like a header row.`
+          details: `Parsed ${allRowsRaw.length} line(s), but no row containing both Name and Phone was detected.`
         });
       }
 
