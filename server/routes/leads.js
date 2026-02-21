@@ -1184,6 +1184,30 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
           foundDataRows = allRowsRaw.slice(fallbackIdx + 1);
         }
 
+        if (!foundSheet) {
+          console.warn('⚠️ No sheet matched Name+Phone keywords. Checking for headerless data...');
+          // Try to find ANY sheet with data
+          for (const sheetName of workbook.SheetNames) {
+            const worksheet = workbook.Sheets[sheetName];
+            const allRowsRaw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+            if (allRowsRaw.length > 0 && allRowsRaw.some(r => r.filter(v => v).length >= 2)) {
+              foundSheet = sheetName;
+              foundHeaderIndex = -1; // -1 means NO HEADER (synthetic headers)
+              foundHeaders = allRowsRaw[0].map((_, idx) => `Column ${idx + 1}`);
+              foundDataRows = allRowsRaw; // Include EVERYTHING as data
+              console.log(`📡 Headerless data discovery in sheet: "${sheetName}"`);
+              break;
+            }
+          }
+        }
+
+        if (!foundSheet) {
+          return res.status(400).json({
+            error: 'Could not find any data in the Excel file',
+            details: 'The file seems to be empty or has no readable sheets.'
+          });
+        }
+
         headerValues = foundHeaders;
         dataRows = foundDataRows;
 
@@ -1334,21 +1358,47 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
       return values;
     };
 
-    // Headers are already set at this point (either from Excel or CSV parse above)
-    // Normalize headers: trim, lowercase, remove quotes, replace spaces with underscores
-    // BUT keep it simple - don't remove too many characters
+    // --- OMNI-DISCOVERY: HEURISTIC MAPPING ---
+    // If we have data rows, inspect them to guess columns for Name, Phone, Email
+    const heuristicMapping = { name: -1, phone: -1, email: -1 };
+
+    if (dataRows.length > 0) {
+      const sample = dataRows[0];
+      for (let idx = 0; idx < sample.length; idx++) {
+        const val = String(sample[idx] || '').trim();
+        const valLower = val.toLowerCase();
+
+        // 1. Email detection
+        if (heuristicMapping.email === -1 && valLower.includes('@') && valLower.includes('.')) {
+          heuristicMapping.email = idx;
+          console.log(`🧠 Heuristic: Column ${idx} looks like Email ("${val}")`);
+          continue;
+        }
+
+        // 2. Phone detection (digits, leading +, p: prefix)
+        const digitsOnly = val.replace(/\D/g, '');
+        if (heuristicMapping.phone === -1 && (valLower.includes('p:') || (digitsOnly.length >= 7 && digitsOnly.length <= 15))) {
+          heuristicMapping.phone = idx;
+          console.log(`🧠 Heuristic: Column ${idx} looks like Phone ("${val}")`);
+          continue;
+        }
+
+        // 3. Name detection (Column 0 fallback if non-email/non-phone)
+        if (idx === 0 && heuristicMapping.name === -1 && val.length > 2) {
+          heuristicMapping.name = idx;
+          console.log(`🧠 Heuristic: Column ${idx} looks like Name ("${val}")`);
+        }
+      }
+    }
+
+    // Headers normalization
     const headers = headerValues.map(h => {
       return h.trim()
         .toLowerCase()
-        .replace(/^["']+|["']+$/g, '') // Remove surrounding quotes
-        .replace(/\s+/g, '_') // Replace spaces with underscores
-        .replace(/[^\w_-]/g, ''); // Remove special characters except underscore and dash
+        .replace(/^["']+|["']+$/g, '')
+        .replace(/\s+/g, '_')
+        .replace(/[^\w_-]/g, '');
     });
-
-    console.log('📋 Parsed header values:', headerValues);
-    console.log('📋 Normalized headers:', headers);
-    console.log('📋 Looking for: first_name, last_name, phone');
-    console.log('📋 Total header count:', headerValues.length, 'normalized:', headers.length);
 
     // Column mapping - support multiple column name variations
     // Includes Meta Ads (Facebook Ads) export format support
@@ -1562,14 +1612,14 @@ router.post('/bulk-import', authenticate, (req, res, next) => {
     };
 
     const columnIndices = {
-      name: detectedIndices.name !== undefined ? detectedIndices.name : -1,
+      name: detectedIndices.name !== undefined ? detectedIndices.name : heuristicMapping.name,
       first_name: detectedIndices.first_name !== undefined ? detectedIndices.first_name : -1,
       last_name: detectedIndices.last_name !== undefined ? detectedIndices.last_name : -1,
-      phone_number: detectedIndices.phone_number !== undefined ? detectedIndices.phone_number : -1,
+      phone_number: detectedIndices.phone_number !== undefined ? detectedIndices.phone_number : heuristicMapping.phone,
       phone_country_code: detectedIndices.phone_country_code !== undefined ? detectedIndices.phone_country_code : -1,
       whatsapp_number: detectedIndices.whatsapp_number !== undefined ? detectedIndices.whatsapp_number : -1,
       whatsapp_country_code: detectedIndices.whatsapp_country_code !== undefined ? detectedIndices.whatsapp_country_code : -1,
-      email: detectedIndices.email !== undefined ? detectedIndices.email : -1,
+      email: detectedIndices.email !== undefined ? detectedIndices.email : heuristicMapping.email,
       age: detectedIndices.age !== undefined ? detectedIndices.age : -1,
       occupation: detectedIndices.occupation !== undefined ? detectedIndices.occupation : -1,
       qualification: detectedIndices.qualification !== undefined ? detectedIndices.qualification : -1,
