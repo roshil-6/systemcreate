@@ -2,8 +2,7 @@ import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 
-// Safety check: Ensure no ghost Render URL can leak in
-const BASE_URL = API_BASE_URL.includes('onrender') ? 'http://localhost:5002' : API_BASE_URL;
+const BASE_URL = API_BASE_URL;
 
 const AuthContext = createContext();
 
