@@ -2,6 +2,9 @@ import React, { createContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 
+// Safety check: Ensure no ghost Render URL can leak in
+const BASE_URL = API_BASE_URL.includes('onrender') ? 'http://localhost:5002' : API_BASE_URL;
+
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -24,13 +27,11 @@ export const AuthProvider = ({ children }) => {
 
     while (retries < maxRetries) {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/auth/me`);
+        const response = await axios.get(`${BASE_URL}/api/auth/me`);
         if (response.data) {
           setUser(response.data);
           setLoading(false);
           return;
-        } else {
-          throw new Error('Invalid user data');
         }
       } catch (error) {
         // If 503 or Network Error, retry
@@ -56,8 +57,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const loginUrl = `${API_BASE_URL}/api/auth/login`;
-      console.log('🔍 Login attempt:', { email, url: loginUrl, apiBase: API_BASE_URL });
+      const loginUrl = `${BASE_URL}/api/auth/login`;
+      console.log('🔍 Login attempt:', { email, url: loginUrl, apiBase: BASE_URL });
 
       const response = await axios.post(loginUrl, {
         email,

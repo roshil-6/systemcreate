@@ -214,7 +214,8 @@
   align-items: center;
 }
 
-.country-code-select {
+.country-code-select,
+.country-code-input {
   flex-shrink: 0;
   width: 100px;
   padding: 10px 8px;
@@ -222,17 +223,22 @@
   border-radius: 6px;
   font-size: 13px;
   background: #FFF4D6;
-  cursor: pointer;
   transition: border-color 0.2s;
   max-width: 100px;
 }
 
-.country-code-select:focus {
+.country-code-select {
+  cursor: pointer;
+}
+
+.country-code-select:focus,
+.country-code-input:focus {
   outline: none;
   border-color: #D4AF37;
 }
 
-.country-code-select:disabled {
+.country-code-select:disabled,
+.country-code-input:disabled {
   background: #F5F1E8;
   color: #8B6914;
   cursor: not-allowed;

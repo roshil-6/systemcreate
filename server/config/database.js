@@ -25,7 +25,7 @@ try {
 const poolConfig = {
   connectionString: connectionString,
   application_name: 'CRM_Server_Render',
-  max: 2, // Minimal pool to stay under Railway's strict proxy limits
+  max: process.env.NODE_ENV === 'production' ? 2 : 20, // Increased for local dev speed
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000, // Faster failure leads to faster retries
 
@@ -279,8 +279,8 @@ const database = {
     return result.rows;
   },
 
-  getLeadPhones: async () => {
-    const result = await query('SELECT LOWER(phone_number) as phone_number, LOWER(email) as email FROM leads');
+  getLeadEmails: async () => {
+    const result = await query('SELECT LOWER(email) as email FROM leads WHERE email IS NOT NULL');
     return result.rows;
   },
 
@@ -975,7 +975,7 @@ const database = {
 
   // Fast lookup: only phone_number + email for duplicate checking during bulk import
   getLeadPhones: async () => {
-    const result = await query('SELECT phone_number, email FROM leads');
+    const result = await query('SELECT LOWER(phone_number) as phone_number, LOWER(email) as email FROM leads');
     return result.rows;
   },
 

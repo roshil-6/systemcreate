@@ -1506,6 +1506,12 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
 
           const now = new Date().toISOString();
           const fileComment = g(colIdx.comment);
+
+          // ADD TO SETS TO PREVENT INTRA-CSV DUPLICATES
+          if (email) existingEmails.add(email);
+          if (phone) existingPhones.add(phone.replace(/\D/g, ''));
+          if (secPhone) existingPhones.add(secPhone.replace(/\D/g, ''));
+
           validLeads.push({
             name, phone_number: phone, phone_country_code: phoneCountryCode,
             whatsapp_number: g(colIdx.whatsapp_number) || null,

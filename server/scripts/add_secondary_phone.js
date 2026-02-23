@@ -1,46 +1,23 @@
-require('dotenv').config({ path: '.env' });
-const { Pool } = require('pg');
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
+require('dotenv').config();
+const db = require('../config/database');
 
 async function migrate() {
-    const client = await pool.connect();
     try {
-        console.log('🔄 Adding secondary_phone_number column...');
-
-        // Add to leads
-        try {
-            await client.query('ALTER TABLE leads ADD COLUMN secondary_phone_number VARCHAR(50)');
-            console.log('   ✅ Added to leads table.');
-        } catch (e) {
-            if (e.message.includes('already exists')) {
-                console.log('   ℹ️  Column already exists in leads.');
-            } else {
-                throw e;
-            }
-        }
-
-        // Add to clients
-        try {
-            await client.query('ALTER TABLE clients ADD COLUMN secondary_phone_number VARCHAR(50)');
-            console.log('   ✅ Added to clients table.');
-        } catch (e) {
-            if (e.message.includes('already exists')) {
-                console.log('   ℹ️  Column already exists in clients.');
-            } else {
-                throw e;
-            }
-        }
-
-        console.log('✅ Migration complete.');
+        console.log('🔄 Adding secondary_phone_number to leads table...');
+        // We use a safe check to avoid errors if the column already exists
+        await db.query(`
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='secondary_phone_number') THEN
+          ALTER TABLE leads ADD COLUMN secondary_phone_number TEXT;
+        END IF;
+      END $$;
+    `);
+        console.log('✅ secondary_phone_number column added or already exists.');
     } catch (err) {
-        console.error('❌ Migration failed:', err);
+        console.error('❌ Migration failed:', err.message);
     } finally {
-        client.release();
-        pool.end();
+        process.exit(0);
     }
 }
 
