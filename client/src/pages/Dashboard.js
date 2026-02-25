@@ -583,6 +583,67 @@ const Dashboard = () => {
     );
   };
 
+  const renderAssignedByMe = () => {
+    if (!data.assignedByMe || data.assignedByMe.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="dashboard-section assigned-by-me-section" style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>ASSIGNED BY ME</h2>
+          <span style={{
+            background: '#FFF4D6',
+            color: '#D4AF37',
+            padding: '4px 12px',
+            borderRadius: '20px',
+            fontSize: '12px',
+            fontWeight: 600,
+            boxShadow: '0 2px 4px rgba(212, 175, 55, 0.1)'
+          }}>
+            Total Leads Dispatched
+          </span>
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+          gap: '16px'
+        }}>
+          {data.assignedByMe.map((item) => (
+            <div key={item.staff_id} style={{
+              background: 'rgba(255, 255, 255, 0.8)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(229, 231, 235, 0.8)',
+              borderRadius: '12px',
+              padding: '16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+            }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>{item.staff_name}</div>
+                <div style={{ fontSize: '12px', color: '#6b7280' }}>Assigned Staff</div>
+              </div>
+              <div style={{
+                background: 'linear-gradient(135deg, #FFF4D6 0%, #FDE68A 100%)',
+                color: '#8B6914',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '16px',
+                minWidth: '40px',
+                textAlign: 'center'
+              }}>
+                {item.assigned_count}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (isRestrictedRole && !isStaffDetailView) {
     return (
       <div className="dashboard">
@@ -611,6 +672,8 @@ const Dashboard = () => {
             </p>
           </div>
         </div>
+
+        {renderAssignedByMe()}
 
         {/* Team Performance Section - CRITICAL for Sales Heads */}
         {(data.staffPerformance && data.staffPerformance.length > 0) && (

@@ -797,6 +797,17 @@ router.get('/', authenticate, async (req, res) => {
         });
       const recentLeads = await Promise.all(recentLeadsPromises);
 
+      // Get leads assigned by this admin/head (Assigned By Me)
+      const assignedByMeResult = await db.query(`
+        SELECT u.id as staff_id, u.name as staff_name, COUNT(DISTINCT n.lead_id) as assigned_count
+        FROM notifications n
+        JOIN users u ON n.user_id = u.id
+        WHERE n.type = 'lead_assigned' AND n.created_by = $1
+        GROUP BY u.id, u.name
+        ORDER BY assigned_count DESC
+      `, [userId]);
+      const assignedByMe = assignedByMeResult.rows;
+
       // Recent clients (last 20, sorted by most recent)
       const recentClientsPromises = allClients
         .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
@@ -849,6 +860,7 @@ router.get('/', authenticate, async (req, res) => {
       console.log('  Role:', role);
       console.log('  Registration Completed:', metrics.leadsByStatus['Registration Completed']);
       console.log('  Total Clients:', metrics.totalClients);
+      console.log('  Assigned By Me Count:', assignedByMe.length);
       console.log('  Staff Performance Count:', staffPerformance ? staffPerformance.length : 'NULL/UNDEFINED');
       console.log('  Staff Performance Type:', typeof staffPerformance);
       console.log('  Staff Performance Is Array:', Array.isArray(staffPerformance));
@@ -876,6 +888,7 @@ router.get('/', authenticate, async (req, res) => {
         role: role, // Use actual role (ADMIN or SALES_TEAM_HEAD)
         metrics,
         staffPerformance: staffPerformance || [], // Ensure it's always an array
+        assignedByMe: assignedByMe || [], // New "Assigned By Me" section
         attendanceOverview,
         recentLeads,
         recentClients, // Add recent clients to dashboard
