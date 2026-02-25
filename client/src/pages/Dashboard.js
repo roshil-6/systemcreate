@@ -1107,6 +1107,8 @@ const Dashboard = () => {
         )}
       </div>
 
+      {renderAssignedByMe()}
+
       {/* Metrics Overview */}
       <div className="dashboard-section">
         <div className="metrics-grid">
