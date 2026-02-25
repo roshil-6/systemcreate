@@ -18,6 +18,26 @@ const Dashboard = () => {
   const [selectedClients, setSelectedClients] = useState([]);
   const isAutoRefreshRef = useRef(false);
 
+  // Drill-down state for "ASSIGNED BY ME"
+  const [isAssignedLeadsModalOpen, setIsAssignedLeadsModalOpen] = useState(false);
+  const [selectedStaffLeads, setSelectedStaffLeads] = useState([]);
+  const [selectedStaffName, setSelectedStaffName] = useState('');
+  const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+
+  const fetchAssignedLeads = async (staffId, staffName) => {
+    setIsLoadingLeads(true);
+    setSelectedStaffName(staffName);
+    setIsAssignedLeadsModalOpen(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/dashboard/assigned-leads/${staffId}`);
+      setSelectedStaffLeads(response.data);
+    } catch (error) {
+      console.error('Error fetching assigned leads:', error);
+    } finally {
+      setIsLoadingLeads(false);
+    }
+  };
+
   // Check if user is Sneha
   const isSneha = user?.name === 'Sneha' || user?.name === 'SNEHA' || user?.email === 'sneha@toniosenora.com';
 
@@ -610,17 +630,24 @@ const Dashboard = () => {
           gap: '16px'
         }}>
           {data.assignedByMe.map((item) => (
-            <div key={item.staff_id} style={{
-              background: 'rgba(255, 255, 255, 0.8)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(229, 231, 235, 0.8)',
-              borderRadius: '12px',
-              padding: '16px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
-            }}>
+            <div
+              key={item.staff_id}
+              onClick={() => fetchAssignedLeads(item.staff_id, item.staff_name)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.8)',
+                backdropFilter: 'blur(12px)',
+                border: '1px solid rgba(229, 231, 235, 0.8)',
+                borderRadius: '12px',
+                padding: '16px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              className="assigned-staff-card"
+            >
               <div>
                 <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>{item.staff_name}</div>
                 <div style={{ fontSize: '12px', color: '#6b7280' }}>Assigned Staff</div>
@@ -639,6 +666,165 @@ const Dashboard = () => {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderAssignedLeadsModal = () => {
+    if (!isAssignedLeadsModalOpen) return null;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        backdropFilter: 'blur(4px)'
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '16px',
+          width: '90%',
+          maxWidth: '1000px',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+          overflow: 'hidden',
+          animation: 'modalFadeIn 0.3s ease-out'
+        }}>
+          <div style={{
+            padding: '20px 24px',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: '#f9fafb'
+          }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#111827' }}>
+                Leads assigned to {selectedStaffName}
+              </h2>
+              <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                Listing all leads dispatched by you to this staff member
+              </p>
+            </div>
+            <button
+              onClick={() => setIsAssignedLeadsModalOpen(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#9ca3af',
+                padding: '8px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fee2e2'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <FiXCircle size={24} />
+            </button>
+          </div>
+
+          <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+            {isLoadingLeads ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px' }}>
+                <div className="loading-spinner" style={{ marginBottom: '16px' }}></div>
+                <p style={{ color: '#6b7280' }}>Fetching leads...</p>
+              </div>
+            ) : selectedStaffLeads.length > 0 ? (
+              <div className="leads-list-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Phone</th>
+                      <th>Email</th>
+                      <th>Status</th>
+                      <th>Priority</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedStaffLeads.map((lead) => (
+                      <tr key={lead.id}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: '#111827' }}>{lead.name}</div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <FiPhone style={{ fontSize: '14px', color: '#6b7280' }} />
+                            <span>{lead.phone_country_code} {lead.phone_number}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <FiMail style={{ fontSize: '14px', color: '#6b7280' }} />
+                            <span>{lead.email || 'N/A'}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="status_badge" style={{
+                            backgroundColor: `${getStatusColor(lead.status)}15`,
+                            color: getStatusColor(lead.status),
+                            padding: '4px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            border: `1px solid ${getStatusColor(lead.status)}30`
+                          }}>
+                            {lead.status}
+                          </span>
+                        </td>
+                        <td>
+                          {lead.priority ? (
+                            <span style={{
+                              backgroundColor: `${getPriorityColor(lead.priority)}15`,
+                              color: getPriorityColor(lead.priority),
+                              padding: '4px 12px',
+                              borderRadius: '20px',
+                              fontSize: '12px',
+                              fontWeight: 600
+                            }}>
+                              {formatPriority(lead.priority)}
+                            </span>
+                          ) : '-'}
+                        </td>
+                        <td>
+                          <button
+                            className="btn-view-lead"
+                            onClick={() => {
+                              setIsAssignedLeadsModalOpen(false);
+                              navigate(`/leads/${lead.id}`);
+                            }}
+                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                          >
+                            <FiEdit2 /> View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280' }}>
+                <FiUsers size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
+                <p>No leads found for this staff member.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -767,6 +953,7 @@ const Dashboard = () => {
             <p className="no-activity">No recent activity</p>
           )}
         </div>
+        {renderAssignedLeadsModal()}
       </div >
     );
   }
@@ -1634,6 +1821,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      {renderAssignedLeadsModal()}
     </div>
   );
 };

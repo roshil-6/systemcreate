@@ -360,6 +360,50 @@ router.get('/staff/:id', authenticate, async (req, res) => {
   }
 });
 
+// Get leads assigned by the current admin/head to a specific staff
+router.get('/assigned-leads/:staffId', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const staffId = Number(req.params.staffId);
+    const role = req.user.role;
+
+    if (role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD') {
+      return res.status(403).json({ error: 'Admin or Sales Team Head access required' });
+    }
+
+    // Get unique lead IDs assigned by this user to the target staff
+    const assignedLeadsResult = await db.query(`
+      SELECT DISTINCT n.lead_id
+      FROM notifications n
+      WHERE n.type = 'lead_assigned' AND n.created_by = $1 AND n.user_id = $2
+    `, [userId, staffId]);
+
+    const leadIds = assignedLeadsResult.rows.map(row => row.lead_id);
+
+    if (leadIds.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch full lead details
+    const allLeads = await db.getLeads();
+    const leads = allLeads.filter(l => leadIds.includes(l.id));
+
+    // Get staff name for the response
+    const staffName = await db.getUserName(staffId);
+
+    // Sort by most recent update
+    const detailedLeads = leads.map(l => ({
+      ...l,
+      assigned_staff_name: staffName
+    })).sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
+    res.json(detailedLeads);
+  } catch (error) {
+    console.error('Error fetching assigned leads:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get dashboard data
 router.get('/', authenticate, async (req, res) => {
   // Set cache-control header to prevent caching
