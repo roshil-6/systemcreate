@@ -16,6 +16,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLeads, setSelectedLeads] = useState([]);
   const [selectedClients, setSelectedClients] = useState([]);
+  const [phoneSearchInput, setPhoneSearchInput] = useState('');
   const isAutoRefreshRef = useRef(false);
 
   // Drill-down state for "ASSIGNED BY ME"
@@ -248,6 +249,13 @@ const Dashboard = () => {
         alert('Failed to delete some clients. You might not have permission.');
         fetchDashboardData();
       }
+    }
+  };
+
+  const handleQuickPhoneSearch = (e) => {
+    e.preventDefault();
+    if (phoneSearchInput.trim()) {
+      navigate(`/leads?phone=${phoneSearchInput.trim()}`);
     }
   };
 
@@ -833,7 +841,18 @@ const Dashboard = () => {
   if (isRestrictedRole && !isStaffDetailView) {
     return (
       <div className="dashboard">
-        <h1 className="dashboard-title">My Dashboard</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h1 className="dashboard-title">My Dashboard</h1>
+          <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
+            <FiPhone className="search-icon" />
+            <input
+              type="text"
+              placeholder="Quick search by phone..."
+              value={phoneSearchInput}
+              onChange={(e) => setPhoneSearchInput(e.target.value)}
+            />
+          </form>
+        </div>
         {renderStaffMetrics()}
         {renderStatusBreakdown()}
         <div className="recent-activity">
@@ -851,78 +870,84 @@ const Dashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h1 className="dashboard-title">
-              {data.role === 'SALES_TEAM_HEAD' ? 'Team Overview' : 'Admin Dashboard'}
+              {data.role === 'ADMIN' ? 'Company Dashboard' : 'Team Dashboard'}
             </h1>
-            <p style={{ color: '#666', marginTop: '4px' }}>
-              Welcome back, {user?.name}
-            </p>
           </div>
+          <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
+            <FiPhone className="search-icon" />
+            <input
+              type="text"
+              placeholder="Quick search by phone..."
+              value={phoneSearchInput}
+              onChange={(e) => setPhoneSearchInput(e.target.value)}
+            />
+          </form>
         </div>
 
         {renderAssignedByMe()}
+        {
+          (data.staffPerformance && data.staffPerformance.length > 0) && (
+            <div className="staff-performance-section" style={{ marginBottom: '32px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
+                {data.role === 'SALES_TEAM_HEAD' ? 'My Team Performance' : 'Staff Performance Overview'}
+              </h2>
+              <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                {data.staffPerformance
+                  .filter(staff => Number(staff.id) !== Number(user?.id) && staff.email !== user?.email)
+                  .map((staff) => (
+                    <div
+                      key={staff.id}
+                      className="staff-card"
+                      onClick={() => navigate(`/dashboard/staff/${staff.id}`)}
+                      style={{
+                        cursor: 'pointer',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        backgroundColor: 'white',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          backgroundColor: '#e0e7ff',
+                          color: '#4f46e5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: '600',
+                          fontSize: '16px',
+                          marginRight: '12px'
+                        }}>
+                          {staff.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: '600', color: '#111827' }}>{staff.name}</h3>
+                          <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>{staff.email}</p>
+                        </div>
+                        <div style={{ marginLeft: 'auto', color: '#9ca3af' }}>👉</div>
+                      </div>
 
-        {/* Team Performance Section - CRITICAL for Sales Heads */}
-        {(data.staffPerformance && data.staffPerformance.length > 0) && (
-          <div className="staff-performance-section" style={{ marginBottom: '32px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
-              {data.role === 'SALES_TEAM_HEAD' ? 'My Team Performance' : 'Staff Performance Overview'}
-            </h2>
-            <div className="staff-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-              {data.staffPerformance
-                .filter(staff => Number(staff.id) !== Number(user?.id) && staff.email !== user?.email)
-                .map((staff) => (
-                  <div
-                    key={staff.id}
-                    className="staff-card"
-                    onClick={() => navigate(`/dashboard/staff/${staff.id}`)}
-                    style={{
-                      cursor: 'pointer',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      backgroundColor: 'white',
-                      transition: 'all 0.2s',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        backgroundColor: '#e0e7ff',
-                        color: '#4f46e5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: '600',
-                        fontSize: '16px',
-                        marginRight: '12px'
-                      }}>
-                        {staff.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: '600', color: '#111827' }}>{staff.name}</h3>
-                        <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>{staff.email}</p>
-                      </div>
-                      <div style={{ marginLeft: 'auto', color: '#9ca3af' }}>👉</div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                      <div style={{ backgroundColor: '#f9fafb', padding: '10px', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Leads</div>
-                        <div style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>{staff.total_leads || 0}</div>
-                      </div>
-                      <div style={{ backgroundColor: '#f0fdf4', padding: '10px', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '12px', color: '#166534', marginBottom: '4px' }}>Processing</div>
-                        <div style={{ fontSize: '18px', fontWeight: '600', color: '#15803d' }}>{staff.clients_in_processing || 0}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ backgroundColor: '#f9fafb', padding: '10px', borderRadius: '8px' }}>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Leads</div>
+                          <div style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>{staff.total_leads || 0}</div>
+                        </div>
+                        <div style={{ backgroundColor: '#f0fdf4', padding: '10px', borderRadius: '8px' }}>
+                          <div style={{ fontSize: '12px', color: '#166534', marginBottom: '4px' }}>Processing</div>
+                          <div style={{ fontSize: '18px', fontWeight: '600', color: '#15803d' }}>{staff.clients_in_processing || 0}</div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        }
 
         {renderStaffMetrics()}
         {renderStatusBreakdown()}

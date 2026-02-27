@@ -267,10 +267,17 @@ const database = {
       params.push(filter.excludeStatus);
     }
     if (filter.search) {
-      queryText += ` AND (name LIKE $${paramIndex} OR phone_number LIKE $${paramIndex + 1} OR email LIKE $${paramIndex + 2})`;
+      queryText += ` AND (name ILIKE $${paramIndex} OR phone_number ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
       const searchTerm = `%${filter.search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
-      paramIndex += 3;
+      params.push(searchTerm);
+      paramIndex += 1;
+    }
+
+    if (filter.phone) {
+      queryText += ` AND (phone_number ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
+      const phoneTerm = `%${filter.phone}%`;
+      params.push(phoneTerm);
+      paramIndex += 1;
     }
 
     queryText += ' ORDER BY updated_at DESC, created_at DESC';

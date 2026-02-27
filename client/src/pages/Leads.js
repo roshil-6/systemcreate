@@ -19,6 +19,8 @@ const Leads = () => {
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [phoneSearchInput, setPhoneSearchInput] = useState(searchParams.get('phone') || '');
+  const [phoneSearch, setPhoneSearch] = useState(searchParams.get('phone') || '');
   const [assignedStaffFilter, setAssignedStaffFilter] = useState(searchParams.get('assigned_staff_id') || '');
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
@@ -37,11 +39,14 @@ const Leads = () => {
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || '';
+    const urlPhone = searchParams.get('phone') || '';
     const urlStatus = searchParams.get('status') || '';
     const showHistory = searchParams.get('showHistory') === 'true';
 
     setSearch(urlSearch);
     setSearchInput(urlSearch);
+    setPhoneSearch(urlPhone);
+    setPhoneSearchInput(urlPhone);
     setStatusFilter(urlStatus);
 
     if (showHistory) {
@@ -52,7 +57,7 @@ const Leads = () => {
 
   useEffect(() => {
     fetchLeads();
-  }, [statusFilter, search]);
+  }, [statusFilter, search, phoneSearch, assignedStaffFilter]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF') {
@@ -87,12 +92,14 @@ const Leads = () => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const search = searchParams.get('search');
+      const phone = searchParams.get('phone');
       const status = searchParams.get('status');
       const assigned_staff_id = searchParams.get('assigned_staff_id');
 
       let url = `${API_BASE_URL}/api/leads?`;
       const params = new URLSearchParams();
       if (search) params.append('search', search);
+      if (phone) params.append('phone', phone);
       if (status) params.append('status', status);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
 
@@ -151,9 +158,11 @@ const Leads = () => {
     e.preventDefault();
     const params = new URLSearchParams();
     if (searchInput.trim()) params.set('search', searchInput.trim());
+    if (phoneSearchInput.trim()) params.set('phone', phoneSearchInput.trim());
     if (statusFilter) params.set('status', statusFilter);
     if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
     setSearch(searchInput.trim());
+    setPhoneSearch(phoneSearchInput.trim());
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -161,9 +170,14 @@ const Leads = () => {
     setSearchInput(e.target.value);
   };
 
+  const handlePhoneSearchInputChange = (e) => {
+    setPhoneSearchInput(e.target.value);
+  };
+
   const handleStatusFilter = (status) => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
+    if (phoneSearch) params.set('phone', phoneSearch);
     if (status) params.set('status', status);
     if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
     navigate(`/leads?${params.toString()}`);
@@ -173,6 +187,7 @@ const Leads = () => {
     setAssignedStaffFilter(staffId);
     const params = new URLSearchParams();
     if (search) params.set('search', search);
+    if (phoneSearch) params.set('phone', phoneSearch);
     if (statusFilter) params.set('status', statusFilter);
     if (staffId) params.set('assigned_staff_id', staffId);
     navigate(`/leads?${params.toString()}`);
@@ -482,6 +497,14 @@ const Leads = () => {
               value={searchInput}
               onChange={handleSearchInputChange}
             />
+            <FiSearch className="search-icon" style={{ marginLeft: '10px' }} />
+            <input
+              type="text"
+              placeholder="Search lead by phone..."
+              value={phoneSearchInput}
+              onChange={handlePhoneSearchInputChange}
+            />
+            <button type="submit" style={{ display: 'none' }}></button>
           </form>
 
           {canManageLeads && (

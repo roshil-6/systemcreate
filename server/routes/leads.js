@@ -57,7 +57,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, assigned_staff_id } = req.query;
+    const { status, search, phone, assigned_staff_id } = req.query;
 
     const filter = {};
 
@@ -94,6 +94,10 @@ router.get('/', authenticate, async (req, res) => {
 
     if (search) {
       filter.search = search;
+    }
+
+    if (phone) {
+      filter.phone = phone;
     }
 
     // Performance: Filter out Registration Completed at database level
@@ -1678,6 +1682,10 @@ router.get('/export/csv', authenticate, async (req, res) => {
 
     if (search) {
       filter.search = search;
+    }
+
+    if (phone) {
+      filter.phone = phone;
     }
 
     let leads = await db.getLeads(filter);

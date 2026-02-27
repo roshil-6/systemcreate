@@ -81,9 +81,14 @@
 
 .leads-search {
   position: relative;
-  max-width: 400px;
+  flex: 1;
+  min-width: 400px;
   display: flex;
   align-items: center;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0 12px;
 }
 
 .leads-search .search-icon {
@@ -94,15 +99,19 @@
 
 .leads-search input {
   width: 100%;
-  padding: 10px 12px 10px 40px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
   font-size: 14px;
+  color: #374151;
+}
+
+.leads-search input:first-of-type {
+  border-right: 1px solid #e5e7eb;
 }
 
 .leads-search input:focus {
   outline: none;
-  border-color: #D4AF37;
 }
 
 .staff-filter {
