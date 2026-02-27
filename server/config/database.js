@@ -243,7 +243,7 @@ const database = {
 
   // Leads
   getLeads: async (filter = {}) => {
-    let queryText = 'SELECT id, name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code, email, age, occupation, qualification, year_of_experience, country, target_country, residing_country, program, status, priority, comment, follow_up_date, follow_up_status, assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number, (excel_row_data IS NOT NULL) AS has_excel_data FROM leads WHERE 1=1';
+    let queryText = 'SELECT *, (excel_row_data IS NOT NULL) AS has_excel_data FROM leads WHERE 1=1';
     const params = [];
     let paramIndex = 1;
 
