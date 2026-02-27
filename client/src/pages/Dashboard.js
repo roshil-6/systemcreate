@@ -855,10 +855,12 @@ const Dashboard = () => {
         </div>
         {renderStaffMetrics()}
         {renderStatusBreakdown()}
+        {renderAssignedByMe()}
         <div className="recent-activity">
           <h2>Recent Activity</h2>
           {/* ... existing activity code ... */}
         </div>
+        {renderAssignedLeadsModal()}
       </div>
     );
   }

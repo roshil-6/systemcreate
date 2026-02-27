@@ -367,9 +367,8 @@ router.get('/assigned-leads/:staffId', authenticate, async (req, res) => {
     const staffId = Number(req.params.staffId);
     const role = req.user.role;
 
-    if (role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD') {
-      return res.status(403).json({ error: 'Admin or Sales Team Head access required' });
-    }
+    // All authenticated users can fetch their own assigned leads drill-down
+    // STAFF can only see leads they personally assigned (userId = created_by is enforced in query)
 
     // Get unique lead IDs assigned by this user to the target staff
     const assignedLeadsResult = await db.query(`
@@ -555,11 +554,28 @@ router.get('/', authenticate, async (req, res) => {
         return res.json({ metrics });
       }
 
+      // Compute "Assigned By Me" for this staff member too
+      let staffAssignedByMe = [];
+      try {
+        const assignedByMeResult = await db.query(`
+          SELECT u.id as staff_id, u.name as staff_name, COUNT(DISTINCT n.lead_id) as assigned_count
+          FROM notifications n
+          JOIN users u ON n.user_id = u.id
+          WHERE n.type = 'lead_assigned' AND n.created_by = $1
+          GROUP BY u.id, u.name
+          ORDER BY assigned_count DESC
+        `, [userId]);
+        staffAssignedByMe = assignedByMeResult.rows;
+      } catch (e) {
+        console.error('Error fetching assignedByMe for restricted view:', e);
+      }
+
       const response = {
         role: role,
         metrics,
         recentActivity: allActivity,
-        isRestricted: true
+        isRestricted: true,
+        assignedByMe: staffAssignedByMe,
       };
       res.json(response);
     } else {
