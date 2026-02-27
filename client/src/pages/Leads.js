@@ -1112,7 +1112,6 @@ const Leads = () => {
           </table>
         )}
       </div>
-    </div>
 
     {/* Excel Details Modal */}
     {excelModal.open && (
