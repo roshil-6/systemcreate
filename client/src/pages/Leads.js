@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Leads.css';
-import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock, FiGrid, FiX } from 'react-icons/fi';
 
 const Leads = () => {
   const { user, logout } = useAuth();
@@ -22,6 +22,7 @@ const Leads = () => {
   const [phoneSearchInput, setPhoneSearchInput] = useState(searchParams.get('phone') || '');
   const [phoneSearch, setPhoneSearch] = useState(searchParams.get('phone') || '');
   const [assignedStaffFilter, setAssignedStaffFilter] = useState(searchParams.get('assigned_staff_id') || '');
+  const [excelModal, setExcelModal] = useState({ open: false, data: null, loading: false, leadName: '' });
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
@@ -885,7 +886,26 @@ const Leads = () => {
                       />
                     </td>
                   )}
-                  <td className="name-cell sticky-name" title={lead.name}>{lead.name}</td>
+                  <td className="name-cell sticky-name" title={lead.name}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name}</span>
+                      {lead.has_excel_data && (
+                        <button
+                          className="btn-excel-details"
+                          title="View original Excel row data"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExcelModal({ open: true, data: null, loading: true, leadName: lead.name });
+                            axios.get(`${API_BASE_URL}/api/leads/${lead.id}/excel-details`)
+                              .then(res => setExcelModal(m => ({ ...m, data: res.data.excel_row_data, loading: false })))
+                              .catch(() => setExcelModal(m => ({ ...m, loading: false, data: null })));
+                          }}
+                        >
+                          <FiGrid size={12} /> Excel
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td style={{ maxWidth: '130px' }} title={`${lead.phone_country_code || ''} ${lead.phone_number || ''}${lead.secondary_phone_number ? '\nSec: ' + lead.secondary_phone_number : ''}`}>
                     <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {(() => {
@@ -1093,6 +1113,52 @@ const Leads = () => {
         )}
       </div>
     </div>
+
+    {/* Excel Details Modal */}
+    {excelModal.open && (
+      <div className="excel-modal-overlay" onClick={() => setExcelModal({ open: false, data: null, loading: false, leadName: '' })}>
+        <div className="excel-modal" onClick={e => e.stopPropagation()}>
+          <div className="excel-modal-header">
+            <div>
+              <h2><FiGrid /> Original Excel Data</h2>
+              <p className="excel-modal-subtitle">{excelModal.leadName}</p>
+            </div>
+            <button className="excel-modal-close" onClick={() => setExcelModal({ open: false, data: null, loading: false, leadName: '' })}>
+              <FiX />
+            </button>
+          </div>
+          <div className="excel-modal-body">
+            {excelModal.loading && (
+              <div className="excel-modal-loading">Loading Excel data...</div>
+            )}
+            {!excelModal.loading && !excelModal.data && (
+              <div className="excel-modal-empty">No Excel data found for this lead.</div>
+            )}
+            {!excelModal.loading && excelModal.data && (
+              <table className="excel-data-table">
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(excelModal.data)
+                    .filter(([, val]) => val !== '' && val !== null && val !== undefined)
+                    .map(([key, val]) => (
+                      <tr key={key}>
+                        <td className="excel-col-name">{key}</td>
+                        <td className="excel-col-value">{String(val)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
   );
 };
 

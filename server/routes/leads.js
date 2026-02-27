@@ -475,6 +475,30 @@ router.get('/last-imported-file', authenticate, async (req, res) => {
 });
 
 // Get single lead
+// Get the original Excel row data for a lead (only works for imported leads)
+router.get('/:id/excel-details', authenticate, async (req, res) => {
+  try {
+    const leadId = parseInt(req.params.id);
+    const result = await db.query(
+      'SELECT excel_row_data FROM leads WHERE id = $1',
+      [leadId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    const rawData = result.rows[0].excel_row_data;
+    if (!rawData) {
+      return res.status(404).json({ error: 'No Excel data available for this lead' });
+    }
+    // Parse if stored as string
+    const parsed = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
+    res.json({ excel_row_data: parsed });
+  } catch (error) {
+    console.error('Error fetching excel details:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/:id', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1516,6 +1540,14 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           if (phone) existingPhones.add(phone.replace(/\D/g, ''));
           if (secPhone) existingPhones.add(secPhone.replace(/\D/g, ''));
 
+          // Build raw Excel row as key-value object for all original columns
+          const excelRowData = {};
+          headerValues.forEach((header, idx) => {
+            if (header && String(header).trim()) {
+              excelRowData[String(header).trim()] = String(row[idx] || '').trim();
+            }
+          });
+
           validLeads.push({
             name, phone_number: phone, phone_country_code: phoneCountryCode,
             whatsapp_number: g(colIdx.whatsapp_number) || null,
@@ -1527,7 +1559,8 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             follow_up_date: parseDate(g(colIdx.follow_up_date)), follow_up_status: g(colIdx.follow_up_status) || 'Pending',
             assigned_staff_id: staffId, source: g(colIdx.source) || 'Bulk Import',
             ielts_score: g(colIdx.ielts_score) || null, created_by: userId, created_at: now, updated_at: now,
-            secondary_phone_number: secPhone || null
+            secondary_phone_number: secPhone || null,
+            excel_row_data: Object.keys(excelRowData).length > 0 ? JSON.stringify(excelRowData) : null,
           });
         } catch (e) { results.errors++; results.errorRows.push({ row: i + 1, sheet: sheetName, message: e.message }); }
       }
@@ -1548,7 +1581,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
               l.name, l.phone_number, l.phone_country_code, l.whatsapp_number, l.email,
               l.country, l.program, l.occupation, l.status, l.priority, l.comment,
               l.follow_up_date, l.follow_up_status, l.assigned_staff_id, l.source, l.ielts_score,
-              l.created_by, l.created_at, l.updated_at, l.secondary_phone_number
+              l.created_by, l.created_at, l.updated_at, l.secondary_phone_number, l.excel_row_data
             ];
             const rowP = vals.map(() => `$${pIdx++}`);
             flatValues.push(...vals);
@@ -1558,7 +1591,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             name, phone_number, phone_country_code, whatsapp_number, email,
             country, program, occupation, status, priority, comment,
             follow_up_date, follow_up_status, assigned_staff_id, source, ielts_score,
-            created_by, created_at, updated_at, secondary_phone_number
+            created_by, created_at, updated_at, secondary_phone_number, excel_row_data
           ) VALUES ${placeholders.join(', ')} RETURNING id`;
           const leadResult = await client.query(query, flatValues);
 
