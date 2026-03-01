@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -18,6 +18,9 @@ const LeadDetail = () => {
   const [formData, setFormData] = useState({});
   const [newComment, setNewComment] = useState('');
   const [staffList, setStaffList] = useState([]);
+  const [duplicateWarning, setDuplicateWarning] = useState(null); // { id, name, status } of matched lead
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const duplicateCheckTimer = useRef(null);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationData, setRegistrationData] = useState({
     assessment_authority: '',
@@ -142,6 +145,39 @@ const LeadDetail = () => {
     }
   };
 
+  // Real-time duplicate check — debounced 600ms, only on new lead form
+  const checkDuplicate = (phoneValue) => {
+    if (!isNew) return;
+    if (duplicateCheckTimer.current) clearTimeout(duplicateCheckTimer.current);
+    setDuplicateWarning(null);
+
+    const cleaned = (phoneValue || '').replace(/[\s\-().+]/g, '');
+    if (cleaned.length < 5) {
+      setCheckingDuplicate(false);
+      return;
+    }
+
+    setCheckingDuplicate(true);
+    duplicateCheckTimer.current = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(
+          `${API_BASE_URL}/api/leads/check-duplicate?phone=${encodeURIComponent(cleaned)}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (response.data.exists) {
+          setDuplicateWarning(response.data.lead);
+        } else {
+          setDuplicateWarning(null);
+        }
+      } catch (err) {
+        console.error('Duplicate check error:', err);
+      } finally {
+        setCheckingDuplicate(false);
+      }
+    }, 600);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -155,6 +191,11 @@ const LeadDetail = () => {
       ...formData,
       [name]: name === 'assigned_staff_id' ? (value === '' ? null : Number(value)) : value,
     });
+
+    // Trigger real-time duplicate check for phone/whatsapp fields when creating a new lead
+    if (isNew && (name === 'phone_number' || name === 'whatsapp_number')) {
+      checkDuplicate(value);
+    }
   };
 
   const handleRegistrationSubmit = async () => {
@@ -481,6 +522,51 @@ const LeadDetail = () => {
                   />
                 </div>
               </div>
+              {/* Duplicate warning — shown after typing phone/WhatsApp number */}
+              {isNew && (checkingDuplicate || duplicateWarning) && (
+                <div
+                  className={`duplicate-warning ${duplicateWarning ? 'duplicate-warning--visible' : 'duplicate-warning--checking'}`}
+                  style={{ gridColumn: '1 / -1' }}
+                >
+                  {checkingDuplicate && !duplicateWarning ? (
+                    <div className="duplicate-warning__checking">
+                      <span className="duplicate-warning__spinner"></span>
+                      Checking for duplicates…
+                    </div>
+                  ) : duplicateWarning ? (
+                    <>
+                      <div className="duplicate-warning__icon">⚠️</div>
+                      <div className="duplicate-warning__body">
+                        <div className="duplicate-warning__title">Lead Already Exists in the System!</div>
+                        <div className="duplicate-warning__detail">
+                          This phone number is already registered under{' '}
+                          <strong>{duplicateWarning.name}</strong>
+                          <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
+                        </div>
+                        <div className="duplicate-warning__message">
+                          Please check the existing lead before creating a new one to avoid duplicates.
+                        </div>
+                        <div className="duplicate-warning__actions">
+                          <button
+                            type="button"
+                            className="duplicate-warning__btn-view"
+                            onClick={() => navigate(`/leads/${duplicateWarning.id}`)}
+                          >
+                            👁️ View Existing Lead
+                          </button>
+                          <button
+                            type="button"
+                            className="duplicate-warning__btn-dismiss"
+                            onClick={() => setDuplicateWarning(null)}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )}
               <div className="form-group">
                 <label>
                   <FiMail /> Email

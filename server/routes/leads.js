@@ -474,6 +474,47 @@ router.get('/last-imported-file', authenticate, async (req, res) => {
   }
 });
 
+// Check for duplicate phone/whatsapp number (used by frontend real-time check)
+// IMPORTANT: This must be defined BEFORE the /:id wildcard route
+router.get('/check-duplicate', authenticate, async (req, res) => {
+  try {
+    const { phone } = req.query;
+    if (!phone || phone.trim().length < 5) {
+      return res.json({ exists: false });
+    }
+
+    const cleanPhone = phone.trim().replace(/[\s\-().+]/g, '');
+
+    // Query DB directly for efficiency rather than loading all leads into memory
+    const result = await db.query(
+      `SELECT id, name, status, phone_number, whatsapp_number FROM leads
+       WHERE REGEXP_REPLACE(phone_number, '[\\s\\-().]', '', 'g') = $1
+          OR REGEXP_REPLACE(whatsapp_number, '[\\s\\-().]', '', 'g') = $1
+       LIMIT 1`,
+      [cleanPhone]
+    );
+
+    if (result.rows.length > 0) {
+      const match = result.rows[0];
+      return res.json({
+        exists: true,
+        lead: {
+          id: match.id,
+          name: match.name,
+          status: match.status,
+          phone_number: match.phone_number,
+          whatsapp_number: match.whatsapp_number,
+        },
+      });
+    }
+
+    res.json({ exists: false });
+  } catch (error) {
+    console.error('Check duplicate error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
 // Get single lead
 // Get the original Excel row data for a lead (only works for imported leads)
 router.get('/:id/excel-details', authenticate, async (req, res) => {
