@@ -1052,6 +1052,79 @@ const database = {
   },
 
   // Cleanup
+  getLeadsMetrics: async (filter = {}) => {
+    let whereClause = 'WHERE 1=1 AND deleted_at IS NULL';
+    const params = [];
+    let paramIndex = 1;
+
+    if (filter.assigned_staff_ids && Array.isArray(filter.assigned_staff_ids)) {
+      whereClause += ` AND (assigned_staff_id = ANY($${paramIndex++}) OR assigned_staff_id IS NULL)`;
+      params.push(filter.assigned_staff_ids);
+    } else if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
+      whereClause += ` AND assigned_staff_id = $${paramIndex++}`;
+      params.push(Number(filter.assigned_staff_id));
+    }
+
+    // Status counts
+    const statusResult = await query(`
+      SELECT status, COUNT(*) as count 
+      FROM leads 
+      ${whereClause} 
+      GROUP BY status
+    `, params);
+
+    // Follow-up metrics
+    const today = new Date().toISOString().split('T')[0];
+    const followUpResult = await query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE follow_up_date::date = $${paramIndex} AND status NOT IN ('Pending Lead', 'Closed / Rejected')) as today_followups,
+        COUNT(*) FILTER (WHERE follow_up_date::date < $${paramIndex} AND status NOT IN ('Pending Lead', 'Closed / Rejected')) as due_followups
+      FROM leads
+      ${whereClause}
+    `, [...params, today]);
+
+    const metrics = {
+      leadsByStatus: {},
+      todayFollowups: parseInt(followUpResult.rows[0]?.today_followups || 0),
+      dueFollowups: parseInt(followUpResult.rows[0]?.due_followups || 0),
+      totalLeads: 0
+    };
+
+    statusResult.rows.forEach(row => {
+      metrics.leadsByStatus[row.status] = parseInt(row.count);
+      metrics.totalLeads += parseInt(row.count);
+    });
+
+    return metrics;
+  },
+
+  getStaffPerformance: async (accessibleIds = null) => {
+    let whereClause = 'WHERE (role != \'ADMIN\' OR name IN (\'Sneha\', \'KRIPA\', \'SNEHA\', \'Kripa\'))';
+    const params = [];
+    if (accessibleIds) {
+      whereClause += ' AND id = ANY($1)';
+      params.push(accessibleIds);
+    }
+
+    const result = await query(`
+      SELECT 
+        u.id, u.name, u.email,
+        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.deleted_at IS NULL) as total_leads,
+        (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id) as converted_leads,
+        (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id AND c.processing_staff_id IS NOT NULL) as clients_in_processing
+      FROM users u
+      ${whereClause}
+      ORDER BY total_leads DESC, u.name ASC
+    `, params);
+
+    return result.rows.map(row => ({
+      ...row,
+      total_leads: parseInt(row.total_leads),
+      converted_leads: parseInt(row.converted_leads),
+      clients_in_processing: parseInt(row.clients_in_processing)
+    }));
+  },
+
   end: async () => {
     await pool.end();
   }
