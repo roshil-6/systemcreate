@@ -518,6 +518,287 @@ router.get('/check-duplicate', authenticate, async (req, res) => {
   }
 });
 
+// Bulk delete leads (soft delete — moves to Recycle Bin)
+router.post('/bulk-delete', authenticate, async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+    const { leadIds } = req.body;
+
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+
+    // Non-admins can only soft-delete leads assigned to them
+    await client.query('BEGIN');
+    const result = await client.query(
+      'UPDATE leads SET deleted_at = NOW(), deleted_by = $2 WHERE id = ANY($1) AND deleted_at IS NULL',
+      [leadIds, userId]
+    );
+    await client.query('COMMIT');
+
+    console.log(`✅ Soft-deleted ${result.rowCount} leads by user ${userId}`);
+    res.json({ success: true, deletedCount: result.rowCount });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('❌ Bulk soft-delete error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/leads/trash — Fetch recently deleted leads (latest first)
+router.get('/trash', authenticate, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can access the recycle bin' });
+    }
+    const trashedLeads = await db.getTrashedLeads();
+
+    // Attach assigned staff names
+    const allUsers = await db.getUsers();
+    const userMap = {};
+    allUsers.forEach(u => { userMap[u.id] = u.name; });
+
+    const leads = trashedLeads.map(l => ({
+      ...l,
+      assigned_staff_name: l.assigned_staff_id ? (userMap[l.assigned_staff_id] || null) : null,
+    }));
+
+    res.json(leads);
+  } catch (error) {
+    console.error('Trash fetch error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+// POST /api/leads/restore — Restore selected leads from trash
+router.post('/restore', authenticate, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can restore leads' });
+    }
+    const { leadIds } = req.body;
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+
+    const result = await db.query(
+      'UPDATE leads SET deleted_at = NULL, deleted_by = NULL WHERE id = ANY($1)',
+      [leadIds]
+    );
+
+    res.json({ success: true, restoredCount: result.rowCount });
+  } catch (error) {
+    console.error('Restore error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+// POST /api/leads/permanent-delete — Permanently destroy leads (must be in trash first)
+router.post('/permanent-delete', authenticate, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can permanently delete leads' });
+    }
+    const { leadIds } = req.body;
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+
+    // Only delete leads that are already soft-deleted (in trash)
+    const result = await db.query(
+      'DELETE FROM leads WHERE id = ANY($1) AND deleted_at IS NOT NULL',
+      [leadIds]
+    );
+
+    console.log(`🔥 Permanently deleted ${result.rowCount} leads`);
+    res.json({ success: true, deletedCount: result.rowCount });
+  } catch (error) {
+    console.error('Permanent delete error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+// Export leads to CSV (for Google Sheets import)
+router.get('/export/csv', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const role = req.user.role;
+    const { status, search, phone } = req.query;
+
+    const filter = {};
+
+    // Determine accessible user IDs based on role
+    let accessibleUserIds = null;
+    if (role === 'ADMIN') {
+      accessibleUserIds = null;
+    } else if (role === 'SALES_TEAM_HEAD') {
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      accessibleUserIds = [userId, ...teamMembers.map(u => u.id)];
+    } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
+      accessibleUserIds = [userId];
+    } else if (role === 'STAFF') {
+      accessibleUserIds = [userId];
+    } else {
+      accessibleUserIds = [userId];
+    }
+
+    if (accessibleUserIds && accessibleUserIds.length === 1) {
+      filter.assigned_staff_id = accessibleUserIds[0];
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    if (search) {
+      filter.search = search;
+    }
+
+    if (phone) {
+      filter.phone = phone;
+    }
+
+    let leads = await db.getLeads(filter);
+
+    if (accessibleUserIds && accessibleUserIds.length > 1) {
+      leads = leads.filter(lead =>
+        !lead.assigned_staff_id || accessibleUserIds.includes(lead.assigned_staff_id)
+      );
+    }
+
+    // OPTIMIZATION: Fetch all users once and create a lookup map
+    let userMap = {};
+    try {
+      const allUsers = await db.getUsers();
+      allUsers.forEach(u => {
+        userMap[u.id] = u.name;
+      });
+    } catch (error) {
+      console.error('Optimization warning: Failed to fetch users for lookup, falling back to null names', error);
+    }
+
+    // Add assigned staff name using the lookup map
+    leads = leads.map(lead => ({
+      ...lead,
+      assigned_staff_name: lead.assigned_staff_id ? (userMap[lead.assigned_staff_id] || 'Unassigned') : 'Unassigned',
+    }));
+
+    // Convert to CSV
+    const headers = [
+      'ID',
+      'Name',
+      'Phone Country Code',
+      'Phone Number',
+      'WhatsApp Country Code',
+      'WhatsApp Number',
+      'Email',
+      'Age',
+      'Occupation',
+      'Qualification',
+      'Year of Experience',
+      'Country',
+      'Program',
+      'Status',
+      'Source',
+      'Priority',
+      'Comment',
+      'Follow-up Date',
+      'Next Follow-up Date',
+      'Assigned Staff',
+      'Created At',
+      'Updated At'
+    ];
+
+    const csvRows = [headers.join(',')];
+
+    leads.forEach(lead => {
+      const row = [
+        lead.id || '',
+        `"${(lead.name || '').replace(/"/g, '""')}"`,
+        lead.phone_country_code || '',
+        lead.phone_number || '',
+        lead.whatsapp_country_code || '',
+        lead.whatsapp_number || '',
+        lead.email || '',
+        lead.age || '',
+        `"${(lead.occupation || '').replace(/"/g, '""')}"`,
+        lead.qualification || '',
+        lead.year_of_experience || '',
+        lead.country || '',
+        lead.program || '',
+        lead.status || '',
+        `"${(lead.source || '').replace(/"/g, '""')}"`,
+        lead.priority || '',
+        `"${(lead.comment || '').replace(/"/g, '""')}"`,
+        lead.follow_up_date || '',
+        lead.follow_up_status || 'Pending',
+        `"${(lead.assigned_staff_name || '').replace(/"/g, '""')}"`,
+        lead.created_at || '',
+        lead.updated_at || ''
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+
+    // Support both CSV and Excel export
+    const format = req.query.format || 'csv';
+
+    if (format === 'xlsx' || format === 'excel') {
+      // Export as Excel
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet([
+        headers,
+        ...leads.map(lead => [
+          lead.id || '',
+          lead.name || '',
+          lead.phone_country_code || '',
+          lead.phone_number || '',
+          lead.whatsapp_country_code || '',
+          lead.whatsapp_number || '',
+          lead.email || '',
+          lead.age || '',
+          lead.occupation || '',
+          lead.qualification || '',
+          lead.year_of_experience || '',
+          lead.country || '',
+          lead.program || '',
+          lead.status || '',
+          lead.priority || '',
+          lead.comment || '',
+          lead.follow_up_date || '',
+          lead.follow_up_status || 'Pending',
+          lead.assigned_staff_name || '',
+          lead.created_at || '',
+          lead.updated_at || ''
+        ])
+      ]);
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="leads_export_${new Date().toISOString().split('T')[0]}.xlsx"`);
+      res.send(excelBuffer);
+    } else {
+      // Export as CSV (default)
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="leads_export_${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csvContent);
+    }
+  } catch (error) {
+    console.error('Export leads error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
 // Get single lead
 // Get the original Excel row data for a lead (only works for imported leads)
 router.get('/:id/excel-details', authenticate, async (req, res) => {
@@ -1724,286 +2005,6 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
 
 
 
-// Bulk delete leads (soft delete — moves to Recycle Bin)
-router.post('/bulk-delete', authenticate, async (req, res) => {
-  const client = await db.pool.connect();
-  try {
-    const userId = req.user.id;
-    const role = req.user.role;
-    const { leadIds } = req.body;
-
-    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
-      return res.status(400).json({ error: 'No lead IDs provided' });
-    }
-
-    // Non-admins can only soft-delete leads assigned to them
-    await client.query('BEGIN');
-    const result = await client.query(
-      'UPDATE leads SET deleted_at = NOW(), deleted_by = $2 WHERE id = ANY($1) AND deleted_at IS NULL',
-      [leadIds, userId]
-    );
-    await client.query('COMMIT');
-
-    console.log(`✅ Soft-deleted ${result.rowCount} leads by user ${userId}`);
-    res.json({ success: true, deletedCount: result.rowCount });
-
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('❌ Bulk soft-delete error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
-  } finally {
-    client.release();
-  }
-});
-
-// GET /api/leads/trash — Fetch recently deleted leads (latest first)
-router.get('/trash', authenticate, async (req, res) => {
-  try {
-    const role = req.user.role;
-    if (role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only admins can access the recycle bin' });
-    }
-    const trashedLeads = await db.getTrashedLeads();
-
-    // Attach assigned staff names
-    const allUsers = await db.getUsers();
-    const userMap = {};
-    allUsers.forEach(u => { userMap[u.id] = u.name; });
-
-    const leads = trashedLeads.map(l => ({
-      ...l,
-      assigned_staff_name: l.assigned_staff_id ? (userMap[l.assigned_staff_id] || null) : null,
-    }));
-
-    res.json(leads);
-  } catch (error) {
-    console.error('Trash fetch error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
-  }
-});
-
-// POST /api/leads/restore — Restore selected leads from trash
-router.post('/restore', authenticate, async (req, res) => {
-  try {
-    const role = req.user.role;
-    if (role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only admins can restore leads' });
-    }
-    const { leadIds } = req.body;
-    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
-      return res.status(400).json({ error: 'No lead IDs provided' });
-    }
-
-    const result = await db.query(
-      'UPDATE leads SET deleted_at = NULL, deleted_by = NULL WHERE id = ANY($1)',
-      [leadIds]
-    );
-
-    res.json({ success: true, restoredCount: result.rowCount });
-  } catch (error) {
-    console.error('Restore error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
-  }
-});
-
-// POST /api/leads/permanent-delete — Permanently destroy leads (must be in trash first)
-router.post('/permanent-delete', authenticate, async (req, res) => {
-  try {
-    const role = req.user.role;
-    if (role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only admins can permanently delete leads' });
-    }
-    const { leadIds } = req.body;
-    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
-      return res.status(400).json({ error: 'No lead IDs provided' });
-    }
-
-    // Only delete leads that are already soft-deleted (in trash)
-    const result = await db.query(
-      'DELETE FROM leads WHERE id = ANY($1) AND deleted_at IS NOT NULL',
-      [leadIds]
-    );
-
-    console.log(`🔥 Permanently deleted ${result.rowCount} leads`);
-    res.json({ success: true, deletedCount: result.rowCount });
-  } catch (error) {
-    console.error('Permanent delete error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
-  }
-});
-
-// Export leads to CSV (for Google Sheets import)
-router.get('/export/csv', authenticate, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const role = req.user.role;
-    const { status, search, phone } = req.query;
-
-    const filter = {};
-
-    // Determine accessible user IDs based on role
-    let accessibleUserIds = null;
-    if (role === 'ADMIN') {
-      accessibleUserIds = null;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      accessibleUserIds = [userId, ...teamMembers.map(u => u.id)];
-    } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
-      accessibleUserIds = [userId];
-    } else if (role === 'STAFF') {
-      accessibleUserIds = [userId];
-    } else {
-      accessibleUserIds = [userId];
-    }
-
-    if (accessibleUserIds && accessibleUserIds.length === 1) {
-      filter.assigned_staff_id = accessibleUserIds[0];
-    }
-
-    if (status) {
-      filter.status = status;
-    }
-
-    if (search) {
-      filter.search = search;
-    }
-
-    if (phone) {
-      filter.phone = phone;
-    }
-
-    let leads = await db.getLeads(filter);
-
-    if (accessibleUserIds && accessibleUserIds.length > 1) {
-      leads = leads.filter(lead =>
-        !lead.assigned_staff_id || accessibleUserIds.includes(lead.assigned_staff_id)
-      );
-    }
-
-    // OPTIMIZATION: Fetch all users once and create a lookup map
-    let userMap = {};
-    try {
-      const allUsers = await db.getUsers();
-      allUsers.forEach(u => {
-        userMap[u.id] = u.name;
-      });
-    } catch (error) {
-      console.error('Optimization warning: Failed to fetch users for lookup, falling back to null names', error);
-    }
-
-    // Add assigned staff name using the lookup map
-    leads = leads.map(lead => ({
-      ...lead,
-      assigned_staff_name: lead.assigned_staff_id ? (userMap[lead.assigned_staff_id] || 'Unassigned') : 'Unassigned',
-    }));
-
-    // Convert to CSV
-    const headers = [
-      'ID',
-      'Name',
-      'Phone Country Code',
-      'Phone Number',
-      'WhatsApp Country Code',
-      'WhatsApp Number',
-      'Email',
-      'Age',
-      'Occupation',
-      'Qualification',
-      'Year of Experience',
-      'Country',
-      'Program',
-      'Status',
-      'Source',
-      'Priority',
-      'Comment',
-      'Follow-up Date',
-      'Next Follow-up Date',
-      'Assigned Staff',
-      'Created At',
-      'Updated At'
-    ];
-
-    const csvRows = [headers.join(',')];
-
-    leads.forEach(lead => {
-      const row = [
-        lead.id || '',
-        `"${(lead.name || '').replace(/"/g, '""')}"`,
-        lead.phone_country_code || '',
-        lead.phone_number || '',
-        lead.whatsapp_country_code || '',
-        lead.whatsapp_number || '',
-        lead.email || '',
-        lead.age || '',
-        `"${(lead.occupation || '').replace(/"/g, '""')}"`,
-        lead.qualification || '',
-        lead.year_of_experience || '',
-        lead.country || '',
-        lead.program || '',
-        lead.status || '',
-        `"${(lead.source || '').replace(/"/g, '""')}"`,
-        lead.priority || '',
-        `"${(lead.comment || '').replace(/"/g, '""')}"`,
-        lead.follow_up_date || '',
-        lead.follow_up_status || 'Pending',
-        `"${(lead.assigned_staff_name || '').replace(/"/g, '""')}"`,
-        lead.created_at || '',
-        lead.updated_at || ''
-      ];
-      csvRows.push(row.join(','));
-    });
-
-    const csvContent = csvRows.join('\n');
-
-    // Support both CSV and Excel export
-    const format = req.query.format || 'csv';
-
-    if (format === 'xlsx' || format === 'excel') {
-      // Export as Excel
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.aoa_to_sheet([
-        headers,
-        ...leads.map(lead => [
-          lead.id || '',
-          lead.name || '',
-          lead.phone_country_code || '',
-          lead.phone_number || '',
-          lead.whatsapp_country_code || '',
-          lead.whatsapp_number || '',
-          lead.email || '',
-          lead.age || '',
-          lead.occupation || '',
-          lead.qualification || '',
-          lead.year_of_experience || '',
-          lead.country || '',
-          lead.program || '',
-          lead.status || '',
-          lead.priority || '',
-          lead.comment || '',
-          lead.follow_up_date || '',
-          lead.follow_up_status || 'Pending',
-          lead.assigned_staff_name || '',
-          lead.created_at || '',
-          lead.updated_at || ''
-        ])
-      ]);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
-      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="leads_export_${new Date().toISOString().split('T')[0]}.xlsx"`);
-      res.send(excelBuffer);
-    } else {
-      // Export as CSV (default)
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="leads_export_${new Date().toISOString().split('T')[0]}.csv"`);
-      res.send(csvContent);
-    }
-  } catch (error) {
-    console.error('Export leads error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
-  }
-});
 
 // Complete registration (convert lead to client)
 router.post('/:id/complete-registration', authenticate, async (req, res) => {
