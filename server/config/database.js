@@ -290,8 +290,8 @@ const database = {
 
     queryText += ' ORDER BY updated_at DESC, created_at DESC';
 
-    // Pagination: default 2000 per page to keep responses fast but show more data
-    const limit = filter.limit !== undefined ? Number(filter.limit) : 2000;
+    // Pagination: default 5000 per page to show all leads while maintaining speed
+    const limit = filter.limit !== undefined ? Number(filter.limit) : 5000;
     const offset = filter.offset !== undefined ? Number(filter.offset) : 0;
     if (limit > 0) {
       queryText += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;

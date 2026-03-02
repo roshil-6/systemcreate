@@ -555,6 +555,9 @@ const Leads = () => {
                 <FiTrash2 /> Recently Deleted
               </button>
             )}
+            <div style={{ marginLeft: 'auto', fontSize: '13px', color: '#6b7280', fontWeight: 500, backgroundColor: '#f3f4f6', padding: '4px 10px', borderRadius: '15px' }}>
+              Showing {leads.length} leads
+            </div>
           </div>
         </div>
       </div>
