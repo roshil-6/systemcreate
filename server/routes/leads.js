@@ -52,14 +52,17 @@ const upload = multer({
 
 
 
-// Get all leads (with role-based filtering)
+// Get all leads (with role-based filtering and pagination)
 router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id } = req.query;
+    const { status, search, phone, assigned_staff_id, limit, offset } = req.query;
 
-    const filter = {};
+    const filter = {
+      limit: limit ? parseInt(limit) : undefined,
+      offset: offset ? parseInt(offset) : undefined
+    };
 
     if (assigned_staff_id) {
       filter.assigned_staff_id = assigned_staff_id;
@@ -68,17 +71,13 @@ router.get('/', authenticate, async (req, res) => {
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
     if (role === 'ADMIN') {
-      // Admin sees all
       accessibleUserIds = null;
     } else if (role === 'SALES_TEAM_HEAD') {
-      // Sales team head sees themselves + only their team members (those managed by them)
       const teamMembers = await db.getUsers({ managed_by: userId });
       accessibleUserIds = [userId, ...teamMembers.map(u => u.id)];
     } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
-      // Sales team and processing see only their own
       accessibleUserIds = [userId];
     } else if (role === 'STAFF') {
-      // Legacy STAFF role
       accessibleUserIds = [userId];
     } else {
       accessibleUserIds = [userId];
@@ -86,6 +85,8 @@ router.get('/', authenticate, async (req, res) => {
 
     if (accessibleUserIds && accessibleUserIds.length > 1) {
       filter.assigned_staff_ids = accessibleUserIds;
+    } else if (accessibleUserIds && accessibleUserIds.length === 1) {
+      filter.assigned_staff_id = accessibleUserIds[0];
     }
 
     if (status) {
@@ -103,10 +104,10 @@ router.get('/', authenticate, async (req, res) => {
     // Performance: Filter out Registration Completed at database level
     filter.excludeStatus = 'Registration Completed';
 
-    let leads = await db.getLeads(filter);
+    const leadsRaw = await db.getLeads(filter);
+    const totalCount = leadsRaw.length > 0 ? parseInt(leadsRaw[0].full_count) : 0;
 
     // OPTIMIZATION: Fetch all users once and create a lookup map
-    // This replaces the N+1 query pattern where we fetched user name for every single lead
     let userMap = {};
     try {
       const allUsers = await db.getUsers();
@@ -118,15 +119,17 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     // Add assigned staff name using the lookup map
-    leads = leads.map(lead => ({
+    const leads = leadsRaw.map(lead => ({
       ...lead,
       assigned_staff_name: lead.assigned_staff_id ? (userMap[lead.assigned_staff_id] || null) : null,
+      full_count: undefined // Remove internal count from response
     }));
 
-    // Exclude leads with "Registration Completed" status
-    leads = leads.filter(l => l.status !== 'Registration Completed');
-
-    res.json(leads);
+    // Response includes leads and the real total count from database
+    res.json({
+      leads,
+      totalCount
+    });
   } catch (error) {
     console.error('Get leads error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });

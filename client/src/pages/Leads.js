@@ -43,6 +43,11 @@ const Leads = () => {
   const [trashLoading, setTrashLoading] = useState(false);
   const [selectedTrashIds, setSelectedTrashIds] = useState([]);
   const [trashActionLoading, setTrashActionLoading] = useState(false);
+  // Pagination
+  const [totalCount, setTotalCount] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const LEADS_PER_PAGE = 200;
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || '';
@@ -63,7 +68,8 @@ const Leads = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchLeads();
+    setOffset(0);
+    fetchLeads(true);
   }, [statusFilter, search, phoneSearch, assignedStaffFilter]);
 
   useEffect(() => {
@@ -94,33 +100,51 @@ const Leads = () => {
     };
   }, [assigningLeadId]);
 
-  const fetchLeads = async () => {
+  const fetchLeads = async (reset = false) => {
     try {
-      setLoading(true);
+      if (reset) {
+        setLoading(true);
+        setOffset(0);
+      } else {
+        setLoadingMore(true);
+      }
+
       const token = localStorage.getItem('token');
-      const search = searchParams.get('search');
-      const phone = searchParams.get('phone');
-      const status = searchParams.get('status');
+      const searchVal = searchParams.get('search');
+      const phoneVal = searchParams.get('phone');
+      const statusVal = searchParams.get('status');
       const assigned_staff_id = searchParams.get('assigned_staff_id');
 
-      let url = `${API_BASE_URL}/api/leads?`;
       const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      if (phone) params.append('phone', phone);
-      if (status) params.append('status', status);
+      if (searchVal) params.append('search', searchVal);
+      if (phoneVal) params.append('phone', phoneVal);
+      if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
 
-      const response = await axios.get(`${url}${params.toString()}`, {
+      const currentOffset = reset ? 0 : offset;
+      params.append('limit', LEADS_PER_PAGE.toString());
+      params.append('offset', currentOffset.toString());
+
+      const response = await axios.get(`${API_BASE_URL}/api/leads?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Sort leads alphabetically by name
-      const leadsData = response.data || [];
-      const sortedLeads = leadsData.sort((a, b) => {
+
+      const { leads: leadsData, totalCount: serverTotal } = response.data;
+
+      // Sort the new batch
+      const sortedNewLeads = (leadsData || []).sort((a, b) => {
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
         return nameA.localeCompare(nameB);
       });
-      setLeads(sortedLeads);
+
+      if (reset) {
+        setLeads(sortedNewLeads);
+      } else {
+        setLeads(prev => [...prev, ...sortedNewLeads]);
+      }
+
+      setTotalCount(serverTotal || 0);
     } catch (error) {
       console.error('Error fetching leads:', error);
       if (error.response?.status === 401) {
@@ -128,6 +152,53 @@ const Leads = () => {
       }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const loadMoreLeads = () => {
+    const nextOffset = offset + LEADS_PER_PAGE;
+    setOffset(nextOffset);
+    // Use the nextOffset directly since state updates are async
+    fetchLeadsByOffset(nextOffset);
+  };
+
+  const fetchLeadsByOffset = async (newOffset) => {
+    try {
+      setLoadingMore(true);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      const searchVal = searchParams.get('search');
+      const phoneVal = searchParams.get('phone');
+      const statusVal = searchParams.get('status');
+      const assigned_staff_id = searchParams.get('assigned_staff_id');
+
+      if (searchVal) params.append('search', searchVal);
+      if (phoneVal) params.append('phone', phoneVal);
+      if (statusVal) params.append('status', statusVal);
+      if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
+
+      params.append('limit', LEADS_PER_PAGE.toString());
+      params.append('offset', newOffset.toString());
+
+      const response = await axios.get(`${API_BASE_URL}/api/leads?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const { leads: leadsData, totalCount: serverTotal } = response.data;
+      const sortedNewLeads = (leadsData || []).sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
+
+      setLeads(prev => {
+        // Avoid duplicates if user clicks twice fast
+        const existingIds = new Set(prev.map(l => l.id));
+        const filteredNew = sortedNewLeads.filter(l => !existingIds.has(l.id));
+        return [...prev, ...filteredNew];
+      });
+      setTotalCount(serverTotal || 0);
+    } catch (error) {
+      console.error('Error loading more:', error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -556,7 +627,7 @@ const Leads = () => {
               </button>
             )}
             <div style={{ marginLeft: 'auto', fontSize: '13px', color: '#6b7280', fontWeight: 500, backgroundColor: '#f3f4f6', padding: '4px 10px', borderRadius: '15px' }}>
-              Showing {leads.length} leads
+              Showing {leads.length} of {totalCount} leads
             </div>
           </div>
         </div>
@@ -1313,6 +1384,46 @@ const Leads = () => {
               ))}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination / Load More UI */}
+        {leads.length > 0 && leads.length < totalCount && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0', borderTop: '1px solid #eef2f7' }}>
+            <button
+              className="btn-load-more"
+              onClick={loadMoreLeads}
+              disabled={loadingMore}
+              style={{
+                padding: '12px 30px',
+                backgroundColor: '#fff',
+                border: '2px solid #3b82f6',
+                color: '#3b82f6',
+                borderRadius: '8px',
+                fontWeight: 600,
+                fontSize: '15px',
+                cursor: loadingMore ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 4px rgba(59, 130, 246, 0.1)'
+              }}
+              onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
+              onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#fff'; }}
+            >
+              {loadingMore ? (
+                <>
+                  <div className="loading-spinner-small" style={{ width: '16px', height: '16px', border: '2px solid #3b82f6', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                  Loading next batch...
+                </>
+              ) : (
+                <>
+                  <span>Load More Leads</span>
+                  <span style={{ fontSize: '12px', opacity: 0.8 }}>({totalCount - leads.length} remaining)</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
 

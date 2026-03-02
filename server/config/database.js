@@ -252,7 +252,8 @@ const database = {
       comment, follow_up_date, follow_up_status, ielts_score,
       assigned_staff_id, created_by, created_at, updated_at,
       deleted_at, deleted_by,
-      (excel_row_data IS NOT NULL) AS has_excel_data
+      (excel_row_data IS NOT NULL) AS has_excel_data,
+      COUNT(*) OVER() AS full_count
     `;
     let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE 1=1 AND deleted_at IS NULL`;
     const params = [];
@@ -290,8 +291,8 @@ const database = {
 
     queryText += ' ORDER BY updated_at DESC, created_at DESC';
 
-    // Pagination: default 5000 per page to show all leads while maintaining speed
-    const limit = filter.limit !== undefined ? Number(filter.limit) : 5000;
+    // Pagination: default 200 per page to keep the initial load smooth and responsive
+    const limit = filter.limit !== undefined ? Number(filter.limit) : 200;
     const offset = filter.offset !== undefined ? Number(filter.offset) : 0;
     if (limit > 0) {
       queryText += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
