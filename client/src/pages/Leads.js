@@ -310,19 +310,22 @@ const Leads = () => {
   const handleBulkDelete = async () => {
     if (selectedLeadIds.length === 0) return;
 
-    if (window.confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected lead(s)? This action cannot be undone.`)) {
+    if (window.confirm(`Move ${selectedLeadIds.length} selected lead(s) to the Recycle Bin? You can restore them from 'Recently Deleted'.`)) {
       try {
         setBulkAssignLoading(true);
-        const response = await axios.post(`${API_BASE_URL}/api/leads/bulk-delete`, {
-          leadIds: selectedLeadIds
-        });
+        const token = localStorage.getItem('token');
+        const response = await axios.post(
+          `${API_BASE_URL}/api/leads/bulk-delete`,
+          { leadIds: selectedLeadIds },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
 
         setSelectedLeadIds([]);
         fetchLeads();
-        alert(`Successfully deleted ${selectedLeadIds.length} leads`);
+        alert(`🗑 ${response.data.deletedCount || selectedLeadIds.length} lead(s) moved to Recycle Bin. Admins can restore them.`);
       } catch (error) {
         console.error('Bulk delete error:', error);
-        alert('Failed to delete some leads. You might not have permission.');
+        alert(error.response?.data?.error || 'Failed to delete leads. You might not have permission.');
         fetchLeads();
       } finally {
         setBulkAssignLoading(false);
