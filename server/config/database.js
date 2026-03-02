@@ -243,7 +243,7 @@ const database = {
 
   // Leads
   getLeads: async (filter = {}) => {
-    let queryText = 'SELECT *, (excel_row_data IS NOT NULL) AS has_excel_data FROM leads WHERE 1=1';
+    let queryText = 'SELECT *, (excel_row_data IS NOT NULL) AS has_excel_data FROM leads WHERE 1=1 AND deleted_at IS NULL';
     const params = [];
     let paramIndex = 1;
 
@@ -368,8 +368,47 @@ const database = {
   },
 
   deleteLead: async (id) => {
+    // Legacy hard delete — prefer softDeleteLead for normal flows
     const result = await query('DELETE FROM leads WHERE id = $1', [Number(id)]);
     return result.rowCount > 0;
+  },
+
+  // Soft-delete: move to trash (recoverable)
+  softDeleteLead: async (id, deletedByUserId) => {
+    const result = await query(
+      'UPDATE leads SET deleted_at = NOW(), deleted_by = $2 WHERE id = $1 AND deleted_at IS NULL',
+      [Number(id), deletedByUserId || null]
+    );
+    return result.rowCount > 0;
+  },
+
+  // Restore a soft-deleted lead back to the main list
+  restoreLead: async (id) => {
+    const result = await query(
+      'UPDATE leads SET deleted_at = NULL, deleted_by = NULL WHERE id = $1',
+      [Number(id)]
+    );
+    return result.rowCount > 0;
+  },
+
+  // Hard-delete a lead that is already in the trash
+  hardDeleteLead: async (id) => {
+    const result = await query('DELETE FROM leads WHERE id = $1', [Number(id)]);
+    return result.rowCount > 0;
+  },
+
+  // Fetch trashed leads — latest deleted first
+  getTrashedLeads: async () => {
+    const result = await query(`
+      SELECT l.*,
+             (excel_row_data IS NOT NULL) AS has_excel_data,
+             u.name AS deleted_by_name
+        FROM leads l
+        LEFT JOIN users u ON u.id = l.deleted_by
+       WHERE l.deleted_at IS NOT NULL
+       ORDER BY l.deleted_at DESC
+    `);
+    return result.rows;
   },
 
   // Comments

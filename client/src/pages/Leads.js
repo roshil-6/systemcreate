@@ -37,6 +37,12 @@ const Leads = () => {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [importHistory, setImportHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Trash / Recycle Bin
+  const [showTrashModal, setShowTrashModal] = useState(false);
+  const [trashLeads, setTrashLeads] = useState([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [selectedTrashIds, setSelectedTrashIds] = useState([]);
+  const [trashActionLoading, setTrashActionLoading] = useState(false);
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || '';
@@ -411,6 +417,60 @@ const Leads = () => {
     }
   };
 
+  const fetchTrashLeads = async () => {
+    try {
+      setTrashLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/leads/trash`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTrashLeads(response.data || []);
+      setSelectedTrashIds([]);
+    } catch (error) {
+      console.error('Error fetching trash:', error);
+      setTrashLeads([]);
+    } finally {
+      setTrashLoading(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (selectedTrashIds.length === 0) return;
+    if (!window.confirm(`Restore ${selectedTrashIds.length} lead(s) back to the main list?`)) return;
+    try {
+      setTrashActionLoading(true);
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_BASE_URL}/api/leads/restore`, { leadIds: selectedTrashIds }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(`✅ ${selectedTrashIds.length} lead(s) restored successfully!`);
+      fetchTrashLeads();
+      fetchLeads();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Error restoring leads');
+    } finally {
+      setTrashActionLoading(false);
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (selectedTrashIds.length === 0) return;
+    if (!window.confirm(`⚠️ PERMANENTLY delete ${selectedTrashIds.length} lead(s)? This CANNOT be undone!`)) return;
+    try {
+      setTrashActionLoading(true);
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_BASE_URL}/api/leads/permanent-delete`, { leadIds: selectedTrashIds }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert(`🔥 ${selectedTrashIds.length} lead(s) permanently deleted.`);
+      fetchTrashLeads();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Error deleting leads');
+    } finally {
+      setTrashActionLoading(false);
+    }
+  };
+
   const statusOptions = ['Unassigned', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
 
   const getStatusColor = (status) => {
@@ -483,6 +543,15 @@ const Leads = () => {
             >
               <FiClock /> Import History
             </button>
+            {isAdmin && (
+              <button
+                className="header-trash-btn"
+                onClick={() => { setShowTrashModal(true); fetchTrashLeads(); }}
+                title="View recently deleted leads"
+              >
+                <FiTrash2 /> Recently Deleted
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -831,6 +900,134 @@ const Leads = () => {
         </div>
       )}
 
+      {/* Trash / Recycle Bin Modal */}
+      {showTrashModal && (
+        <div className="modal-overlay" onClick={() => !trashActionLoading && setShowTrashModal(false)}>
+          <div className="modal-content trash-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1000px', width: '96%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <FiTrash2 style={{ color: '#ef4444' }} /> Recently Deleted Leads
+                </h2>
+                <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#6b7280' }}>
+                  Leads are shown latest deleted first. Restore or permanently delete them.
+                </p>
+              </div>
+              <button onClick={() => setShowTrashModal(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#6b7280' }}>&times;</button>
+            </div>
+
+            {/* Trash Action Bar */}
+            {selectedTrashIds.length > 0 && (
+              <div className="trash-action-bar">
+                <span className="trash-selection-count">{selectedTrashIds.length} lead{selectedTrashIds.length !== 1 ? 's' : ''} selected</span>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    className="trash-btn-restore"
+                    onClick={handleRestore}
+                    disabled={trashActionLoading}
+                  >
+                    &#x267B; {trashActionLoading ? 'Working...' : 'Restore Selected'}
+                  </button>
+                  <button
+                    className="trash-btn-permanent"
+                    onClick={handlePermanentDelete}
+                    disabled={trashActionLoading}
+                  >
+                    &#x1F525; {trashActionLoading ? 'Working...' : 'Delete Permanently'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {trashLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#6b7280' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>&#x1F5D1;</div>
+                Loading deleted leads...
+              </div>
+            ) : trashLeads.length === 0 ? (
+              <div className="trash-empty-state">
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>&#x1F389;</div>
+                <div style={{ fontWeight: 600, fontSize: '18px', marginBottom: '6px' }}>Recycle Bin is Empty</div>
+                <div style={{ color: '#9ca3af', fontSize: '14px' }}>No leads have been deleted recently.</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="trash-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedTrashIds.length === trashLeads.length && trashLeads.length > 0}
+                          onChange={() => {
+                            if (selectedTrashIds.length === trashLeads.length) {
+                              setSelectedTrashIds([]);
+                            } else {
+                              setSelectedTrashIds(trashLeads.map(l => l.id));
+                            }
+                          }}
+                        />
+                      </th>
+                      <th>Name</th>
+                      <th>Phone</th>
+                      <th>Status</th>
+                      <th>Assigned To</th>
+                      <th style={{ minWidth: '140px' }}>Deleted At</th>
+                      <th>Deleted By</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trashLeads.map((lead) => (
+                      <tr key={lead.id} className={selectedTrashIds.includes(lead.id) ? 'trash-row-selected' : ''}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedTrashIds.includes(lead.id)}
+                            onChange={() => {
+                              setSelectedTrashIds(prev =>
+                                prev.includes(lead.id) ? prev.filter(id => id !== lead.id) : [...prev, lead.id]
+                              );
+                            }}
+                          />
+                        </td>
+                        <td style={{ fontWeight: 500 }}>{lead.name}</td>
+                        <td style={{ color: '#6b7280', fontSize: '13px' }}>
+                          {lead.phone_country_code} {lead.phone_number}
+                        </td>
+                        <td>
+                          <span className="status-badge" style={{
+                            backgroundColor: getStatusColor(lead.status),
+                            color: getStatusTextColor(lead.status),
+                            border: `1px solid ${getStatusTextColor(lead.status)}`,
+                            fontWeight: 500, fontSize: '12px',
+                          }}>
+                            {lead.status}
+                          </span>
+                        </td>
+                        <td style={{ color: '#8B6914', fontWeight: lead.assigned_staff_name ? 600 : 400 }}>
+                          {lead.assigned_staff_name || <span style={{ color: '#9ca3af' }}>Unassigned</span>}
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#6b7280' }}>
+                          <div>{new Date(lead.deleted_at).toLocaleDateString()}</div>
+                          <div style={{ fontSize: '11px' }}>{new Date(lead.deleted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </td>
+                        <td style={{ fontSize: '13px', color: '#374151' }}>{lead.deleted_by_name || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
+              <button className="btn-secondary" onClick={() => setShowTrashModal(false)} style={{ padding: '8px 20px' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lead Details Modal */}
 
 
@@ -1113,51 +1310,51 @@ const Leads = () => {
         )}
       </div>
 
-    {/* Excel Details Modal */}
-    {excelModal.open && (
-      <div className="excel-modal-overlay" onClick={() => setExcelModal({ open: false, data: null, loading: false, leadName: '' })}>
-        <div className="excel-modal" onClick={e => e.stopPropagation()}>
-          <div className="excel-modal-header">
-            <div>
-              <h2><FiGrid /> Original Excel Data</h2>
-              <p className="excel-modal-subtitle">{excelModal.leadName}</p>
+      {/* Excel Details Modal */}
+      {excelModal.open && (
+        <div className="excel-modal-overlay" onClick={() => setExcelModal({ open: false, data: null, loading: false, leadName: '' })}>
+          <div className="excel-modal" onClick={e => e.stopPropagation()}>
+            <div className="excel-modal-header">
+              <div>
+                <h2><FiGrid /> Original Excel Data</h2>
+                <p className="excel-modal-subtitle">{excelModal.leadName}</p>
+              </div>
+              <button className="excel-modal-close" onClick={() => setExcelModal({ open: false, data: null, loading: false, leadName: '' })}>
+                <FiX />
+              </button>
             </div>
-            <button className="excel-modal-close" onClick={() => setExcelModal({ open: false, data: null, loading: false, leadName: '' })}>
-              <FiX />
-            </button>
-          </div>
-          <div className="excel-modal-body">
-            {excelModal.loading && (
-              <div className="excel-modal-loading">Loading Excel data...</div>
-            )}
-            {!excelModal.loading && !excelModal.data && (
-              <div className="excel-modal-empty">No Excel data found for this lead.</div>
-            )}
-            {!excelModal.loading && excelModal.data && (
-              <table className="excel-data-table">
-                <thead>
-                  <tr>
-                    <th>Column</th>
-                    <th>Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(excelModal.data)
-                    .filter(([, val]) => val !== '' && val !== null && val !== undefined)
-                    .map(([key, val]) => (
-                      <tr key={key}>
-                        <td className="excel-col-name">{key}</td>
-                        <td className="excel-col-value">{String(val)}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            )}
+            <div className="excel-modal-body">
+              {excelModal.loading && (
+                <div className="excel-modal-loading">Loading Excel data...</div>
+              )}
+              {!excelModal.loading && !excelModal.data && (
+                <div className="excel-modal-empty">No Excel data found for this lead.</div>
+              )}
+              {!excelModal.loading && excelModal.data && (
+                <table className="excel-data-table">
+                  <thead>
+                    <tr>
+                      <th>Column</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(excelModal.data)
+                      .filter(([, val]) => val !== '' && val !== null && val !== undefined)
+                      .map(([key, val]) => (
+                        <tr key={key}>
+                          <td className="excel-col-name">{key}</td>
+                          <td className="excel-col-value">{String(val)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    )}
-  </div>
+      )}
+    </div>
   );
 };
 

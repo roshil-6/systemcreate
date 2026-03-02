@@ -1366,6 +1366,9 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
       console.log(`📋 Raw Headers: [${headerValues.join(' | ')}]`);
       results.total += dataRows.length;
 
+      // Track phones seen in THIS import file to catch within-file duplicates
+      const seenInThisImport = new Set();
+
       const colIdx = {};
       Object.keys(columnMapping).forEach(f => colIdx[f] = -1);
       const usedIndices = new Set();
@@ -1463,6 +1466,13 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             continue;
           }
 
+          // Check for within-file duplicate email
+          if (email && seenInThisImport.has('email:' + email)) {
+            results.skipped++;
+            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Duplicate email in file: ${email}` });
+            continue;
+          }
+
           phone = '';
           secPhone = '';
 
@@ -1494,6 +1504,16 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             results.skipped++;
             if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Phone(s) ${rowCandidates.join(', ')} already in CRM` });
             continue;
+          }
+
+          // Within-file phone duplicate check (after phone is resolved)
+          if (phone) {
+            const normalizedPhone = phone.replace(/\D/g, '');
+            if (seenInThisImport.has('phone:' + normalizedPhone)) {
+              results.skipped++;
+              if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Duplicate phone in file: ${phone}` });
+              continue;
+            }
           }
 
           // If phone is missing but row is otherwise valid, it's allowed (nullable)
@@ -1577,9 +1597,20 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           const fileComment = g(colIdx.comment);
 
           // ADD TO SETS TO PREVENT INTRA-CSV DUPLICATES
-          if (email) existingEmails.add(email);
-          if (phone) existingPhones.add(phone.replace(/\D/g, ''));
-          if (secPhone) existingPhones.add(secPhone.replace(/\D/g, ''));
+          if (email) {
+            existingEmails.add(email);
+            seenInThisImport.add('email:' + email);
+          }
+          if (phone) {
+            const normalizedPhone = phone.replace(/\D/g, '');
+            existingPhones.add(normalizedPhone);
+            seenInThisImport.add('phone:' + normalizedPhone);
+          }
+          if (secPhone) {
+            const normalizedSec = secPhone.replace(/\D/g, '');
+            existingPhones.add(normalizedSec);
+            seenInThisImport.add('phone:' + normalizedSec);
+          }
 
           // Build raw Excel row as key-value object for all original columns
           const excelRowData = {};
@@ -1690,7 +1721,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
 
 
 
-// Bulk delete leads
+// Bulk delete leads (soft delete — moves to Recycle Bin)
 router.post('/bulk-delete', authenticate, async (req, res) => {
   const client = await db.pool.connect();
   try {
@@ -1702,23 +1733,99 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'No lead IDs provided' });
     }
 
+    // Non-admins can only soft-delete leads assigned to them
     await client.query('BEGIN');
-    let queryText = 'DELETE FROM leads WHERE id = ANY($1)';
-    const queryParams = [leadIds];
-
-    const result = await client.query(queryText, queryParams);
-
+    const result = await client.query(
+      'UPDATE leads SET deleted_at = NOW(), deleted_by = $2 WHERE id = ANY($1) AND deleted_at IS NULL',
+      [leadIds, userId]
+    );
     await client.query('COMMIT');
 
-    console.log(`✅ Bulk deleted ${result.rowCount} leads by user ${userId}`);
+    console.log(`✅ Soft-deleted ${result.rowCount} leads by user ${userId}`);
     res.json({ success: true, deletedCount: result.rowCount });
 
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('❌ Bulk delete error:', error);
+    console.error('❌ Bulk soft-delete error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });
   } finally {
     client.release();
+  }
+});
+
+// GET /api/leads/trash — Fetch recently deleted leads (latest first)
+router.get('/trash', authenticate, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can access the recycle bin' });
+    }
+    const trashedLeads = await db.getTrashedLeads();
+
+    // Attach assigned staff names
+    const allUsers = await db.getUsers();
+    const userMap = {};
+    allUsers.forEach(u => { userMap[u.id] = u.name; });
+
+    const leads = trashedLeads.map(l => ({
+      ...l,
+      assigned_staff_name: l.assigned_staff_id ? (userMap[l.assigned_staff_id] || null) : null,
+    }));
+
+    res.json(leads);
+  } catch (error) {
+    console.error('Trash fetch error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+// POST /api/leads/restore — Restore selected leads from trash
+router.post('/restore', authenticate, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can restore leads' });
+    }
+    const { leadIds } = req.body;
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+
+    const result = await db.query(
+      'UPDATE leads SET deleted_at = NULL, deleted_by = NULL WHERE id = ANY($1)',
+      [leadIds]
+    );
+
+    res.json({ success: true, restoredCount: result.rowCount });
+  } catch (error) {
+    console.error('Restore error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
+// POST /api/leads/permanent-delete — Permanently destroy leads (must be in trash first)
+router.post('/permanent-delete', authenticate, async (req, res) => {
+  try {
+    const role = req.user.role;
+    if (role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Only admins can permanently delete leads' });
+    }
+    const { leadIds } = req.body;
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'No lead IDs provided' });
+    }
+
+    // Only delete leads that are already soft-deleted (in trash)
+    const result = await db.query(
+      'DELETE FROM leads WHERE id = ANY($1) AND deleted_at IS NOT NULL',
+      [leadIds]
+    );
+
+    console.log(`🔥 Permanently deleted ${result.rowCount} leads`);
+    res.json({ success: true, deletedCount: result.rowCount });
+  } catch (error) {
+    console.error('Permanent delete error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
 
