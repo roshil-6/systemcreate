@@ -243,7 +243,18 @@ const database = {
 
   // Leads
   getLeads: async (filter = {}) => {
-    let queryText = 'SELECT *, (excel_row_data IS NOT NULL) AS has_excel_data FROM leads WHERE 1=1 AND deleted_at IS NULL';
+    // Explicit column list — intentionally excludes excel_row_data (large JSON blob)
+    // excel_row_data is only fetched on demand via GET /:id/excel-details
+    const SELECT_COLS = `
+      id, name, phone_country_code, phone_number, whatsapp_country_code, whatsapp_number,
+      secondary_phone_number, email, age, occupation, qualification, year_of_experience,
+      country, target_country, residing_country, program, status, priority, source,
+      comment, follow_up_date, follow_up_status, ielts_score,
+      assigned_staff_id, created_by, created_at, updated_at,
+      deleted_at, deleted_by,
+      (excel_row_data IS NOT NULL) AS has_excel_data
+    `;
+    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE 1=1 AND deleted_at IS NULL`;
     const params = [];
     let paramIndex = 1;
 
@@ -268,19 +279,24 @@ const database = {
     }
     if (filter.search) {
       queryText += ` AND (name ILIKE $${paramIndex} OR phone_number ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
-      const searchTerm = `%${filter.search}%`;
-      params.push(searchTerm);
+      params.push(`%${filter.search}%`);
       paramIndex += 1;
     }
-
     if (filter.phone) {
       queryText += ` AND (phone_number ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
-      const phoneTerm = `%${filter.phone}%`;
-      params.push(phoneTerm);
+      params.push(`%${filter.phone}%`);
       paramIndex += 1;
     }
 
     queryText += ' ORDER BY updated_at DESC, created_at DESC';
+
+    // Pagination: default 200 per page to keep responses fast
+    const limit = filter.limit !== undefined ? Number(filter.limit) : 200;
+    const offset = filter.offset !== undefined ? Number(filter.offset) : 0;
+    if (limit > 0) {
+      queryText += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+      params.push(limit, offset);
+    }
 
     const result = await query(queryText, params);
     return result.rows;
