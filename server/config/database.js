@@ -415,10 +415,19 @@ const database = {
 
   // Fetch trashed leads — latest deleted first
   getTrashedLeads: async () => {
+    // Exclude large excel_row_data blob for performance
+    const SELECT_COLS = `
+      l.id, l.name, l.phone_country_code, l.phone_number, l.whatsapp_country_code, l.whatsapp_number,
+      l.secondary_phone_number, l.email, l.age, l.occupation, l.qualification, l.year_of_experience,
+      l.country, l.target_country, l.residing_country, l.program, l.status, l.priority, l.source,
+      l.comment, l.follow_up_date, l.follow_up_status, l.ielts_score,
+      l.assigned_staff_id, l.created_by, l.created_at, l.updated_at,
+      l.deleted_at, l.deleted_by,
+      (l.excel_row_data IS NOT NULL) AS has_excel_data,
+      u.name AS deleted_by_name
+    `;
     const result = await query(`
-      SELECT l.*,
-             (excel_row_data IS NOT NULL) AS has_excel_data,
-             u.name AS deleted_by_name
+      SELECT ${SELECT_COLS}
         FROM leads l
         LEFT JOIN users u ON u.id = l.deleted_by
        WHERE l.deleted_at IS NOT NULL

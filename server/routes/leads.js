@@ -2111,8 +2111,9 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
   }
 });
 
-// Delete a lead
+// Delete a lead (Soft delete — moves to Recycle Bin)
 router.delete('/:id', authenticate, async (req, res) => {
+  const client = await db.pool.connect();
   try {
     const userId = req.user.id;
     const role = req.user.role;
@@ -2149,16 +2150,26 @@ router.delete('/:id', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to delete this lead' });
     }
 
-    const success = await db.deleteLead(leadId);
-    if (success) {
-      res.json({ message: 'Lead deleted successfully' });
+    // Perform soft delete
+    await client.query('BEGIN');
+    const result = await client.query(
+      'UPDATE leads SET deleted_at = NOW(), deleted_by = $2 WHERE id = $1 AND deleted_at IS NULL',
+      [leadId, userId]
+    );
+    await client.query('COMMIT');
+
+    if (result.rowCount > 0) {
+      res.json({ message: 'Lead moved to Recycle Bin successfully', softDeleted: true });
     } else {
-      res.status(500).json({ error: 'Failed to delete lead' });
+      res.status(500).json({ error: 'Failed to delete lead or lead already deleted' });
     }
 
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('❌ Delete lead error:', error);
     res.status(500).json({ error: 'Server error' });
+  } finally {
+    client.release();
   }
 });
 

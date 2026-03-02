@@ -1236,17 +1236,17 @@ const Leads = () => {
                           className="btn-delete"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Are you sure you want to delete lead: ${lead.name}?`)) {
+                            if (window.confirm(`Move lead "${lead.name}" to the Recycle Bin? You can restore it from 'Recently Deleted'.`)) {
                               axios.delete(`${API_BASE_URL}/api/leads/${lead.id}`, {
                                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                               })
                                 .then(() => {
                                   fetchLeads();
-                                  alert('Lead deleted successfully');
+                                  alert('Lead moved to Recycle Bin successfully');
                                 })
                                 .catch(error => {
                                   console.error('Delete error:', error);
-                                  alert('Failed to delete lead');
+                                  alert(error.response?.data?.error || 'Failed to delete lead');
                                 });
                             }
                           }}
