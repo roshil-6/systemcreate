@@ -1834,7 +1834,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search } = req.query;
+    const { status, search, phone } = req.query;
 
     const filter = {};
 
@@ -1877,12 +1877,22 @@ router.get('/export/csv', authenticate, async (req, res) => {
       );
     }
 
-    // Add assigned staff name
-    const leadsWithNames = await Promise.all(leads.map(async lead => ({
+    // OPTIMIZATION: Fetch all users once and create a lookup map
+    let userMap = {};
+    try {
+      const allUsers = await db.getUsers();
+      allUsers.forEach(u => {
+        userMap[u.id] = u.name;
+      });
+    } catch (error) {
+      console.error('Optimization warning: Failed to fetch users for lookup, falling back to null names', error);
+    }
+
+    // Add assigned staff name using the lookup map
+    leads = leads.map(lead => ({
       ...lead,
-      assigned_staff_name: lead.assigned_staff_id ? await db.getUserName(lead.assigned_staff_id) : 'Unassigned',
-    })));
-    leads = leadsWithNames;
+      assigned_staff_name: lead.assigned_staff_id ? (userMap[lead.assigned_staff_id] || 'Unassigned') : 'Unassigned',
+    }));
 
     // Convert to CSV
     const headers = [
