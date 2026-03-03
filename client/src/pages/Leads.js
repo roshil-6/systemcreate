@@ -89,6 +89,7 @@ const Leads = () => {
           setLeads(state.leads);
           setOffset(state.offset);
           setTotalCount(state.totalCount);
+          setLoading(false); // Stop the spinner since we successfully restored data
           restored = true;
 
           // Restore scroll position after a slight delay to allow rendering

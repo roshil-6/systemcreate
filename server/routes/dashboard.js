@@ -418,8 +418,9 @@ router.get('/', authenticate, async (req, res) => {
       metrics.leadsByStatus = metrics.leadsByStatus || {};
       metrics.leadsByStatus['Registration Completed'] = metrics.leadsByStatus['Registration Completed'] || 0;
 
-      // Get clients for restricted view
-      const restrictedClients = await db.getClients() || [];
+      // Get clients for restricted view (strictly filtered for this Staff Member)
+      const allClientsReq = await db.getClients() || [];
+      const restrictedClients = allClientsReq.filter(c => Number(c.assigned_staff_id) === Number(userId));
 
       // Get Sneha and Kripa user IDs dynamically
       let snehaUserId = null;
