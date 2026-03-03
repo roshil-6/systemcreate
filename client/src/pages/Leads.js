@@ -78,9 +78,14 @@ const Leads = () => {
     if (cachedState) {
       try {
         const state = JSON.parse(cachedState);
+        // Add a timestamp check so we don't use state older than 5 minutes
+        const isRecent = state.timestamp && (Date.now() - state.timestamp < 5 * 60 * 1000);
+
         // Only restore if the filters match the URL filters to avoid stale data on new searches
-        if (state.search === search && state.statusFilter === statusFilter &&
-          state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter) {
+        if (isRecent && state.search === search && state.statusFilter === statusFilter &&
+          state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter &&
+          state.viewType === viewType) {
+
           setLeads(state.leads);
           setOffset(state.offset);
           setTotalCount(state.totalCount);
@@ -97,6 +102,8 @@ const Leads = () => {
     }
 
     if (!restored) {
+      // Clear invalid cache
+      sessionStorage.removeItem('leadsPageState');
       setOffset(0);
       fetchLeads(true);
     }
@@ -104,7 +111,7 @@ const Leads = () => {
 
   // Save state before leaving the page
   useEffect(() => {
-    const handleScroll = () => {
+    const saveState = () => {
       if (leads.length > 0) {
         sessionStorage.setItem('leadsPageState', JSON.stringify({
           leads,
@@ -115,28 +122,21 @@ const Leads = () => {
           phoneSearch,
           assignedStaffFilter,
           viewType,
-          scrollPosition: window.scrollY
+          scrollPosition: window.scrollY,
+          timestamp: Date.now()
         }));
       }
+    };
+
+    const handleScroll = () => {
+      saveState();
     };
 
     window.addEventListener('scroll', handleScroll);
     // Also save on unmount or before unload
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      if (leads.length > 0) {
-        sessionStorage.setItem('leadsPageState', JSON.stringify({
-          leads,
-          offset,
-          totalCount,
-          search,
-          statusFilter,
-          phoneSearch,
-          assignedStaffFilter,
-          viewType,
-          scrollPosition: window.scrollY
-        }));
-      }
+      saveState();
     };
   }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType]);
 
