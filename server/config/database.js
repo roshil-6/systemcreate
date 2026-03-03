@@ -296,18 +296,11 @@ const database = {
       whereConditions += ` AND EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id)`;
     }
 
-    // Get Total Count separately before applying ORDER BY and LIMIT
-    // This avoids the massive performance penalty of COUNT(*) OVER() with sorting
-    const countResult = await query(`SELECT COUNT(*) FROM leads WHERE ${whereConditions}`, params);
-    const fullCount = parseInt(countResult.rows[0].count);
-
-    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions}`;
-
     // Sort by newest leads first (latest assignment/creation)
-    queryText += ' ORDER BY created_at DESC, updated_at DESC';
+    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions} ORDER BY created_at DESC, updated_at DESC`;
 
-    // Pagination: default 200 per page to keep the initial load smooth and responsive
-    const limit = filter.limit !== undefined ? Number(filter.limit) : 200;
+    // Pagination: default 50 per page to keep the initial load smooth and responsive
+    const limit = filter.limit !== undefined ? Number(filter.limit) : 50;
     const offset = filter.offset !== undefined ? Number(filter.offset) : 0;
 
     // Ensure we don't apply pagination when searching for a specific id
@@ -316,7 +309,16 @@ const database = {
       params.push(limit, offset);
     }
 
-    const result = await query(queryText, params);
+    // Parallelize the queries to avoid sequential database network round-trip delays on Vercel
+    // We slice the parameters for the count query if limit/offset were added
+    const countParams = filter.id === undefined && limit > 0 ? params.slice(0, -2) : params;
+
+    const [countResult, result] = await Promise.all([
+      query(`SELECT COUNT(*) FROM leads WHERE ${whereConditions}`, countParams),
+      query(queryText, params)
+    ]);
+
+    const fullCount = parseInt(countResult.rows[0].count);
 
     // Add full_count to each row for backwards compatibility with existing API routes
     result.rows.forEach(row => row.full_count = fullCount);

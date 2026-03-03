@@ -48,7 +48,7 @@ const Leads = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const LEADS_PER_PAGE = 200;
+  const LEADS_PER_PAGE = 50;
 
   useEffect(() => {
     const urlSearch = searchParams.get('search') || '';
