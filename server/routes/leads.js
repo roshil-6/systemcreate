@@ -70,17 +70,11 @@ router.get('/', authenticate, async (req, res) => {
 
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
-    if (role === 'ADMIN') {
-      accessibleUserIds = null;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      accessibleUserIds = [userId, ...teamMembers.map(u => u.id)];
-    } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
-      accessibleUserIds = [userId];
-    } else if (role === 'STAFF') {
+    if (role === 'SALES_TEAM') {
       accessibleUserIds = [userId];
     } else {
-      accessibleUserIds = [userId];
+      // ADMIN, SALES_TEAM_HEAD, STAFF, PROCESSING see everyone
+      accessibleUserIds = null;
     }
 
     if (accessibleUserIds && accessibleUserIds.length > 1) {
@@ -637,17 +631,11 @@ router.get('/export/csv', authenticate, async (req, res) => {
 
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
-    if (role === 'ADMIN') {
-      accessibleUserIds = null;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      accessibleUserIds = [userId, ...teamMembers.map(u => u.id)];
-    } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
-      accessibleUserIds = [userId];
-    } else if (role === 'STAFF') {
+    if (role === 'SALES_TEAM') {
       accessibleUserIds = [userId];
     } else {
-      accessibleUserIds = [userId];
+      // ADMIN, SALES_TEAM_HEAD, STAFF, PROCESSING see everyone
+      accessibleUserIds = null;
     }
 
     if (accessibleUserIds && accessibleUserIds.length === 1) {
@@ -833,23 +821,10 @@ router.get('/:id', authenticate, async (req, res) => {
     const filter = { id: leadId };
 
     // CRITICAL: Non-admin roles can only see their own leads (or team leads for heads)
-    if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
+    if (role === 'SALES_TEAM') {
       filter.assigned_staff_id = userId;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      // Sales team head can see their own and their team's leads
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      // We'll filter after fetching
     }
-
-    let leads = await db.getLeads(filter);
-
-    // Apply team head filtering if needed
-    if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
-    }
+    // ADMIN, SALES_TEAM_HEAD, STAFF, PROCESSING see all leads, no extra filter needed.
 
     // CRITICAL: Filter out "Registration Completed" leads - they are now clients
     leads = leads.filter(lead => lead.status !== 'Registration Completed');
@@ -923,18 +898,10 @@ router.post(
 
       // CRITICAL: Non-admin roles can only assign leads to themselves (or their team for heads)
       let finalAssignedStaffId = assigned_staff_id;
-      if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
+      if (role === 'SALES_TEAM') {
         finalAssignedStaffId = userId;
-      } else if (role === 'SALES_TEAM_HEAD') {
-        // Sales team head can assign to themselves or their team members
-        if (assigned_staff_id && assigned_staff_id !== userId) {
-          const teamMembers = await db.getUsers({ managed_by: userId, id: assigned_staff_id });
-          if (teamMembers.length === 0) {
-            return res.status(400).json({ error: 'Can only assign to yourself or your team members' });
-          }
-        } else {
-          finalAssignedStaffId = userId;
-        }
+      } else if (role === 'SALES_TEAM_HEAD' || role === 'STAFF' || role === 'PROCESSING') {
+        // Now allowed to assign based on the regular flow or leave as is.
       } else if (role === 'ADMIN') {
         // ADMIN can assign to any staff or leave null
         if (assigned_staff_id) {
@@ -1026,21 +993,11 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     // Check if user has access to this lead
-    if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
+    if (role === 'SALES_TEAM') {
       const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
       // Allow update if assigned to self OR if unassigned (claiming)
       if (leadOwnerId !== userId && leadOwnerId !== null) {
         return res.status(403).json({ error: 'You can only update leads assigned to you' });
-      }
-    } else if (role === 'SALES_TEAM_HEAD') {
-      // Sales team head can update their own and their team's leads
-      const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
-      if (leadOwnerId !== userId) {
-        const teamMembers = await db.getUsers({ managed_by: userId });
-        const teamMemberIds = teamMembers.map(u => u.id);
-        if (!leadOwnerId || !teamMemberIds.includes(leadOwnerId)) {
-          return res.status(403).json({ error: 'You can only update leads assigned to you or your team' });
-        }
       }
     }
 
@@ -1120,8 +1077,8 @@ router.put('/:id', authenticate, async (req, res) => {
 
           // Case 1: Lead is currently Unassigned - Allow claiming
           if (leadOwnerId === null) {
-            // Staff/Sales can only claim to themselves
-            if (role !== 'SALES_TEAM_HEAD' && normalizedStaffId !== userId) {
+            // Sales can only claim to themselves
+            if (role === 'SALES_TEAM' && normalizedStaffId !== userId) {
               return res.status(403).json({ error: 'You can only claim leads for yourself' });
             }
             // Sales Head can claim for self or team (checked below in team logic, or implicitly allowed if target is self)
@@ -1150,8 +1107,8 @@ router.put('/:id', authenticate, async (req, res) => {
                   return res.status(400).json({ error: 'Can only transfer to yourself or your team members' });
                 }
               }
-            } else {
-              // Regular staff can only transfer their own leads
+            } else if (role === 'SALES_TEAM') {
+              // Regular sales team can only transfer their own leads
               if (leadOwnerId !== userId) {
                 return res.status(403).json({ error: 'You can only transfer leads assigned to you' });
               }
@@ -1246,8 +1203,8 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
         if (leadOwnerId !== userId && !teamIds.includes(leadOwnerId) && lead.assigned_staff_id !== null) {
           return res.status(403).json({ error: 'Access denied' });
         }
-      } else {
-        // Staff/Sales Team
+      } else if (role === 'SALES_TEAM') {
+        // Sales Team
         const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
         if (leadOwnerId !== userId) {
           return res.status(403).json({ error: 'Access denied' });
@@ -1342,23 +1299,11 @@ router.get('/:id/comments', authenticate, async (req, res) => {
 
     // Check if user has access to this lead
     let filter = { id: leadId };
-    if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
+    if (role === 'SALES_TEAM') {
       filter.assigned_staff_id = userId;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      // Sales team head can see their own and their team's leads
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      // We'll filter after fetching
     }
 
     let leads = await db.getLeads(filter);
-
-    // Apply team head filtering if needed
-    if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
-    }
 
     if (leads.length === 0) {
       return res.status(404).json({ error: 'Lead not found' });
@@ -1395,23 +1340,11 @@ router.post('/:id/comments', authenticate, async (req, res) => {
 
     // Check if user has access to this lead
     let filter = { id: leadId };
-    if (role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING') {
+    if (role === 'SALES_TEAM') {
       filter.assigned_staff_id = userId;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      // Sales team head can see their own and their team's leads
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      // We'll filter after fetching
     }
 
     let leads = await db.getLeads(filter);
-
-    // Apply team head filtering if needed
-    if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      const accessibleIds = [userId, ...teamMembers.map(u => u.id)];
-      leads = leads.filter(l => !l.assigned_staff_id || accessibleIds.includes(l.assigned_staff_id));
-    }
 
     if (leads.length === 0) {
       return res.status(404).json({ error: 'Lead not found or access denied' });

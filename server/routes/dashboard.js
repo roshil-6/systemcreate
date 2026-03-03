@@ -43,26 +43,13 @@ async function getAccessibleUserIds(user) {
   const role = user.role;
   const userId = user.id;
 
-  if (role === 'ADMIN') {
-    // Admin sees everyone
-    return null; // null means all users
-  } else if (role === 'SALES_TEAM_HEAD') {
-    // Sales team head sees themselves + only their team members (those managed by them)
-    // Fallback: If no direct reports, show all 'SALES_TEAM' role users (Safety Net)
-    let teamMembers = await db.getUsers({ managed_by: userId });
-    if (teamMembers.length === 0) {
-      teamMembers = await db.getUsers({ role: 'SALES_TEAM' });
-    }
-    return [userId, ...teamMembers.map(u => u.id)];
-  } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
-    // Sales team and processing see only themselves
-    return [userId];
-  } else if (role === 'STAFF') {
-    // Legacy STAFF role - see only themselves
+  if (role === 'SALES_TEAM') {
+    // Only Sales team sees only themselves
     return [userId];
   }
 
-  return [userId]; // Default: only self
+  // Admin, Sales Team Head, Staff, Processing, etc. see everyone
+  return null;
 }
 
 // Get staff-specific dashboard data (admin, sales team head, and Emy for monitoring)
@@ -417,9 +404,8 @@ router.get('/', authenticate, async (req, res) => {
     const role = req.user.role;
     const accessibleUserIds = await getAccessibleUserIds(req.user);
 
-    // Determine if this is a restricted view (not admin and not sales team head)
-    // Sales team head should see the full dashboard with staff performance
-    const isRestrictedView = role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD';
+    // Determine if this is a restricted view (strictly SALES_TEAM)
+    const isRestrictedView = role === 'SALES_TEAM';
 
     if (isRestrictedView) {
       // Restricted view - only accessible metrics
