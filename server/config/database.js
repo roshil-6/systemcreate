@@ -291,9 +291,12 @@ const database = {
 
     // New vs Follow Up Views filtering using optimized EXISTS
     if (filter.viewType === 'new') {
-      whereConditions += ` AND (status = 'New' OR status = 'Unassigned') AND NOT EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id)`;
+      whereConditions += ` AND (status = 'New' OR status = 'Unassigned') 
+                           AND NOT EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id) 
+                           AND (comment IS NULL OR comment = '')`;
     } else if (filter.viewType === 'follow_up') {
-      whereConditions += ` AND EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id)`;
+      whereConditions += ` AND (EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id) 
+                           OR (comment IS NOT NULL AND comment != ''))`;
     }
 
     // Sort by newest leads first (latest assignment/creation)

@@ -346,10 +346,19 @@ const Leads = () => {
 
   const handleViewTypeChange = (type) => {
     setViewType(type);
+
+    // Clear the status filter when switching top-level views to prevent contradictory filters
+    if (type !== 'all') {
+      setStatusFilter('');
+    }
+
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (phoneSearch) params.set('phone', phoneSearch);
-    if (statusFilter) params.set('status', statusFilter);
+
+    // Only apply statusFilter if we are on 'all' view or user explicitly sets it later
+    if (type === 'all' && statusFilter) params.set('status', statusFilter);
+
     if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
     if (type && type !== 'all') params.set('viewType', type);
     navigate(`/leads?${params.toString()}`);
