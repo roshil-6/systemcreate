@@ -746,34 +746,38 @@ const Leads = () => {
           >
             All Leads
           </button>
-          <button
-            onClick={() => handleViewTypeChange('new')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: viewType === 'new' ? '#10b981' : 'transparent',
-              color: viewType === 'new' ? 'white' : '#6b7280',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: viewType === 'new' ? 600 : 500,
-            }}
-          >
-            New (Unassigned & No Comments)
-          </button>
-          <button
-            onClick={() => handleViewTypeChange('follow_up')}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: viewType === 'follow_up' ? '#f59e0b' : 'transparent',
-              color: viewType === 'follow_up' ? 'white' : '#6b7280',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: viewType === 'follow_up' ? 600 : 500,
-            }}
-          >
-            Follow Up (Active)
-          </button>
+          {user?.role !== 'SALES_TEAM' && (
+            <>
+              <button
+                onClick={() => handleViewTypeChange('new')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: viewType === 'new' ? '#10b981' : 'transparent',
+                  color: viewType === 'new' ? 'white' : '#6b7280',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: viewType === 'new' ? 600 : 500,
+                }}
+              >
+                New (Unassigned & No Comments)
+              </button>
+              <button
+                onClick={() => handleViewTypeChange('follow_up')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: viewType === 'follow_up' ? '#f59e0b' : 'transparent',
+                  color: viewType === 'follow_up' ? 'white' : '#6b7280',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: viewType === 'follow_up' ? 600 : 500,
+                }}
+              >
+                Follow Up (Active)
+              </button>
+            </>
+          )}
         </div>
 
         <div className="leads-controls">
