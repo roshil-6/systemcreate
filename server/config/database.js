@@ -252,52 +252,56 @@ const database = {
       comment, follow_up_date, follow_up_status, ielts_score,
       assigned_staff_id, created_by, created_at, updated_at,
       deleted_at, deleted_by,
-      (excel_row_data IS NOT NULL) AS has_excel_data,
-      COUNT(*) OVER() AS full_count
+      (excel_row_data IS NOT NULL) AS has_excel_data
     `;
-    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE 1=1 AND deleted_at IS NULL`;
+
+    let whereConditions = `1=1 AND deleted_at IS NULL`;
     const params = [];
     let paramIndex = 1;
 
     if (filter.id !== undefined) {
-      queryText += ` AND id = $${paramIndex++}`;
+      whereConditions += ` AND id = $${paramIndex++}`;
       params.push(Number(filter.id));
     }
     if (filter.assigned_staff_ids && Array.isArray(filter.assigned_staff_ids)) {
-      queryText += ` AND (assigned_staff_id = ANY($${paramIndex++}) OR assigned_staff_id IS NULL)`;
+      whereConditions += ` AND (assigned_staff_id = ANY($${paramIndex++}) OR assigned_staff_id IS NULL)`;
       params.push(filter.assigned_staff_ids);
     } else if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
-      queryText += ` AND assigned_staff_id = $${paramIndex++}`;
+      whereConditions += ` AND assigned_staff_id = $${paramIndex++}`;
       params.push(Number(filter.assigned_staff_id));
     }
     if (filter.status) {
-      queryText += ` AND status = $${paramIndex++}`;
+      whereConditions += ` AND status = $${paramIndex++}`;
       params.push(filter.status);
     }
     if (filter.excludeStatus) {
-      queryText += ` AND status != $${paramIndex++}`;
+      whereConditions += ` AND status != $${paramIndex++}`;
       params.push(filter.excludeStatus);
     }
     if (filter.search) {
-      queryText += ` AND (name ILIKE $${paramIndex} OR phone_number ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
+      whereConditions += ` AND (name ILIKE $${paramIndex} OR phone_number ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
       params.push(`%${filter.search}%`);
       paramIndex += 1;
     }
     if (filter.phone) {
-      queryText += ` AND (phone_number ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
+      whereConditions += ` AND (phone_number ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
       params.push(`%${filter.phone}%`);
       paramIndex += 1;
     }
 
-    // New vs Follow Up Views filtering
+    // New vs Follow Up Views filtering using optimized EXISTS
     if (filter.viewType === 'new') {
-      // Show unassigned or 'New' status, and must have 0 comments
-      // (assuming 'New' is the new default state for unassigned imports)
-      queryText += ` AND (status = 'New' OR status = 'Unassigned') AND (SELECT COUNT(*) FROM comments WHERE lead_id = leads.id) = 0`;
+      whereConditions += ` AND (status = 'New' OR status = 'Unassigned') AND NOT EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id)`;
     } else if (filter.viewType === 'follow_up') {
-      // Show leads that have at least one comment
-      queryText += ` AND (SELECT COUNT(*) FROM comments WHERE lead_id = leads.id) > 0`;
+      whereConditions += ` AND EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id)`;
     }
+
+    // Get Total Count separately before applying ORDER BY and LIMIT
+    // This avoids the massive performance penalty of COUNT(*) OVER() with sorting
+    const countResult = await query(`SELECT COUNT(*) FROM leads WHERE ${whereConditions}`, params);
+    const fullCount = parseInt(countResult.rows[0].count);
+
+    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions}`;
 
     // Sort by newest leads first (latest assignment/creation)
     queryText += ' ORDER BY created_at DESC, updated_at DESC';
@@ -305,12 +309,18 @@ const database = {
     // Pagination: default 200 per page to keep the initial load smooth and responsive
     const limit = filter.limit !== undefined ? Number(filter.limit) : 200;
     const offset = filter.offset !== undefined ? Number(filter.offset) : 0;
-    if (limit > 0) {
+
+    // Ensure we don't apply pagination when searching for a specific id
+    if (filter.id === undefined && limit > 0) {
       queryText += ` LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
       params.push(limit, offset);
     }
 
     const result = await query(queryText, params);
+
+    // Add full_count to each row for backwards compatibility with existing API routes
+    result.rows.forEach(row => row.full_count = fullCount);
+
     return result.rows;
   },
 
