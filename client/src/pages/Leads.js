@@ -129,14 +129,8 @@ const Leads = () => {
       }
     };
 
-    const handleScroll = () => {
-      saveState();
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    // Also save on unmount or before unload
+    // Save on unmount (when navigating away) instead of on every scroll pixel to prevent freezing
     return () => {
-      window.removeEventListener('scroll', handleScroll);
       saveState();
     };
   }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType]);

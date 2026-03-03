@@ -552,7 +552,8 @@ router.get('/', authenticate, async (req, res) => {
       const accessibleIds = (role === 'SALES_TEAM_HEAD') ? await getAccessibleUserIds(req.user) : null;
 
       const metrics = await db.getLeadsMetrics({
-        assigned_staff_ids: accessibleIds
+        assigned_staff_ids: accessibleIds,
+        include_unassigned: role === 'SALES_TEAM_HEAD' // Allows team leaders to see unassigned leads
       });
 
       // Get staff performance accurately across whole DB
