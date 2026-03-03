@@ -94,7 +94,12 @@ const Leads = () => {
 
           // Restore scroll position after a slight delay to allow rendering
           setTimeout(() => {
-            window.scrollTo(0, state.scrollPosition || 0);
+            const container = document.querySelector('.leads-table-container');
+            if (container) {
+              container.scrollTop = state.scrollPosition || 0;
+            } else {
+              window.scrollTo(0, state.scrollPosition || 0); // fallback
+            }
           }, 100);
         }
       } catch (e) {
@@ -269,6 +274,7 @@ const Leads = () => {
   const navigateToLead = (leadId) => {
     // Save exact position safely before navigating away
     if (leads.length > 0) {
+      const container = document.querySelector('.leads-table-container');
       sessionStorage.setItem('leadsPageState', JSON.stringify({
         leads,
         offset,
@@ -278,7 +284,7 @@ const Leads = () => {
         phoneSearch,
         assignedStaffFilter,
         viewType,
-        scrollPosition: window.scrollY,
+        scrollPosition: container ? container.scrollTop : 0,
         timestamp: Date.now()
       }));
     }
