@@ -18,10 +18,11 @@ const Leads = () => {
   const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [phoneSearchInput, setPhoneSearchInput] = useState(searchParams.get('phone') || '');
   const [phoneSearch, setPhoneSearch] = useState(searchParams.get('phone') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [assignedStaffFilter, setAssignedStaffFilter] = useState(searchParams.get('assigned_staff_id') || '');
+  const [viewType, setViewType] = useState(searchParams.get('viewType') || 'all');
   const [excelModal, setExcelModal] = useState({ open: false, data: null, loading: false, leadName: '' });
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
@@ -53,6 +54,7 @@ const Leads = () => {
     const urlSearch = searchParams.get('search') || '';
     const urlPhone = searchParams.get('phone') || '';
     const urlStatus = searchParams.get('status') || '';
+    const urlViewType = searchParams.get('viewType') || 'all';
     const showHistory = searchParams.get('showHistory') === 'true';
 
     setSearch(urlSearch);
@@ -60,6 +62,7 @@ const Leads = () => {
     setPhoneSearch(urlPhone);
     setPhoneSearchInput(urlPhone);
     setStatusFilter(urlStatus);
+    setViewType(urlViewType);
 
     if (showHistory) {
       setShowHistoryModal(true);
@@ -68,9 +71,74 @@ const Leads = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    setOffset(0);
-    fetchLeads(true);
-  }, [statusFilter, search, phoneSearch, assignedStaffFilter]);
+    // Attempt to restore state from session storage if we came back to this page
+    const cachedState = sessionStorage.getItem('leadsPageState');
+    let restored = false;
+
+    if (cachedState) {
+      try {
+        const state = JSON.parse(cachedState);
+        // Only restore if the filters match the URL filters to avoid stale data on new searches
+        if (state.search === search && state.statusFilter === statusFilter &&
+          state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter) {
+          setLeads(state.leads);
+          setOffset(state.offset);
+          setTotalCount(state.totalCount);
+          restored = true;
+
+          // Restore scroll position after a slight delay to allow rendering
+          setTimeout(() => {
+            window.scrollTo(0, state.scrollPosition || 0);
+          }, 100);
+        }
+      } catch (e) {
+        console.error("Error restoring leads state", e);
+      }
+    }
+
+    if (!restored) {
+      setOffset(0);
+      fetchLeads(true);
+    }
+  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType]);
+
+  // Save state before leaving the page
+  useEffect(() => {
+    const handleScroll = () => {
+      if (leads.length > 0) {
+        sessionStorage.setItem('leadsPageState', JSON.stringify({
+          leads,
+          offset,
+          totalCount,
+          search,
+          statusFilter,
+          phoneSearch,
+          assignedStaffFilter,
+          viewType,
+          scrollPosition: window.scrollY
+        }));
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    // Also save on unmount or before unload
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (leads.length > 0) {
+        sessionStorage.setItem('leadsPageState', JSON.stringify({
+          leads,
+          offset,
+          totalCount,
+          search,
+          statusFilter,
+          phoneSearch,
+          assignedStaffFilter,
+          viewType,
+          scrollPosition: window.scrollY
+        }));
+      }
+    };
+  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF') {
@@ -114,12 +182,14 @@ const Leads = () => {
       const phoneVal = searchParams.get('phone');
       const statusVal = searchParams.get('status');
       const assigned_staff_id = searchParams.get('assigned_staff_id');
+      const viewTypeVal = searchParams.get('viewType');
 
       const params = new URLSearchParams();
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
+      if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
 
       const currentOffset = reset ? 0 : offset;
       params.append('limit', LEADS_PER_PAGE.toString());
@@ -131,17 +201,14 @@ const Leads = () => {
 
       const { leads: leadsData, totalCount: serverTotal } = response.data;
 
-      // Sort the new batch
-      const sortedNewLeads = (leadsData || []).sort((a, b) => {
-        const nameA = (a.name || '').toLowerCase();
-        const nameB = (b.name || '').toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
+      // DO NOT sort alphabetically. Rely on the backend's date-based sorting 
+      // which prioritizes the latest assignments and creations.
+      const newLeads = leadsData || [];
 
       if (reset) {
-        setLeads(sortedNewLeads);
+        setLeads(newLeads);
       } else {
-        setLeads(prev => [...prev, ...sortedNewLeads]);
+        setLeads(prev => [...prev, ...newLeads]);
       }
 
       setTotalCount(serverTotal || 0);
@@ -172,11 +239,13 @@ const Leads = () => {
       const phoneVal = searchParams.get('phone');
       const statusVal = searchParams.get('status');
       const assigned_staff_id = searchParams.get('assigned_staff_id');
+      const viewTypeVal = searchParams.get('viewType');
 
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
+      if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
 
       params.append('limit', LEADS_PER_PAGE.toString());
       params.append('offset', newOffset.toString());
@@ -186,12 +255,12 @@ const Leads = () => {
       });
 
       const { leads: leadsData, totalCount: serverTotal } = response.data;
-      const sortedNewLeads = (leadsData || []).sort((a, b) => (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase()));
+      const newLeads = leadsData || []; // No alphabetical sorting
 
       setLeads(prev => {
         // Avoid duplicates if user clicks twice fast
         const existingIds = new Set(prev.map(l => l.id));
-        const filteredNew = sortedNewLeads.filter(l => !existingIds.has(l.id));
+        const filteredNew = newLeads.filter(l => !existingIds.has(l.id));
         return [...prev, ...filteredNew];
       });
       setTotalCount(serverTotal || 0);
@@ -239,6 +308,7 @@ const Leads = () => {
     if (phoneSearchInput.trim()) params.set('phone', phoneSearchInput.trim());
     if (statusFilter) params.set('status', statusFilter);
     if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
+    if (viewType && viewType !== 'all') params.set('viewType', viewType);
     setSearch(searchInput.trim());
     setPhoneSearch(phoneSearchInput.trim());
     navigate(`/leads?${params.toString()}`);
@@ -253,11 +323,13 @@ const Leads = () => {
   };
 
   const handleStatusFilter = (status) => {
+    setStatusFilter(status);
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     if (phoneSearch) params.set('phone', phoneSearch);
     if (status) params.set('status', status);
     if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
+    if (viewType && viewType !== 'all') params.set('viewType', viewType);
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -268,6 +340,18 @@ const Leads = () => {
     if (phoneSearch) params.set('phone', phoneSearch);
     if (statusFilter) params.set('status', statusFilter);
     if (staffId) params.set('assigned_staff_id', staffId);
+    if (viewType && viewType !== 'all') params.set('viewType', viewType);
+    navigate(`/leads?${params.toString()}`);
+  };
+
+  const handleViewTypeChange = (type) => {
+    setViewType(type);
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (phoneSearch) params.set('phone', phoneSearch);
+    if (statusFilter) params.set('status', statusFilter);
+    if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
+    if (type && type !== 'all') params.set('viewType', type);
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -545,10 +629,11 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['Unassigned', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+  const statusOptions = ['New', 'Unassigned', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
+      'New': '#34D399', // Emerald/Green for New
       'Unassigned': '#87CEEB', // Soft blue
       'Assigned': '#cbd5e1', // Slate 300 - Greyish blue for assigned
       'Follow-up': '#E6E6FA', // Lavender
@@ -563,6 +648,7 @@ const Leads = () => {
 
   const getStatusTextColor = (status) => {
     const colors = {
+      'New': '#065F46', // Dark emerald
       'Unassigned': '#1e40af', // Dark blue
       'Assigned': '#334155', // Slate 700
       'Follow-up': '#6b21a8', // Dark purple
@@ -635,6 +721,52 @@ const Leads = () => {
 
       {/* Controls Section */}
       <div className="leads-controls-section">
+        {/* View Type Tabs */}
+        <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+          <button
+            onClick={() => handleViewTypeChange('all')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: viewType === 'all' ? '#3b82f6' : 'transparent',
+              color: viewType === 'all' ? 'white' : '#6b7280',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: viewType === 'all' ? 600 : 500,
+            }}
+          >
+            All Leads
+          </button>
+          <button
+            onClick={() => handleViewTypeChange('new')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: viewType === 'new' ? '#10b981' : 'transparent',
+              color: viewType === 'new' ? 'white' : '#6b7280',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: viewType === 'new' ? 600 : 500,
+            }}
+          >
+            New (Unassigned & No Comments)
+          </button>
+          <button
+            onClick={() => handleViewTypeChange('follow_up')}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: viewType === 'follow_up' ? '#f59e0b' : 'transparent',
+              color: viewType === 'follow_up' ? 'white' : '#6b7280',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: viewType === 'follow_up' ? 600 : 500,
+            }}
+          >
+            Follow Up (Active)
+          </button>
+        </div>
+
         <div className="leads-controls">
           <form onSubmit={handleSearch} className="leads-search">
             <FiSearch className="search-icon" />
@@ -1131,12 +1263,11 @@ const Leads = () => {
                 <th className="sticky-name" style={{ minWidth: '150px' }}>Name</th>
                 <th style={{ minWidth: '130px' }}>Phone</th>
                 <th style={{ minWidth: '180px' }}>Email</th>
-                <th style={{ width: '80px' }}>Priority</th>
-                <th style={{ minWidth: '200px' }}>Source</th>
-                <th style={{ width: '110px' }}>Follow-up Date</th>
-
-                <th style={{ width: '110px' }}>Date Added</th>
                 <th style={{ width: '100px' }}>Lead Status</th>
+                <th style={{ width: '110px' }}>Date Added</th>
+                <th style={{ width: '110px' }}>Follow-up Date</th>
+                <th style={{ minWidth: '200px' }}>Source</th>
+                <th style={{ width: '80px' }}>Priority</th>
                 <th style={{ width: '120px', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
                 <th style={{ width: '110px' }}>Actions</th>
               </tr>
@@ -1198,28 +1329,24 @@ const Leads = () => {
                     {lead.email || '-'}
                   </td>
                   <td>
-                    {lead.priority ? (
-                      <span
-                        className="priority-badge"
-                        style={{
-                          backgroundColor: `${getPriorityColor(lead.priority)}20`,
-                          color: getPriorityColor(lead.priority),
-                        }}
-                      >
-                        {formatPriority(lead.priority)}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
+                    <span
+                      className="status-badge"
+                      style={{
+                        backgroundColor: getStatusColor(lead.status),
+                        color: getStatusTextColor(lead.status),
+                        border: `1px solid ${getStatusTextColor(lead.status)}`,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {lead.status}
+                    </span>
                   </td>
                   <td>
-                    <div className="comment-cell" title={lead.source || ''}>
-                      {(() => {
-                        const rawSource = lead.source || '';
-                        // Remove "Yes", "No", "Maybe" with separators like " - ", " : ", " ", etc.
-                        const cleanSource = rawSource.replace(/^(yes|no|maybe)([\s-:]+)?/i, '').trim();
-                        return cleanSource || '-';
-                      })()}
+                    <div className="date-cell" title={lead.created_at ? new Date(lead.created_at).toLocaleString() : ''}>
+                      {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}
+                      <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                        {lead.created_at ? new Date(lead.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </div>
                     </div>
                   </td>
                   <td>
@@ -1246,27 +1373,30 @@ const Leads = () => {
                       '-'
                     )}
                   </td>
-
                   <td>
-                    <div className="date-cell" title={lead.created_at ? new Date(lead.created_at).toLocaleString() : ''}>
-                      {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}
-                      <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                        {lead.created_at ? new Date(lead.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </div>
+                    <div className="comment-cell" title={lead.source || ''}>
+                      {(() => {
+                        const rawSource = lead.source || '';
+                        // Remove "Yes", "No", "Maybe" with separators like " - ", " : ", " ", etc.
+                        const cleanSource = rawSource.replace(/^(yes|no|maybe)([\s-:]+)?/i, '').trim();
+                        return cleanSource || '-';
+                      })()}
                     </div>
                   </td>
                   <td>
-                    <span
-                      className="status-badge"
-                      style={{
-                        backgroundColor: getStatusColor(lead.status),
-                        color: getStatusTextColor(lead.status),
-                        border: `1px solid ${getStatusTextColor(lead.status)}`,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {lead.status}
-                    </span>
+                    {lead.priority ? (
+                      <span
+                        className="priority-badge"
+                        style={{
+                          backgroundColor: `${getPriorityColor(lead.priority)}20`,
+                          color: getPriorityColor(lead.priority),
+                        }}
+                      >
+                        {formatPriority(lead.priority)}
+                      </span>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                   <td>
                     <span className="assigned-staff-cell" style={{

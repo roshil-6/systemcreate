@@ -57,11 +57,12 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, limit, offset } = req.query;
+    const { status, search, phone, assigned_staff_id, viewType, limit, offset } = req.query;
 
     const filter = {
       limit: limit ? parseInt(limit) : undefined,
-      offset: offset ? parseInt(offset) : undefined
+      offset: offset ? parseInt(offset) : undefined,
+      viewType: viewType || undefined
     };
 
     if (assigned_staff_id) {
@@ -825,6 +826,8 @@ router.get('/:id', authenticate, async (req, res) => {
       filter.assigned_staff_id = userId;
     }
     // ADMIN, SALES_TEAM_HEAD, STAFF, PROCESSING see all leads, no extra filter needed.
+
+    let leads = await db.getLeads(filter);
 
     // CRITICAL: Filter out "Registration Completed" leads - they are now clients
     leads = leads.filter(lead => lead.status !== 'Registration Completed');
@@ -1789,12 +1792,12 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             if (u) staffId = u.id;
           }
 
-          let st = g(colIdx.status) || 'Unassigned';
+          let st = g(colIdx.status) || 'New';
           const sl = st.toLowerCase();
 
           // AUTO-ASSIGN LOGIC: If staffId is found, the status should be 'Assigned' 
           // (unless the user explicitly provided a more specific status like 'Follow-up')
-          if (staffId && (sl === 'unassigned' || !st)) {
+          if (staffId && (sl === 'new' || sl === 'unassigned' || !st)) {
             st = 'Assigned';
           } else if (sl.includes('follow')) {
             st = 'Follow-up';
@@ -1806,8 +1809,10 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             st = 'Not Interested';
           } else if (sl.includes('completed')) {
             st = 'Registration Completed';
-          } else if (!staffId) {
-            st = 'Unassigned';
+          } else if (!staffId && sl === 'unassigned') {
+            st = 'New';
+          } else if (!staffId && !st) {
+            st = 'New';
           }
 
           const now = new Date().toISOString();

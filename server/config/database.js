@@ -289,7 +289,18 @@ const database = {
       paramIndex += 1;
     }
 
-    queryText += ' ORDER BY updated_at DESC, created_at DESC';
+    // New vs Follow Up Views filtering
+    if (filter.viewType === 'new') {
+      // Show unassigned or 'New' status, and must have 0 comments
+      // (assuming 'New' is the new default state for unassigned imports)
+      queryText += ` AND (status = 'New' OR status = 'Unassigned') AND (SELECT COUNT(*) FROM comments WHERE lead_id = leads.id) = 0`;
+    } else if (filter.viewType === 'follow_up') {
+      // Show leads that have at least one comment
+      queryText += ` AND (SELECT COUNT(*) FROM comments WHERE lead_id = leads.id) > 0`;
+    }
+
+    // Sort by newest leads first (latest assignment/creation)
+    queryText += ' ORDER BY created_at DESC, updated_at DESC';
 
     // Pagination: default 200 per page to keep the initial load smooth and responsive
     const limit = filter.limit !== undefined ? Number(filter.limit) : 200;
