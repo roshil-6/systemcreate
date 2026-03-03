@@ -412,10 +412,14 @@ router.get('/', authenticate, async (req, res) => {
       const metrics = await db.getLeadsMetrics({
         assigned_staff_ids: accessibleUserIds,
         assigned_staff_id: (!accessibleUserIds || accessibleUserIds.length === 0) ? userId : undefined
-      });
+      }) || {};
+
+      // Ensure leadsByStatus exists to prevent frontend/backend crashes
+      metrics.leadsByStatus = metrics.leadsByStatus || {};
+      metrics.leadsByStatus['Registration Completed'] = metrics.leadsByStatus['Registration Completed'] || 0;
 
       // Get clients for restricted view
-      const restrictedClients = await db.getClients();
+      const restrictedClients = await db.getClients() || [];
 
       // Get Sneha and Kripa user IDs dynamically
       let snehaUserId = null;
@@ -442,8 +446,8 @@ router.get('/', authenticate, async (req, res) => {
 
       // Log for debugging
       console.log('📊 Restricted view dashboard metrics:');
-      console.log('  Total clients:', restrictedClients.length);
-      console.log('  Registration Completed count:', metrics.leadsByStatus['Registration Completed']);
+      console.log('  Total clients:', restrictedClients?.length || 0);
+      console.log('  Registration Completed count:', metrics?.leadsByStatus?.['Registration Completed'] || 0);
 
       // Recent activity
       // OPTIMIZATION: Prepare User Map for fast lookups
@@ -466,25 +470,25 @@ router.get('/', authenticate, async (req, res) => {
         limit: 5 // We only need 5 for the recent activity overview
       });
 
-      const recentLeads = restrictedRecentLeads
-        .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
+      const recentLeads = (restrictedRecentLeads || [])
+        .sort((a, b) => new Date(b?.updated_at || b?.created_at || Date.now()) - new Date(a?.updated_at || a?.created_at || Date.now()))
         .map(l => ({
           type: 'status_change',
-          lead_id: l.id,
-          lead_name: l.name,
-          status: l.status,
-          timestamp: l.updated_at || l.created_at,
-          user_name: l.assigned_staff_id ? (userMap[l.assigned_staff_id] || 'Unknown') : 'Unknown',
+          lead_id: l?.id,
+          lead_name: l?.name || 'Unknown',
+          status: l?.status || 'Unknown',
+          timestamp: l?.updated_at || l?.created_at,
+          user_name: l?.assigned_staff_id ? (userMap[l.assigned_staff_id] || 'Unknown') : 'Unknown',
         }));
 
       const allComments = await db.getComments(null);
-      const userCommentsPromises = allComments
-        .filter(c => c.lead_id)
+      const userCommentsPromises = (allComments || [])
+        .filter(c => c?.lead_id)
         .slice(0, 5)
         .map(async c => {
           try {
             const leads = await db.getLeads({ id: c.lead_id });
-            const lead = leads[0];
+            const lead = leads?.[0];
             if (!lead || !lead.assigned_staff_id || Number(lead.assigned_staff_id) !== Number(userId)) {
               return null;
             }
@@ -501,7 +505,7 @@ router.get('/', authenticate, async (req, res) => {
               lead_id: c.lead_id,
               lead_name: lead?.name || 'Unknown',
               status: null,
-              timestamp: c.created_at,
+              timestamp: c?.created_at || Date.now(),
               user_name: userName,
             };
           } catch (error) {
@@ -510,8 +514,8 @@ router.get('/', authenticate, async (req, res) => {
           }
         });
       const userComments = (await Promise.all(userCommentsPromises)).filter(c => c !== null);
-      const allActivity = [...recentLeads, ...userComments]
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      const allActivity = [...(recentLeads || []), ...(userComments || [])]
+        .sort((a, b) => new Date(b?.timestamp || Date.now()) - new Date(a?.timestamp || Date.now()))
         .slice(0, 10);
 
       if (req.query.metricsOnly === 'true') {
