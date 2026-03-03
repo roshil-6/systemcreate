@@ -442,7 +442,6 @@ router.get('/', authenticate, async (req, res) => {
 
       // Log for debugging
       console.log('📊 Restricted view dashboard metrics:');
-      console.log('  Total leads:', allLeads.length);
       console.log('  Total clients:', restrictedClients.length);
       console.log('  Registration Completed count:', metrics.leadsByStatus['Registration Completed']);
 
@@ -458,11 +457,17 @@ router.get('/', authenticate, async (req, res) => {
         allUsers.forEach(u => userMap[u.id] = u.name);
       } catch (e) { console.error('Error building user map', e); }
 
-      // Recent leads (last 20, sorted by most recent)
+      // Recent leads (last 5, sorted by most recent)
       // Optimized: Use userMap instead of async db calls inside map
-      const recentLeads = allLeads
+      // Fetch specifically for restricted view to save memory
+      const restrictedRecentLeads = await db.getLeads({
+        assigned_staff_ids: accessibleUserIds,
+        assigned_staff_id: (!accessibleUserIds || accessibleUserIds.length === 0) ? userId : undefined,
+        limit: 5 // We only need 5 for the recent activity overview
+      });
+
+      const recentLeads = restrictedRecentLeads
         .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
-        .slice(0, 5) // Kept small for restricted view as per original slice logic for activity
         .map(l => ({
           type: 'status_change',
           lead_id: l.id,
