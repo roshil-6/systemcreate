@@ -266,6 +266,25 @@ const Leads = () => {
     }
   };
 
+  const navigateToLead = (leadId) => {
+    // Save exact position safely before navigating away
+    if (leads.length > 0) {
+      sessionStorage.setItem('leadsPageState', JSON.stringify({
+        leads,
+        offset,
+        totalCount,
+        search,
+        statusFilter,
+        phoneSearch,
+        assignedStaffFilter,
+        viewType,
+        scrollPosition: window.scrollY,
+        timestamp: Date.now()
+      }));
+    }
+    navigate(`/leads/${leadId}`);
+  };
+
   const isDueFollowUp = (lead) => {
     if (!lead.follow_up_date) return false;
     const today = new Date().toISOString().split('T')[0];
@@ -1284,7 +1303,10 @@ const Leads = () => {
               {leads.map((lead) => (
                 <tr
                   key={lead.id}
-                  onClick={(e) => handleLeadRowClick(lead.id, e)}
+                  onClick={(e) => {
+                    const isAction = e.target.closest('button') || e.target.closest('input[type="checkbox"]') || e.target.closest('.quick-assign-dropdown') || e.target.closest('.dropdown-icon');
+                    if (!isAction) navigateToLead(lead.id);
+                  }}
                   style={{ cursor: 'pointer' }}
                 >
                   {canManageLeads && (
@@ -1438,7 +1460,7 @@ const Leads = () => {
                         className="btn-view"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/leads/${lead.id}`);
+                          navigateToLead(lead.id);
                         }}
                       >
                         <FiEdit2 /> View
