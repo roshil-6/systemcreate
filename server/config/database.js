@@ -1157,7 +1157,8 @@ const database = {
 
   end: async () => {
     await pool.end();
-  }
+  },
+  pool: pool // Expose the raw connection pool for transaction support
 };
 
 module.exports = database;

@@ -161,7 +161,11 @@ const Leads = () => {
         const container = document.querySelector('.leads-table-container');
         const scrollPos = container ? container.scrollTop : window.scrollY;
 
+        const existingRaw = sessionStorage.getItem('leadsPageState');
+        const existing = existingRaw ? JSON.parse(existingRaw) : {};
+
         sessionStorage.setItem('leadsPageState', JSON.stringify({
+          ...existing,
           leads,
           offset,
           totalCount,
