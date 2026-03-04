@@ -115,11 +115,29 @@ const Leads = () => {
     if (cachedState && leads.length > 0) {
       try {
         const state = JSON.parse(cachedState);
-        const container = document.querySelector('.leads-table-container');
-        if (container) {
-          container.scrollTop = state.scrollPosition || 0;
-        } else {
-          window.scrollTo(0, state.scrollPosition || 0);
+        const targetScroll = state.scrollPosition || 0;
+
+        if (targetScroll > 0) {
+          const restoreScroll = () => {
+            const container = document.querySelector('.leads-table-container');
+            if (container && container.scrollHeight > container.clientHeight) {
+              container.scrollTop = targetScroll;
+              // Once we visibly see the scroll applied, or at least maxed out, we clear the trigger
+              if (container.scrollTop > 0 || targetScroll === 0) {
+                return true;
+              }
+            } else if (!container) {
+              window.scrollTo(0, targetScroll);
+            }
+            return false;
+          };
+
+          // Attempt immediately
+          if (!restoreScroll()) {
+            // If the DOM isn't tall enough yet, try again in 50ms and 150ms
+            setTimeout(restoreScroll, 50);
+            setTimeout(restoreScroll, 150);
+          }
         }
       } catch (e) {
         // ignore JSON parse errors
