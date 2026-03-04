@@ -127,7 +127,7 @@ router.get('/staff/:id', authenticate, async (req, res) => {
 
     // isSneha, isKripa, and isProcessingTeam are already declared above (lines 89-91)
 
-    if (isProcessingTeam) {
+    if (isProcessingTeam && req.query.type !== 'main') {
       // Processing Team Dashboard - Show client processing data
       let processingClients = [];
       let snehaClientsList = []; // For Kripa: Sneha's clients section
@@ -360,18 +360,17 @@ router.get('/assigned-leads/:staffId', authenticate, async (req, res) => {
     // For other roles: show leads assigned to that staff that were created by this user.
     // Use notifications to find leads this user personally assigned (for all roles including Admin)
     let leads = [];
-    const assignedLeadsResult = await db.query(`
-      SELECT DISTINCT n.lead_id
-      FROM notifications n
-      WHERE n.type = 'lead_assigned' AND n.created_by = $1 AND n.user_id = $2
+    // Use broad criteria: leads where this user is the created_by OR has an assignment notification
+    const leadsResult = await db.query(`
+      SELECT DISTINCT l.*
+      FROM leads l
+      LEFT JOIN notifications n ON l.id = n.lead_id AND n.type = 'lead_assigned' AND n.created_by = $1 AND n.user_id = $2
+      WHERE l.deleted_at IS NULL 
+      AND l.assigned_staff_id = $2
+      AND (l.created_by = $1 OR n.id IS NOT NULL)
     `, [userId, staffId]);
 
-    const leadIds = assignedLeadsResult.rows.map(row => row.lead_id);
-
-    if (leadIds.length > 0) {
-      const allLeads = await db.getLeads();
-      leads = allLeads.filter(l => leadIds.includes(l.id));
-    }
+    leads = leadsResult.rows;
 
     // Get staff name for the response
     const staffName = await db.getUserName(staffId);
@@ -624,10 +623,18 @@ router.get('/', authenticate, async (req, res) => {
 
       // Get leads assigned to each staff by THIS user specifically (via notification records)
       const assignedByMeResult = await db.query(`
-        SELECT u.id as staff_id, u.name as staff_name, COUNT(DISTINCT n.lead_id) as assigned_count
-        FROM notifications n
-        JOIN users u ON n.user_id = u.id
-        WHERE n.type = 'lead_assigned' AND n.created_by = $1
+        SELECT u.id as staff_id, u.name as staff_name, COUNT(DISTINCT l.id) as assigned_count
+        FROM leads l
+        JOIN users u ON l.assigned_staff_id = u.id
+        WHERE l.deleted_at IS NULL 
+        AND l.assigned_staff_id != $1
+        AND (
+          l.created_by = $1 
+          OR l.id IN (
+            SELECT lead_id FROM notifications 
+            WHERE type = 'lead_assigned' AND created_by = $1
+          )
+        )
         GROUP BY u.id, u.name
         ORDER BY assigned_count DESC
       `, [userId]);
