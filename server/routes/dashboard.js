@@ -43,13 +43,14 @@ async function getAccessibleUserIds(user) {
   const role = user.role;
   const userId = user.id;
 
-  // Check if personal view is forced via query params (passed from the route)
-  if (user.forcePersonal) {
-    return [userId];
-  }
+  // High-priority: Strict isolation for specific users regardless of role
+  const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
 
-  if (role === 'SALES_TEAM' || role === 'STAFF') {
-    // Sales team and Staff (Kripa) see only themselves
+  const isTargetedUser = restrictedNames.includes(user.name) || restrictedEmails.includes(user.email);
+
+  // Check if personal view is forced OR if the user is one of the strictly restricted ones
+  if (user.forcePersonal || isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
     return [userId];
   }
 
@@ -59,7 +60,7 @@ async function getAccessibleUserIds(user) {
     return [userId, ...teamMembers.map(m => m.id)];
   }
 
-  // Admin, Processing, etc. see everyone
+  // Admin, etc. (that are NOT the targeted users above) see everyone
   return null;
 }
 
@@ -412,8 +413,13 @@ router.get('/', authenticate, async (req, res) => {
     const isPersonalView = req.query.view === 'personal';
     const accessibleUserIds = await getAccessibleUserIds({ ...req.user, forcePersonal: isPersonalView });
 
-    // Determine if this is a restricted view (strictly SALES_TEAM, STAFF or forced personal)
-    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF' || isPersonalView;
+    // Determine if this is a restricted user (Sneha, Kripa, Emy)
+    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const isTargetedUser = restrictedNames.includes(req.user.name) || restrictedEmails.includes(req.user.email);
+
+    // Determine if this is a restricted view (strictly SALES_TEAM, STAFF, PROCESSING or forced personal or targeted user)
+    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || isPersonalView || isTargetedUser;
 
     if (isRestrictedView) {
       // Restricted view - only accessible metrics

@@ -47,9 +47,18 @@ router.get('/', authenticate, async (req, res) => {
 
     const filter = {};
 
-    // All staff can see all clients (but payment data is restricted)
-    // No filtering by assigned_staff_id - everyone sees all clients
-    // Exception: If processing_staff_id query param is provided, filter by that (for Kripa dashboard)
+    // Absolute isolation for targeted users (Sneha, Kripa, Emy)
+    const userNameRaw = (req.user.name || '').toLowerCase().trim();
+    const userEmailRaw = (req.user.email || '').toLowerCase().trim();
+    const restrictedNames = ['sneha', 'kripa', 'emy', 'shilpa', 'jibna', 'karthika', 'asna'];
+    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const isTargetedUser = restrictedNames.includes(userNameRaw) || restrictedEmails.includes(userEmailRaw);
+
+    if (isTargetedUser && !req.query.assigned_staff_id && !req.query.processing_staff_id) {
+      // If no specific staff requested, default to ONLY their own data
+      filter.assigned_staff_ids = [userId];
+      // Note: We'll also handle processing_staff_id check in memory below for completeness
+    }
 
     if (fee_status) {
       filter.fee_status = fee_status;
@@ -80,11 +89,6 @@ router.get('/', authenticate, async (req, res) => {
     // IMPORTANT: If this is Sneha or Kripa, we don't apply this filter strictly at the DB level
     // because they might be assigned via processing_staff_id instead. 
     // We will do the specific filtering in memory later.
-    const userNameRaw = (req.user.name || '').toLowerCase();
-    const userEmailRaw = (req.user.email || '').toLowerCase();
-    const isProcessingStaff = userNameRaw === 'sneha' || userNameRaw === 'kripa' ||
-      userEmailRaw === 'sneha@toniosenora.com' || userEmailRaw === 'kripa@toniosenora.com';
-
     if (req.query.assigned_staff_id && !isProcessingStaff) {
       filter.assigned_staff_id = Number(req.query.assigned_staff_id);
       console.log('🔍 Filtering clients by assigned_staff_id (Non-processing staff):', filter.assigned_staff_id);
@@ -166,8 +170,8 @@ router.get('/', authenticate, async (req, res) => {
     const isEmy = userNameLower === 'emy' || userEmailLower === 'emy@toniosenora.com';
     const canViewPaymentData = role === 'ADMIN' ||
       userNameLower === 'sneha' || userEmailLower === 'sneha@toniosenora.com' ||
-      userNameLower === 'kripa' || userEmailLower === 'kripa@toniosenora.com' ||
-      isEmy; // Emy has monitoring access
+      userNameLower === 'kripa' || userEmailLower === 'kripa@toniosenora.com';
+    // Removed Emy's monitoring access as user wants absolute isolation
 
     // Filter payment data for unauthorized users (but show all other client data)
     if (!canViewPaymentData) {
@@ -217,8 +221,8 @@ router.get('/:id', authenticate, async (req, res) => {
     const isEmy = userName === 'Emy' || userName === 'EMY' || userEmail === 'emy@toniosenora.com';
     const canViewPaymentData = role === 'ADMIN' ||
       userName === 'Sneha' || userName === 'SNEHA' || userEmail === 'sneha@toniosenora.com' ||
-      userName === 'Kripa' || userName === 'KRIPA' || userEmail === 'kripa@toniosenora.com' ||
-      isEmy; // Emy has monitoring access
+      userName === 'Kripa' || userName === 'KRIPA' || userEmail === 'kripa@toniosenora.com';
+    // Removed Emy's monitoring access as user wants absolute isolation
 
     if (!canViewPaymentData) {
       // Remove payment fields and assigned_staff_id but keep all other client data

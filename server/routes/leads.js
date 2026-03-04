@@ -30,9 +30,16 @@ async function getLeadWithAccessCheck(leadId, user) {
     return null;
   }
 
+  // High-priority: Strict isolation for specific users regardless of role
+  const userName = user.name || '';
+  const userEmail = user.email || '';
+  const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+  const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
+
   // 3. Permission logic
-  if (role === 'ADMIN' || role === 'PROCESSING') {
-    return lead; // Full access for Admin and Processing (Sneha is Admin)
+  if (!isTargetedUser && (role === 'ADMIN' || role === 'PROCESSING')) {
+    return lead; // Full access for regular Admin and Processing
   }
 
   if (role === 'STAFF') {
@@ -131,17 +138,26 @@ router.get('/', authenticate, async (req, res) => {
       filter.assigned_staff_id = assigned_staff_id;
     }
 
+    // High-priority: Strict isolation for specific users regardless of role
+    const userName = req.user.name || '';
+    const userEmail = req.user.email || '';
+    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+
+    const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
+
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
-    if (role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
-      // SALES_TEAM, STAFF and PROCESSING see only their own leads
+
+    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
+      // These users see ONLY their own leads
       accessibleUserIds = [userId];
     } else if (role === 'SALES_TEAM_HEAD') {
       // SALES_TEAM_HEAD sees themselves and their team
       const teamMembers = await db.getUsers({ managed_by: userId });
       accessibleUserIds = [userId, ...teamMembers.map(m => m.id)];
     } else {
-      // ADMIN sees everyone
+      // ADMIN sees everyone (if they are NOT one of the targeted users above)
       accessibleUserIds = null;
     }
 
@@ -615,11 +631,18 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
 // GET /api/leads/trash — Fetch recently deleted leads (latest first)
 router.get('/trash', authenticate, async (req, res) => {
   try {
-    const role = req.user.role;
-    if (role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Only admins can access the recycle bin' });
+    const userId = req.user.id;
+    const userName = req.user.name || '';
+    const userEmail = req.user.email || '';
+    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
+
+    let trashedLeads = await db.getTrashedLeads();
+
+    if (isTargetedUser) {
+      trashedLeads = trashedLeads.filter(l => l.assigned_staff_id === userId);
     }
-    const trashedLeads = await db.getTrashedLeads();
 
     // Attach assigned staff names
     const allUsers = await db.getUsers();
@@ -695,12 +718,17 @@ router.get('/export/csv', authenticate, async (req, res) => {
     const role = req.user.role;
     const { status, search, phone } = req.query;
 
-    const filter = {};
+    let accessibleUserIds = null;
+    const userName = req.user.name || '';
+    const userEmail = req.user.email || '';
+    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
 
-    if (role === 'SALES_TEAM' || role === 'STAFF') {
+    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF') {
       accessibleUserIds = [userId];
     } else {
-      // ADMIN, SALES_TEAM_HEAD, PROCESSING see everyone
+      // Regular ADMIN, SALES_TEAM_HEAD, PROCESSING see everyone
       accessibleUserIds = null;
     }
 
