@@ -521,6 +521,12 @@ router.get('/', authenticate, async (req, res) => {
         .sort((a, b) => new Date(b?.timestamp || Date.now()) - new Date(a?.timestamp || Date.now()))
         .slice(0, 10);
 
+      // Augment metrics with old-style fields for frontend compatibility
+      metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
+      metrics.followupLeads = metrics.leadsByStatus?.['Follow-up'] || 0;
+      metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
+      metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
+
       if (req.query.metricsOnly === 'true') {
         return res.json({ metrics });
       }
@@ -545,8 +551,11 @@ router.get('/', authenticate, async (req, res) => {
         role: role,
         metrics,
         recentActivity: allActivity,
+        recentLeads: recentLeads.slice(0, 20),
+        recentClients: restrictedClients.slice(0, 20),
         isRestricted: true,
         assignedByMe: staffAssignedByMe,
+        staffPerformance: [], // Privacy: Don't show other staff in personal view
       };
       res.json(response);
     } else {
@@ -569,6 +578,14 @@ router.get('/', authenticate, async (req, res) => {
 
       // Add totalClients to metrics
       metrics.totalClients = allClients.length;
+
+      // Ensure compatibility with frontend expected properties
+      metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
+      metrics.followupLeads = metrics.leadsByStatus?.['Follow-up'] || 0;
+      metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
+      metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
+      metrics.todayFollowups = metrics.todayFollowups || 0;
+      metrics.dueFollowups = metrics.dueFollowups || 0;
 
       const allAttendance = await db.getAttendance();
 

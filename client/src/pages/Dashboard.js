@@ -275,17 +275,17 @@ const Dashboard = () => {
       navigate('/');
       return;
     }
-    // Only fetch dashboard data if not Sneha or Kripa (they have their own dashboards)
-    if (!isSneha && !isKripa) {
-      // Clear old data when staffId changes to prevent showing wrong staff data
-      isAutoRefreshRef.current = false; // Mark as initial load
+    // For regular users, fetch always. For Sneha/Kripa, only fetch if in 'main' mode
+    if ((!isSneha && !isKripa) || dashboardMode === 'main') {
+      // Clear old data when staffId or mode changes 
+      isAutoRefreshRef.current = false;
       setData(null);
       setLoading(true);
       fetchDashboardData();
     } else {
       setLoading(false);
     }
-  }, [staffId, user, navigate, isEmy, isSneha, isKripa, fetchDashboardData]);
+  }, [staffId, user, navigate, isEmy, isSneha, isKripa, dashboardMode, fetchDashboardData]);
 
   // Auto-refresh when page becomes visible (user switches tabs/windows)
   useEffect(() => {
@@ -392,7 +392,7 @@ const Dashboard = () => {
     return <div className="dashboard-loading">Loading dashboard...</div>;
   }
 
-  // Dual Dashboard Switcher for Sneha/Kripa
+  // Dual Dashboard Switcher for Sneha/Kripa (Specialized Processing)
   if ((viewingSneha || viewingKripa) && dashboardMode === 'processing') {
     return (
       <div className="dashboard-container" style={{ padding: '0 20px' }}>
@@ -422,7 +422,7 @@ const Dashboard = () => {
               color: '#374151'
             }}
           >
-            Company Dashboard
+            My Leads
           </button>
         </div>
         {viewingSneha ? <SnehaDashboard viewingStaffId={null} /> : <KripaDashboard viewingStaffId={null} />}
@@ -705,11 +705,12 @@ const Dashboard = () => {
                 color: '#8B6914',
                 padding: '8px 12px',
                 borderRadius: '8px',
-                fontWeight: '600',
-                fontSize: '13px',
-                textAlign: 'center'
+                fontWeight: '700',
+                fontSize: '14px',
+                textAlign: 'center',
+                minWidth: '60px'
               }}>
-                View List ➔
+                {item.assigned_count || 0}
               </div>
             </div>
           ))}
@@ -884,26 +885,67 @@ const Dashboard = () => {
   if (isRestrictedRole && !isStaffDetailView) {
     return (
       <div className="dashboard">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <h1 className="dashboard-title">My Dashboard</h1>
-          <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
-            <FiPhone className="search-icon" />
-            <input
-              type="text"
-              placeholder="Quick search by phone..."
-              value={phoneSearchInput}
-              onChange={(e) => setPhoneSearchInput(e.target.value)}
-            />
-          </form>
-        </div>
-        {renderStaffMetrics()}
-        {renderStatusBreakdown()}
-        {renderAssignedByMe()}
-        <div className="recent-activity">
-          <h2>Recent Activity</h2>
-          {/* ... existing activity code ... */}
-        </div>
-        {renderAssignedLeadsModal()}
+        {isKripa && (
+          <div style={{ padding: '0 0 20px 0', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => setDashboardMode('processing')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                border: dashboardMode === 'processing' ? 'none' : '1px solid #d1d5db',
+                cursor: 'pointer',
+                backgroundColor: dashboardMode === 'processing' ? '#2563eb' : 'white',
+                color: dashboardMode === 'processing' ? 'white' : '#374151'
+              }}
+            >
+              Stage 2 Processing
+            </button>
+            <button
+              onClick={() => setDashboardMode('main')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                border: dashboardMode === 'main' ? 'none' : '1px solid #d1d5db',
+                cursor: 'pointer',
+                backgroundColor: dashboardMode === 'main' ? '#2563eb' : 'white',
+                color: dashboardMode === 'main' ? 'white' : '#374151'
+              }}
+            >
+              My Leads
+            </button>
+          </div>
+        )}
+
+        {isKripa && dashboardMode === 'processing' ? (
+          <KripaDashboard />
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h1 className="dashboard-title">
+                {isKripa && dashboardMode === 'main' ? 'My Leads Dashboard' : 'My Dashboard'}
+              </h1>
+              <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
+                <FiPhone className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Quick search by phone..."
+                  value={phoneSearchInput}
+                  onChange={(e) => setPhoneSearchInput(e.target.value)}
+                />
+              </form>
+            </div>
+            {renderStaffMetrics()}
+            {dashboardMode !== 'main' && renderStatusBreakdown()}
+            {dashboardMode !== 'main' && renderAssignedByMe()}
+            <div className="recent-activity">
+              <h2>Recent Activity</h2>
+              {/* Activity list here */}
+            </div>
+            {renderAssignedLeadsModal()}
+          </>
+        )}
       </div>
     );
   }
@@ -912,26 +954,67 @@ const Dashboard = () => {
   if (!isStaffDetailView && (data.role === 'ADMIN' || data.role === 'SALES_TEAM_HEAD')) {
     return (
       <div className="dashboard">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-          <div>
-            <h1 className="dashboard-title">
-              {data.role === 'ADMIN' ? 'Company Dashboard' : 'Team Dashboard'}
-            </h1>
+        {isSneha && (
+          <div style={{ padding: '0 0 20px 0', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => setDashboardMode('processing')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                border: dashboardMode === 'processing' ? 'none' : '1px solid #d1d5db',
+                cursor: 'pointer',
+                backgroundColor: dashboardMode === 'processing' ? '#2563eb' : 'white',
+                color: dashboardMode === 'processing' ? 'white' : '#374151'
+              }}
+            >
+              Stage 1 Processing
+            </button>
+            <button
+              onClick={() => setDashboardMode('main')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontWeight: 600,
+                border: dashboardMode === 'main' ? 'none' : '1px solid #d1d5db',
+                cursor: 'pointer',
+                backgroundColor: dashboardMode === 'main' ? '#2563eb' : 'white',
+                color: dashboardMode === 'main' ? 'white' : '#374151'
+              }}
+            >
+              My Leads
+            </button>
           </div>
-          <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
-            <FiPhone className="search-icon" />
-            <input
-              type="text"
-              placeholder="Quick search by phone..."
-              value={phoneSearchInput}
-              onChange={(e) => setPhoneSearchInput(e.target.value)}
-            />
-          </form>
-        </div>
+        )}
 
-        {renderAssignedByMe()}
+        {isSneha && dashboardMode === 'processing' ? (
+          <SnehaDashboard />
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <div>
+                <h1 className="dashboard-title">
+                  {data.role === 'ADMIN' ? (dashboardMode === 'main' ? 'My Leads Dashboard' : 'Company Dashboard') : 'Team Dashboard'}
+                </h1>
+              </div>
+              <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
+                <FiPhone className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Quick search by phone..."
+                  value={phoneSearchInput}
+                  onChange={(e) => setPhoneSearchInput(e.target.value)}
+                />
+              </form>
+            </div>
+          </>
+        )}
+
+        {renderStaffMetrics()}
+        {dashboardMode !== 'main' && renderStatusBreakdown()}
+        {dashboardMode !== 'main' && renderAssignedByMe()}
         {
-          (data.staffPerformance && data.staffPerformance.length > 0) && (
+          (data.staffPerformance && data.staffPerformance.length > 0 && dashboardMode !== 'main') && (
             <div className="staff-performance-section" style={{ marginBottom: '32px' }}>
               <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>
                 {data.role === 'SALES_TEAM_HEAD' ? 'My Team Performance' : 'Staff Performance Overview'}
@@ -977,14 +1060,30 @@ const Dashboard = () => {
                         <div style={{ marginLeft: 'auto', color: '#9ca3af' }}>👉</div>
                       </div>
 
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div style={{ backgroundColor: '#f9fafb', padding: '10px', borderRadius: '8px' }}>
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Leads</div>
-                          <div style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>{staff.total_leads || 0}</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                        <div style={{ backgroundColor: '#f9fafb', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', marginBottom: '2px' }}>Total</div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#111827' }}>{staff.total_leads || 0}</div>
                         </div>
-                        <div style={{ backgroundColor: '#f0fdf4', padding: '10px', borderRadius: '8px' }}>
-                          <div style={{ fontSize: '12px', color: '#166534', marginBottom: '4px' }}>Processing</div>
-                          <div style={{ fontSize: '18px', fontWeight: '600', color: '#15803d' }}>{staff.clients_in_processing || 0}</div>
+                        <div style={{ backgroundColor: '#eff6ff', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#2563eb', textTransform: 'uppercase', marginBottom: '2px' }}>New</div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e40af' }}>{staff.new_leads || 0}</div>
+                        </div>
+                        <div style={{ backgroundColor: '#fdf2f8', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#db2777', textTransform: 'uppercase', marginBottom: '2px' }}>F/Up</div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#9d174d' }}>{staff.followup_leads || 0}</div>
+                        </div>
+                        <div style={{ backgroundColor: '#fffbeb', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#d97706', textTransform: 'uppercase', marginBottom: '2px' }}>Pend</div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#92400e' }}>{staff.pending_leads || 0}</div>
+                        </div>
+                        <div style={{ backgroundColor: '#f0fdf4', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#16a34a', textTransform: 'uppercase', marginBottom: '2px' }}>Proc</div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#166534' }}>{staff.clients_in_processing || 0}</div>
+                        </div>
+                        <div style={{ backgroundColor: '#f0f9ff', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '10px', color: '#0284c7', textTransform: 'uppercase', marginBottom: '2px' }}>Conv</div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#075985' }}>{staff.converted_leads || 0}</div>
                         </div>
                       </div>
                     </div>
@@ -994,33 +1093,62 @@ const Dashboard = () => {
           )
         }
 
-        {renderStaffMetrics()}
-        {renderStatusBreakdown()}
+        <div style={{ display: 'grid', gridTemplateColumns: dashboardMode === 'main' ? '1fr 1fr' : '1fr', gap: '32px' }}>
+          <div className="recent-activity">
+            <h2>{dashboardMode === 'main' ? 'My Recent Activity' : 'Recent Activity'}</h2>
+            {data.recentActivity && data.recentActivity.length > 0 ? (
+              <div className="activity-list">
+                {data.recentActivity.map((activity, index) => (
+                  <div key={index} className="activity-item">
+                    <div className="activity-icon">
+                      {activity.type === 'comment' ? <FiActivity /> : <FiTrendingUp />}
+                    </div>
+                    <div className="activity-content">
+                      <div className="activity-text">
+                        {activity.type === 'comment' ? 'New comment' : 'Status updated'} on{' '}
+                        <strong>{activity.lead_name}</strong>
+                      </div>
+                      <div className="activity-meta">
+                        {activity.user_name && <span>by {activity.user_name} • </span>}
+                        {new Date(activity.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="no-activity">No recent activity</p>
+            )}
+          </div>
 
-        <div className="recent-activity">
-          <h2>Recent Activity</h2>
-          {data.recentActivity && data.recentActivity.length > 0 ? (
-            <div className="activity-list">
-              {(data.recentActivity || []).map((activity, index) => (
-                <div key={index} className="activity-item">
-                  <div className="activity-icon">
-                    {activity.type === 'comment' ? <FiActivity /> : <FiTrendingUp />}
-                  </div>
-                  <div className="activity-content">
-                    <div className="activity-text">
-                      {activity.type === 'comment' ? 'New comment' : 'Status updated'} on{' '}
-                      <strong>{activity.lead_name}</strong>
-                    </div>
-                    <div className="activity-meta">
-                      {activity.user_name && <span>by {activity.user_name} • </span>}
-                      {new Date(activity.timestamp).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-              ))}
+          {dashboardMode === 'main' && data.recentLeads && (
+            <div className="recent-leads-section" style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>My Recent Leads</h2>
+              <div className="table-responsive">
+                <table className="leads-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.recentLeads.slice(0, 10).map(lead => (
+                      <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} style={{ cursor: 'pointer' }}>
+                        <td>{lead.name}</td>
+                        <td>
+                          <span className={`status-badge status-${lead.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                            {lead.status}
+                          </span>
+                        </td>
+                        <td>{new Date(lead.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          ) : (
-            <p className="no-activity">No recent activity</p>
           )}
         </div>
         {renderAssignedLeadsModal()}
@@ -1348,38 +1476,6 @@ const Dashboard = () => {
   // ADMIN Dashboard
   return (
     <div className="dashboard">
-      {(isSneha || isKripa) && (
-        <div style={{ padding: '0 0 20px 0', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', display: 'flex', gap: '10px' }}>
-          <button
-            onClick={() => setDashboardMode('processing')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              fontWeight: 600,
-              border: dashboardMode === 'processing' ? 'none' : '1px solid #d1d5db',
-              cursor: 'pointer',
-              backgroundColor: dashboardMode === 'processing' ? '#2563eb' : 'white',
-              color: dashboardMode === 'processing' ? 'white' : '#374151'
-            }}
-          >
-            {isSneha ? 'Stage 1 Processing' : 'Stage 2 Processing'}
-          </button>
-          <button
-            onClick={() => setDashboardMode('main')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              fontWeight: 600,
-              border: dashboardMode === 'main' ? 'none' : '1px solid #d1d5db',
-              cursor: 'pointer',
-              backgroundColor: dashboardMode === 'main' ? '#2563eb' : 'white',
-              color: dashboardMode === 'main' ? 'white' : '#374151'
-            }}
-          >
-            My Leads
-          </button>
-        </div>
-      )}
       <div className="dashboard-header">
         <h1 className="dashboard-title">
           {data.role === 'ADMIN' ? 'Company Dashboard' : 'Team Dashboard'}
