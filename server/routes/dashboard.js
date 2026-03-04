@@ -349,32 +349,35 @@ router.get('/staff/:id', authenticate, async (req, res) => {
   }
 });
 
-// Get leads assigned by the current admin/head to a specific staff
+// Get leads assigned by the current user to a specific staff member
 router.get('/assigned-leads/:staffId', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const staffId = Number(req.params.staffId);
     const role = req.user.role;
 
-    // All authenticated users can fetch their own assigned leads drill-down
-    // STAFF can only see leads they personally assigned (userId = created_by is enforced in query)
+    // For ADMIN: show ALL leads currently assigned to the target staff member.
+    // For other roles: show leads assigned to that staff that were created by this user.
+    let leads;
+    if (role === 'ADMIN') {
+      leads = await db.getLeads({ assigned_staff_id: staffId });
+    } else {
+      // Use notifications to find leads this user personally assigned
+      const assignedLeadsResult = await db.query(`
+        SELECT DISTINCT n.lead_id
+        FROM notifications n
+        WHERE n.type = 'lead_assigned' AND n.created_by = $1 AND n.user_id = $2
+      `, [userId, staffId]);
 
-    // Get unique lead IDs assigned by this user to the target staff
-    const assignedLeadsResult = await db.query(`
-      SELECT DISTINCT n.lead_id
-      FROM notifications n
-      WHERE n.type = 'lead_assigned' AND n.created_by = $1 AND n.user_id = $2
-    `, [userId, staffId]);
+      const leadIds = assignedLeadsResult.rows.map(row => row.lead_id);
 
-    const leadIds = assignedLeadsResult.rows.map(row => row.lead_id);
+      if (leadIds.length === 0) {
+        return res.json([]);
+      }
 
-    if (leadIds.length === 0) {
-      return res.json([]);
+      const allLeads = await db.getLeads();
+      leads = allLeads.filter(l => leadIds.includes(l.id));
     }
-
-    // Fetch full lead details
-    const allLeads = await db.getLeads();
-    const leads = allLeads.filter(l => leadIds.includes(l.id));
 
     // Get staff name for the response
     const staffName = await db.getUserName(staffId);
@@ -626,14 +629,20 @@ router.get('/', authenticate, async (req, res) => {
       }));
 
       // Get leads assigned by this admin/head (Assigned By Me)
+      // Query directly from leads table to include ALL historical assignments, not just notification-logged ones
       const assignedByMeResult = await db.query(`
-        SELECT u.id as staff_id, u.name as staff_name, COUNT(DISTINCT n.lead_id) as assigned_count
-        FROM notifications n
-        JOIN users u ON n.user_id = u.id
-        WHERE n.type = 'lead_assigned' AND n.created_by = $1
+        SELECT
+          u.id as staff_id,
+          u.name as staff_name,
+          COUNT(DISTINCT l.id) as assigned_count
+        FROM leads l
+        JOIN users u ON l.assigned_staff_id = u.id
+        WHERE l.deleted_at IS NULL
+          AND l.assigned_staff_id IS NOT NULL
+          AND l.status != 'Registration Completed'
         GROUP BY u.id, u.name
         ORDER BY assigned_count DESC
-      `, [userId]);
+      `, []);
       const assignedByMe = assignedByMeResult.rows;
 
       // Recent clients (last 20, sorted by most recent)
