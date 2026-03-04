@@ -43,12 +43,12 @@ async function getAccessibleUserIds(user) {
   const role = user.role;
   const userId = user.id;
 
-  if (role === 'SALES_TEAM') {
-    // Only Sales team sees only themselves
+  if (role === 'SALES_TEAM' || role === 'STAFF') {
+    // Sales team and Staff (Kripa) see only themselves
     return [userId];
   }
 
-  // Admin, Sales Team Head, Staff, Processing, etc. see everyone
+  // Admin, Sales Team Head, Processing, etc. see everyone
   return null;
 }
 
@@ -401,7 +401,7 @@ router.get('/', authenticate, async (req, res) => {
     const accessibleUserIds = await getAccessibleUserIds(req.user);
 
     // Determine if this is a restricted view (strictly SALES_TEAM)
-    const isRestrictedView = role === 'SALES_TEAM';
+    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF';
 
     if (isRestrictedView) {
       // Restricted view - only accessible metrics

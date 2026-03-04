@@ -31,8 +31,14 @@ async function getLeadWithAccessCheck(leadId, user) {
   }
 
   // 3. Permission logic
-  if (role === 'ADMIN' || role === 'STAFF' || role === 'PROCESSING') {
-    return lead; // Full access
+  if (role === 'ADMIN' || role === 'PROCESSING') {
+    return lead; // Full access for Admin and Processing (Sneha is Admin)
+  }
+
+  if (role === 'STAFF') {
+    // Kripa is STAFF - restrict to assigned only
+    if (lead.assigned_staff_id === userId) return lead;
+    return null;
   }
 
   if (role === 'SALES_TEAM_HEAD') {
@@ -127,10 +133,10 @@ router.get('/', authenticate, async (req, res) => {
 
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
-    if (role === 'SALES_TEAM') {
+    if (role === 'SALES_TEAM' || role === 'STAFF') {
       accessibleUserIds = [userId];
     } else {
-      // ADMIN, SALES_TEAM_HEAD, STAFF, PROCESSING see everyone
+      // ADMIN, SALES_TEAM_HEAD, PROCESSING see everyone
       accessibleUserIds = null;
     }
 
@@ -686,12 +692,10 @@ router.get('/export/csv', authenticate, async (req, res) => {
 
     const filter = {};
 
-    // Determine accessible user IDs based on role
-    let accessibleUserIds = null;
-    if (role === 'SALES_TEAM') {
+    if (role === 'SALES_TEAM' || role === 'STAFF') {
       accessibleUserIds = [userId];
     } else {
-      // ADMIN, SALES_TEAM_HEAD, STAFF, PROCESSING see everyone
+      // ADMIN, SALES_TEAM_HEAD, PROCESSING see everyone
       accessibleUserIds = null;
     }
 
@@ -941,9 +945,9 @@ router.post(
 
       // CRITICAL: Non-admin roles can only assign leads to themselves (or their team for heads)
       let finalAssignedStaffId = assigned_staff_id;
-      if (role === 'SALES_TEAM') {
+      if (role === 'SALES_TEAM' || role === 'STAFF') {
         finalAssignedStaffId = userId;
-      } else if (role === 'SALES_TEAM_HEAD' || role === 'STAFF' || role === 'PROCESSING') {
+      } else if (role === 'SALES_TEAM_HEAD' || role === 'PROCESSING') {
         // Now allowed to assign based on the regular flow or leave as is.
       } else if (role === 'ADMIN') {
         // ADMIN can assign to any staff or leave null
@@ -1035,7 +1039,7 @@ router.put('/:id', authenticate, async (req, res) => {
     }
 
     // Role-based editing restrictions
-    if (role === 'SALES_TEAM' || role === 'PROCESSING') {
+    if (role === 'SALES_TEAM' || role === 'PROCESSING' || role === 'STAFF') {
       const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
       // Allow update if assigned to self OR if unassigned (claiming)
       if (leadOwnerId !== userId && leadOwnerId !== null) {
@@ -1119,8 +1123,8 @@ router.put('/:id', authenticate, async (req, res) => {
 
           // Case 1: Lead is currently Unassigned - Allow claiming
           if (leadOwnerId === null) {
-            // Sales can only claim to themselves
-            if (role === 'SALES_TEAM' && normalizedStaffId !== userId) {
+            // Sales and Staff can only claim to themselves
+            if ((role === 'SALES_TEAM' || role === 'STAFF') && normalizedStaffId !== userId) {
               return res.status(403).json({ error: 'You can only claim leads for yourself' });
             }
             // Sales Head can claim for self or team (checked below in team logic, or implicitly allowed if target is self)
