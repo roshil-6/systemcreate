@@ -92,15 +92,9 @@ const Leads = () => {
           setLoading(false); // Stop the spinner since we successfully restored data
           restored = true;
 
-          // Restore scroll position after a slight delay to allow rendering
-          setTimeout(() => {
-            const container = document.querySelector('.leads-table-container');
-            if (container) {
-              container.scrollTop = state.scrollPosition || 0;
-            } else {
-              window.scrollTo(0, state.scrollPosition || 0); // fallback
-            }
-          }, 100);
+          // We will let a separate useLayoutEffect handle the actual scrolling
+          // once the leads are officially rendered in the DOM.
+          restored = true;
         }
       } catch (e) {
         console.error("Error restoring leads state", e);
@@ -114,6 +108,24 @@ const Leads = () => {
       fetchLeads(true);
     }
   }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType]);
+
+  // Robustly restore scroll position precisely after the DOM has painted the leads
+  React.useLayoutEffect(() => {
+    const cachedState = sessionStorage.getItem('leadsPageState');
+    if (cachedState && leads.length > 0) {
+      try {
+        const state = JSON.parse(cachedState);
+        const container = document.querySelector('.leads-table-container');
+        if (container) {
+          container.scrollTop = state.scrollPosition || 0;
+        } else {
+          window.scrollTo(0, state.scrollPosition || 0);
+        }
+      } catch (e) {
+        // ignore JSON parse errors
+      }
+    }
+  }, [leads]);
 
   // Save state before leaving the page
   useEffect(() => {
