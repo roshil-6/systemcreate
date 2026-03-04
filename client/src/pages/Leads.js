@@ -552,12 +552,16 @@ const Leads = () => {
         );
 
         setSelectedLeadIds([]);
-        fetchLeads();
+        sessionStorage.removeItem('leadsPageState');
+        setOffset(0);
+        fetchLeads(true);
         alert(`🗑 ${response.data.deletedCount || selectedLeadIds.length} lead(s) moved to Recycle Bin. Admins can restore them.`);
       } catch (error) {
         console.error('Bulk delete error:', error);
         alert(error.response?.data?.error || 'Failed to delete leads. You might not have permission.');
-        fetchLeads();
+        sessionStorage.removeItem('leadsPageState');
+        setOffset(0);
+        fetchLeads(true);
       } finally {
         setBulkAssignLoading(false);
       }
