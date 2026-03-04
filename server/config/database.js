@@ -299,8 +299,8 @@ const database = {
                            OR (comment IS NOT NULL AND comment != ''))`;
     }
 
-    // Sort by newest leads first (latest creation)
-    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions} ORDER BY created_at DESC, id DESC`;
+    // Sort by latest interactions/assignments (updated_at DESC)
+    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions} ORDER BY updated_at DESC, id DESC`;
 
     // Pagination: default 50 per page to keep the initial load smooth and responsive
     const limit = filter.limit !== undefined ? Number(filter.limit) : 50;
