@@ -629,20 +629,15 @@ router.get('/', authenticate, async (req, res) => {
       }));
 
       // Get leads assigned by this admin/head (Assigned By Me)
-      // Query directly from leads table to include ALL historical assignments, not just notification-logged ones
+      // Count only leads this user personally assigned, using notification records
       const assignedByMeResult = await db.query(`
-        SELECT
-          u.id as staff_id,
-          u.name as staff_name,
-          COUNT(DISTINCT l.id) as assigned_count
-        FROM leads l
-        JOIN users u ON l.assigned_staff_id = u.id
-        WHERE l.deleted_at IS NULL
-          AND l.assigned_staff_id IS NOT NULL
-          AND l.status != 'Registration Completed'
+        SELECT u.id as staff_id, u.name as staff_name, COUNT(DISTINCT n.lead_id) as assigned_count
+        FROM notifications n
+        JOIN users u ON n.user_id = u.id
+        WHERE n.type = 'lead_assigned' AND n.created_by = $1
         GROUP BY u.id, u.name
         ORDER BY assigned_count DESC
-      `, []);
+      `, [userId]);
       const assignedByMe = assignedByMeResult.rows;
 
       // Recent clients (last 20, sorted by most recent)

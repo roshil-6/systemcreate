@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './KripaDashboard.css';
-import { FiUser, FiCheck, FiSend, FiFileText, FiDollarSign, FiEdit2, FiSave, FiClock } from 'react-icons/fi';
+import { FiUser, FiCheck, FiSend, FiFileText, FiDollarSign, FiEdit2, FiSave, FiClock, FiList, FiLayers } from 'react-icons/fi';
 
 const KripaDashboard = ({ viewingStaffId = null }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   // If viewingStaffId is provided (admin viewing), use it; otherwise use logged-in user's ID
   const kripaStaffId = viewingStaffId || (user?.id ? Number(user.id) : null);
+  const [activeTab, setActiveTab] = useState('processing'); // 'processing' | 'leads'
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingClient, setEditingClient] = useState(null);
@@ -213,9 +216,27 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
     <div className="kripa-dashboard">
       <div className="dashboard-header">
         <div>
-          <h1>Processing Stage 2 - Processing Tasks</h1>
-          <p className="dashboard-subtitle">Clients assigned for processing and review</p>
+          <h1>{activeTab === 'processing' ? 'Processing Stage 2 - Processing Tasks' : 'My Leads'}</h1>
+          <p className="dashboard-subtitle">
+            {activeTab === 'processing' ? 'Clients assigned for processing and review' : 'Manage your assigned leads'}
+          </p>
         </div>
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="kripa-tab-bar">
+        <button
+          className={`kripa-tab-btn ${activeTab === 'processing' ? 'active' : ''}`}
+          onClick={() => setActiveTab('processing')}
+        >
+          <FiLayers /> Stage 2 Processing
+        </button>
+        <button
+          className={`kripa-tab-btn ${activeTab === 'leads' ? 'active' : ''}`}
+          onClick={() => { navigate('/leads'); }}
+        >
+          <FiList /> My Leads
+        </button>
       </div>
 
       {clients.length === 0 ? (

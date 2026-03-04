@@ -4,6 +4,43 @@
   padding: 24px;
 }
 
+/* Dual view tab bar for Kripa */
+.kripa-tab-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+  border-bottom: 2px solid #E5E7EB;
+  padding-bottom: 0;
+}
+
+.kripa-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border: none;
+  background: none;
+  font-size: 15px;
+  font-weight: 600;
+  color: #6B7280;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  border-radius: 8px 8px 0 0;
+}
+
+.kripa-tab-btn:hover {
+  color: #2563EB;
+  background: #EFF6FF;
+}
+
+.kripa-tab-btn.active {
+  color: #2563EB;
+  border-bottom-color: #2563EB;
+  background: #EFF6FF;
+}
+
 .dashboard-header {
   margin-bottom: 32px;
 }
@@ -186,6 +223,7 @@
   0% {
     transform: translate(-50%, -50%) rotate(0deg);
   }
+
   100% {
     transform: translate(-50%, -50%) rotate(360deg);
   }
