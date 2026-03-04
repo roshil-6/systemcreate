@@ -160,14 +160,14 @@ const database = {
   },
 
   createUser: async (userData, options = {}) => {
-    const id = await getNextId('users_id_seq');
     const now = new Date().toISOString();
 
-    await query(`
-      INSERT INTO users (id, name, email, password, role, team, managed_by, created_at, updated_at, phone_number, office_number, dob)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    // Use RETURNING * so the DB auto-generates the ID (SERIAL / BIGSERIAL)
+    const result = await query(`
+      INSERT INTO users (name, email, password, role, team, managed_by, created_at, updated_at, phone_number, office_number, dob)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *
     `, [
-      id,
       userData.name,
       userData.email,
       userData.password,
@@ -181,8 +181,7 @@ const database = {
       userData.dob || null
     ], options);
 
-    const users = await this.getUsers({ id }, options);
-    return users[0];
+    return result.rows[0];
   },
 
   updateUser: async (id, updates) => {
