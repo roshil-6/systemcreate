@@ -661,6 +661,10 @@ const LeadDetail = () => {
                 >
                   <option value="">Select Qualification</option>
                   <option value="bachelors">Bachelors</option>
+                  <option value="bsc nursing">BSc Nursing</option>
+                  <option value="gnm">GNM</option>
+                  <option value="post bsc">Post BSC</option>
+                  <option value="gcan">GCAN</option>
                   <option value="diploma">Diploma</option>
                   <option value="masters">Masters</option>
                   <option value="phd">PhD</option>
@@ -728,6 +732,12 @@ const LeadDetail = () => {
                   <option value="fsw">FSW</option>
                   <option value="visit">Visit</option>
                   <option value="work">Work</option>
+                  <option value="ahpra">AHPRA</option>
+                  <option value="nz registration">NZ - Registration</option>
+                  <option value="nmbi registration">NMBI Registration</option>
+                  <option value="uk registration">UK Registration</option>
+                  <option value="osce visit visa">OSCE- Visit visa</option>
+                  <option value="rn transition">RN Transition</option>
                 </select>
               </div>
 
