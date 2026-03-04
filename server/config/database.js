@@ -333,6 +333,9 @@ const database = {
     // Add full_count to each row for backwards compatibility with existing API routes
     result.rows.forEach(row => row.full_count = fullCount);
 
+    if (result.rows.length > 0 || params.length > 0) {
+      console.log(`🔍 [getLeads] Query: ${queryText.substring(0, 100)}... | Params: ${JSON.stringify(params)} | Results: ${result.rows.length}`);
+    }
     return result.rows;
   },
 

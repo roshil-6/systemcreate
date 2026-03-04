@@ -133,10 +133,15 @@ router.get('/', authenticate, async (req, res) => {
 
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
-    if (role === 'SALES_TEAM' || role === 'STAFF') {
+    if (role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
+      // SALES_TEAM, STAFF and PROCESSING see only their own leads
       accessibleUserIds = [userId];
+    } else if (role === 'SALES_TEAM_HEAD') {
+      // SALES_TEAM_HEAD sees themselves and their team
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      accessibleUserIds = [userId, ...teamMembers.map(m => m.id)];
     } else {
-      // ADMIN, SALES_TEAM_HEAD, PROCESSING see everyone
+      // ADMIN sees everyone
       accessibleUserIds = null;
     }
 

@@ -926,15 +926,18 @@ const Dashboard = () => {
               <h1 className="dashboard-title">
                 {isKripa && dashboardMode === 'main' ? 'My Leads Dashboard' : 'My Dashboard'}
               </h1>
-              <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
-                <FiPhone className="search-icon" />
-                <input
-                  type="text"
-                  placeholder="Quick search by phone..."
-                  value={phoneSearchInput}
-                  onChange={(e) => setPhoneSearchInput(e.target.value)}
-                />
-              </form>
+              {/* Hide search section in personal mode for cleaner UI */}
+              {dashboardMode !== 'main' && (
+                <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
+                  <FiPhone className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Quick search by phone..."
+                    value={phoneSearchInput}
+                    onChange={(e) => setPhoneSearchInput(e.target.value)}
+                  />
+                </form>
+              )}
             </div>
             {renderStaffMetrics()}
             {renderStatusBreakdown()}
@@ -997,15 +1000,18 @@ const Dashboard = () => {
                   {data.role === 'ADMIN' ? (dashboardMode === 'main' ? 'My Leads Dashboard' : 'Company Dashboard') : 'Team Dashboard'}
                 </h1>
               </div>
-              <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
-                <FiPhone className="search-icon" />
-                <input
-                  type="text"
-                  placeholder="Quick search by phone..."
-                  value={phoneSearchInput}
-                  onChange={(e) => setPhoneSearchInput(e.target.value)}
-                />
-              </form>
+              {/* Hide search section in personal mode for cleaner UI */}
+              {dashboardMode !== 'main' && (
+                <form onSubmit={handleQuickPhoneSearch} className="dashboard-quick-search" style={{ marginTop: 0 }}>
+                  <FiPhone className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Quick search by phone..."
+                    value={phoneSearchInput}
+                    onChange={(e) => setPhoneSearchInput(e.target.value)}
+                  />
+                </form>
+              )}
             </div>
           </>
         )}

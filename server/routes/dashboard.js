@@ -53,7 +53,13 @@ async function getAccessibleUserIds(user) {
     return [userId];
   }
 
-  // Admin, Sales Team Head, Processing, etc. see everyone
+  if (role === 'SALES_TEAM_HEAD') {
+    // Sales team head sees themselves and their team
+    const teamMembers = await db.getUsers({ managed_by: userId });
+    return [userId, ...teamMembers.map(m => m.id)];
+  }
+
+  // Admin, Processing, etc. see everyone
   return null;
 }
 
@@ -561,7 +567,9 @@ router.get('/', authenticate, async (req, res) => {
         metrics,
         recentActivity: allActivity,
         recentLeads: trueRecentLeads,
+        leadsList: trueRecentLeads, // Compatibility with frontend
         recentClients: restrictedClients.slice(0, 20),
+        clientsList: restrictedClients, // Compatibility with frontend
         isRestricted: true,
         assignedByMe: staffAssignedByMe,
         staffPerformance: [], // Privacy: Don't show other staff in personal view
@@ -705,7 +713,9 @@ router.get('/', authenticate, async (req, res) => {
         assignedByMe: assignedByMe || [],
         attendanceOverview,
         recentLeads,
+        leadsList: recentLeads, // Compatibility with frontend
         recentClients,
+        clientsList: allClients, // Full list for admins
       });
     }
   } catch (error) {
