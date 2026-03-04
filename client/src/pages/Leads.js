@@ -1362,7 +1362,7 @@ const Leads = () => {
                     </td>
                   )}
                   <td className="number-column" style={{ textAlign: 'center', fontWeight: 500, color: '#9ca3af', fontSize: '13px' }}>
-                    {offset + index + 1}
+                    {index + 1}
                   </td>
                   <td className="name-cell sticky-name" title={lead.name}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
