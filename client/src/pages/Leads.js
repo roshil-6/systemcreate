@@ -109,32 +109,31 @@ const Leads = () => {
     }
   }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType]);
 
-  // Robustly restore scroll position precisely after the DOM has painted the leads
+  // Bulletproof scroll restoration via element ID
   React.useLayoutEffect(() => {
     const cachedState = sessionStorage.getItem('leadsPageState');
     if (cachedState && leads.length > 0) {
       try {
         const state = JSON.parse(cachedState);
-        const targetScroll = state.scrollPosition || 0;
+        const targetId = state.clickedLeadId;
 
-        if (targetScroll > 0) {
+        if (targetId) {
           const restoreScroll = () => {
-            const container = document.querySelector('.leads-table-container');
-            if (container && container.scrollHeight > container.clientHeight) {
-              container.scrollTop = targetScroll;
-              // Once we visibly see the scroll applied, or at least maxed out, we clear the trigger
-              if (container.scrollTop > 0 || targetScroll === 0) {
-                return true;
-              }
-            } else if (!container) {
-              window.scrollTo(0, targetScroll);
+            const rowElement = document.getElementById(`lead-row-${targetId}`);
+            if (rowElement) {
+              rowElement.scrollIntoView({ block: 'center', inline: 'nearest' });
+
+              // We only want to fire this once per session-load to avoid fighting the user's manual scroll
+              const updatedState = { ...state };
+              delete updatedState.clickedLeadId;
+              sessionStorage.setItem('leadsPageState', JSON.stringify(updatedState));
+              return true;
             }
             return false;
           };
 
-          // Attempt immediately
+          // Attempt immediately, or wait slightly for React to finish rendering the rows
           if (!restoreScroll()) {
-            // If the DOM isn't tall enough yet, try again in 50ms and 150ms
             setTimeout(restoreScroll, 50);
             setTimeout(restoreScroll, 150);
           }
@@ -305,7 +304,7 @@ const Leads = () => {
   };
 
   const navigateToLead = (leadId) => {
-    // Save exact position safely before navigating away
+    // Aggressively save the clicked ID to guarantee bulletproof scroll-into-view later
     if (leads.length > 0) {
       const container = document.querySelector('.leads-table-container');
       sessionStorage.setItem('leadsPageState', JSON.stringify({
@@ -317,6 +316,7 @@ const Leads = () => {
         phoneSearch,
         assignedStaffFilter,
         viewType,
+        clickedLeadId: leadId,
         scrollPosition: container ? container.scrollTop : 0,
         timestamp: Date.now()
       }));
@@ -1326,7 +1326,6 @@ const Leads = () => {
                     />
                   </th>
                 )}
-                <th className="number-column" style={{ textAlign: 'center', color: '#6b7280' }}>#</th>
                 <th className="sticky-name" style={{ minWidth: '150px' }}>Name</th>
                 <th style={{ minWidth: '130px' }}>Phone</th>
                 <th style={{ minWidth: '180px' }}>Email</th>
@@ -1343,6 +1342,7 @@ const Leads = () => {
               {leads.map((lead, index) => (
                 <tr
                   key={lead.id}
+                  id={`lead-row-${lead.id}`}
                   onClick={(e) => {
                     const isAction = e.target.closest('button') || e.target.closest('input[type="checkbox"]') || e.target.closest('.quick-assign-dropdown') || e.target.closest('.dropdown-icon');
                     if (!isAction) navigateToLead(lead.id);
@@ -1361,9 +1361,6 @@ const Leads = () => {
                       />
                     </td>
                   )}
-                  <td className="number-column" style={{ textAlign: 'center', fontWeight: 500, color: '#9ca3af', fontSize: '13px' }}>
-                    {index + 1}
-                  </td>
                   <td className="name-cell sticky-name" title={lead.name}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name}</span>

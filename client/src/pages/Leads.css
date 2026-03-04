@@ -295,28 +295,6 @@
   z-index: 25 !important;
 }
 
-/* New Number Column */
-.leads-table th.number-column,
-.leads-table td.number-column {
-  position: sticky !important;
-  left: 0;
-  z-index: 20 !important;
-  background: #F5F1E8 !important;
-  width: 50px;
-  min-width: 50px;
-}
-
-.leads-table td.number-column {
-  background: #FFF8E7 !important;
-  z-index: 15 !important;
-}
-
-/* If checkbox is present, number should be at 40px */
-.leads-table th.checkbox-column+.number-column,
-.leads-table td.checkbox-column+.number-column {
-  left: 40px !important;
-}
-
 .leads-table th.sticky-name,
 .leads-table td.sticky-name {
   position: sticky !important;
@@ -331,20 +309,10 @@
   z-index: 15 !important;
 }
 
-/* If checkbox is present, name should be at 40px (old behavior) or 90px (new behavior with number) */
+/* If checkbox is present, name should be at 40px */
 .leads-table th.checkbox-column+.sticky-name,
 .leads-table td.checkbox-column+.sticky-name {
   left: 40px !important;
-}
-
-.leads-table th.number-column+.sticky-name,
-.leads-table td.number-column+.sticky-name {
-  left: 50px !important;
-}
-
-.leads-table th.checkbox-column+.number-column+.sticky-name,
-.leads-table td.checkbox-column+.number-column+.sticky-name {
-  left: 90px !important;
 }
 
 .leads-table td {
