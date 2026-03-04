@@ -700,6 +700,7 @@ const LeadDetail = () => {
                   onChange={handleChange}
                   disabled={!canEdit}
                 >
+                  <option value="New">New</option>
                   <option value="Unassigned">Unassigned</option>
                   <option value="Assigned">Assigned</option>
                   <option value="Follow-up">Follow-up</option>
