@@ -118,6 +118,9 @@ const LeadDetail = () => {
         }
       });
 
+      // Clear the cached leads table so the new/updated lead definitely appears at the top
+      sessionStorage.removeItem('leadsPageState');
+
       if (id === 'new') {
         await axios.post(`${API_BASE_URL}/api/leads`, cleanedData);
         navigate('/leads');
@@ -140,6 +143,9 @@ const LeadDetail = () => {
       });
       setNewComment('');
       fetchComments();
+
+      // Clear leads cache so the table refreshes the updated_at ordering
+      sessionStorage.removeItem('leadsPageState');
     } catch (error) {
       alert(error.response?.data?.error || 'Error adding comment');
     }
