@@ -134,9 +134,6 @@ router.get('/', authenticate, async (req, res) => {
       viewType: viewType || undefined
     };
 
-    if (assigned_staff_id) {
-      filter.assigned_staff_id = assigned_staff_id;
-    }
 
     // High-priority: Strict isolation for specific users regardless of role
     const userName = req.user.name || '';
@@ -150,14 +147,21 @@ router.get('/', authenticate, async (req, res) => {
     let accessibleUserIds = null;
 
     if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
-      // These users see ONLY their own leads
+      // These users see ONLY their own leads — ignore any query param assigned_staff_id
       accessibleUserIds = [userId];
+      // Force override: do NOT let the URL query param override this
+      delete filter.assigned_staff_id;
+      delete filter.assigned_staff_ids;
     } else if (role === 'SALES_TEAM_HEAD') {
       // SALES_TEAM_HEAD sees themselves and their team
       const teamMembers = await db.getUsers({ managed_by: userId });
       accessibleUserIds = [userId, ...teamMembers.map(m => m.id)];
     } else {
       // ADMIN sees everyone (if they are NOT one of the targeted users above)
+      // Honour the assigned_staff_id query param for filtering by staff
+      if (assigned_staff_id) {
+        filter.assigned_staff_id = assigned_staff_id;
+      }
       accessibleUserIds = null;
     }
 
