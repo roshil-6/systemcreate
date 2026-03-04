@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './SnehaDashboard.css';
-import { FiUser, FiDollarSign, FiClock, FiCheck, FiSend, FiEdit2, FiSave } from 'react-icons/fi';
+import { FiUser, FiDollarSign, FiClock, FiCheck, FiSend, FiEdit2, FiSave, FiList, FiLayers } from 'react-icons/fi';
 
 const SnehaDashboard = ({ viewingStaffId = null }) => {
   const { user } = useAuth();
   // If viewingStaffId is provided (admin viewing), use it; otherwise use logged-in user's ID
   const snehaStaffId = viewingStaffId || (user?.id ? Number(user.id) : null);
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('processing'); // 'processing' | 'leads'
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingClient, setEditingClient] = useState(null);
@@ -167,8 +170,26 @@ const SnehaDashboard = ({ viewingStaffId = null }) => {
   return (
     <div className="sneha-dashboard">
       <div className="dashboard-header">
-        <h1>Processing Stage 1</h1>
-        <p className="dashboard-subtitle">Client Management - Clients assigned after Registration Completed</p>
+        <h1>{activeTab === 'processing' ? 'Processing Stage 1' : 'My Leads'}</h1>
+        <p className="dashboard-subtitle">
+          {activeTab === 'processing' ? 'Client Management - Clients assigned after Registration Completed' : 'Manage your assigned leads'}
+        </p>
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="kripa-tab-bar sneha-tab-bar">
+        <button
+          className={`kripa-tab-btn sneha-tab-btn ${activeTab === 'processing' ? 'active' : ''}`}
+          onClick={() => setActiveTab('processing')}
+        >
+          <FiLayers /> Stage 1 Processing
+        </button>
+        <button
+          className={`kripa-tab-btn sneha-tab-btn ${activeTab === 'leads' ? 'active' : ''}`}
+          onClick={() => { navigate('/leads'); }}
+        >
+          <FiList /> My Leads
+        </button>
       </div>
 
       {clients.length === 0 ? (
