@@ -1143,7 +1143,8 @@ const database = {
   },
 
   getStaffPerformance: async (accessibleIds = null) => {
-    let whereClause = 'WHERE (role != \'ADMIN\' OR name IN (\'Sneha\', \'KRIPA\', \'SNEHA\', \'Kripa\'))';
+    let whereClause = `WHERE (role != 'ADMIN' OR id IN (12, 13)) AND id NOT IN (17, 18, 19)`; // id 12 = SNEHA RIGIN, id 13 = Kripa; exclude test users
+
     const params = [];
     if (accessibleIds) {
       whereClause += ' AND id = ANY($1)';
