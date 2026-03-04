@@ -118,14 +118,27 @@ const LeadDetail = () => {
         }
       });
 
-      // Clear the cached leads table so the new/updated lead definitely appears at the top
-      sessionStorage.removeItem('leadsPageState');
-
       if (id === 'new') {
+        // Only clear the cache if a completely new Lead is created, to force it onto page 1
+        sessionStorage.removeItem('leadsPageState');
         await axios.post(`${API_BASE_URL}/api/leads`, cleanedData);
         navigate('/leads');
       } else {
         await axios.put(`${API_BASE_URL}/api/leads/${id}`, cleanedData);
+
+        // Soft update the specific lead in the cache so it doesn't force a page refresh when navigating back
+        try {
+          const cachedState = sessionStorage.getItem('leadsPageState');
+          if (cachedState) {
+            const state = JSON.parse(cachedState);
+            const leadIndex = state.leads.findIndex(l => l.id === parseInt(id));
+            if (leadIndex !== -1) {
+              state.leads[leadIndex] = { ...state.leads[leadIndex], ...cleanedData, updated_at: new Date().toISOString() };
+              sessionStorage.setItem('leadsPageState', JSON.stringify(state));
+            }
+          }
+        } catch (e) { }
+
         await fetchLead();
         setEditing(false);
       }
@@ -144,8 +157,19 @@ const LeadDetail = () => {
       setNewComment('');
       fetchComments();
 
-      // Clear leads cache so the table refreshes the updated_at ordering
-      sessionStorage.removeItem('leadsPageState');
+      // Soft update the specific lead's comment count/status in cache instead of nuking the entire cache
+      try {
+        const cachedState = sessionStorage.getItem('leadsPageState');
+        if (cachedState) {
+          const state = JSON.parse(cachedState);
+          const leadIndex = state.leads.findIndex(l => l.id === parseInt(id));
+          if (leadIndex !== -1) {
+            // Forcing a fresh updated timestamp so it bubbles to top if backend sorts it
+            state.leads[leadIndex] = { ...state.leads[leadIndex], updated_at: new Date().toISOString() };
+            sessionStorage.setItem('leadsPageState', JSON.stringify(state));
+          }
+        }
+      } catch (e) { }
     } catch (error) {
       alert(error.response?.data?.error || 'Error adding comment');
     }

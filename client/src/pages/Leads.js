@@ -78,8 +78,8 @@ const Leads = () => {
     if (cachedState) {
       try {
         const state = JSON.parse(cachedState);
-        // Add a timestamp check so we don't use state older than 5 minutes
-        const isRecent = state.timestamp && (Date.now() - state.timestamp < 5 * 60 * 1000);
+        // Add a timestamp check so we don't use state older than 60 minutes
+        const isRecent = state.timestamp && (Date.now() - state.timestamp < 60 * 60 * 1000);
 
         // Only restore if the filters match the URL filters to avoid stale data on new searches
         if (isRecent && state.search === search && state.statusFilter === statusFilter &&
@@ -117,26 +117,36 @@ const Leads = () => {
         const state = JSON.parse(cachedState);
         const targetId = state.clickedLeadId;
 
-        if (targetId) {
+        if (targetId || state.scrollPosition) {
+          let attempts = 0;
+
           const restoreScroll = () => {
-            const rowElement = document.getElementById(`lead-row-${targetId}`);
+            attempts++;
+            const rowElement = targetId ? document.getElementById(`lead-row-${targetId}`) : null;
+            const container = document.querySelector('.leads-table-container');
+
             if (rowElement) {
               rowElement.scrollIntoView({ block: 'center', inline: 'nearest' });
 
-              // We only want to fire this once per session-load to avoid fighting the user's manual scroll
               const updatedState = { ...state };
               delete updatedState.clickedLeadId;
               sessionStorage.setItem('leadsPageState', JSON.stringify(updatedState));
               return true;
+            } else if (container && container.scrollHeight > container.clientHeight && state.scrollPosition > 0) {
+              // Fallback to strict pixel scrolling if ID isn't found but scroll container is ready
+              container.scrollTop = state.scrollPosition;
+              if (container.scrollTop > 0) return true;
             }
             return false;
           };
 
-          // Attempt immediately, or wait slightly for React to finish rendering the rows
-          if (!restoreScroll()) {
-            setTimeout(restoreScroll, 50);
-            setTimeout(restoreScroll, 150);
-          }
+          const checkInterval = setInterval(() => {
+            if (restoreScroll() || attempts >= 25) { // 25 attempts * 100ms = 2.5 seconds
+              clearInterval(checkInterval);
+            }
+          }, 100);
+
+          restoreScroll(); // first attempt immediate
         }
       } catch (e) {
         // ignore JSON parse errors
