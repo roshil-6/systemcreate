@@ -1,0 +1,54 @@
+== NEW TAB QUERY ==
+Limit  (cost=76.41..76.41 rows=1 width=20) (actual time=3.798..3.802 rows=0 loops=1)
+  ->  Sort  (cost=76.41..76.41 rows=1 width=20) (actual time=3.796..3.799 rows=0 loops=1)
+        Sort Key: leads.created_at DESC, leads.updated_at DESC
+        Sort Method: quicksort  Memory: 25kB
+        ->  Nested Loop Anti Join  (cost=9.19..76.40 rows=1 width=20) (actual time=3.770..3.773 rows=0 loops=1)
+              ->  Bitmap Heap Scan on leads  (cost=8.90..41.90 rows=8 width=20) (actual time=0.393..1.911 rows=1496 loops=1)
+                    Recheck Cond: ((status = 'New'::text) OR ((status = 'Unassigned'::text) AND (deleted_at IS NULL)))
+                    Filter: (deleted_at IS NULL)
+                    Heap Blocks: exact=217
+                    ->  BitmapOr  (cost=8.90..8.90 rows=9 width=0) (actual time=0.283..0.285 rows=0 loops=1)
+                          ->  Bitmap Index Scan on idx_leads_status  (cost=0.00..4.29 rows=1 width=0) (actual time=0.033..0.033 rows=0 loops=1)
+                                Index Cond: (status = 'New'::text)
+                          ->  Bitmap Index Scan on idx_leads_staff_status_updated  (cost=0.00..4.61 rows=8 width=0) (actual time=0.249..0.250 rows=1496 loops=1)
+                                Index Cond: (status = 'Unassigned'::text)
+              ->  Index Only Scan using idx_comments_lead on comments  (cost=0.29..4.30 rows=1 width=4) (actual time=0.001..0.001 rows=1 loops=1496)
+                    Index Cond: (lead_id = leads.id)
+                    Heap Fetches: 160
+Planning Time: 1.903 ms
+Execution Time: 3.943 ms
+
+== NEW TAB COUNT QUERY ==
+Aggregate  (cost=76.40..76.41 rows=1 width=8) (actual time=2.744..2.747 rows=1 loops=1)
+  ->  Nested Loop Anti Join  (cost=9.19..76.40 rows=1 width=0) (actual time=2.738..2.741 rows=0 loops=1)
+        ->  Bitmap Heap Scan on leads  (cost=8.90..41.90 rows=8 width=4) (actual time=0.212..0.914 rows=1496 loops=1)
+              Recheck Cond: ((status = 'New'::text) OR ((status = 'Unassigned'::text) AND (deleted_at IS NULL)))
+              Filter: (deleted_at IS NULL)
+              Heap Blocks: exact=217
+              ->  BitmapOr  (cost=8.90..8.90 rows=9 width=0) (actual time=0.179..0.181 rows=0 loops=1)
+                    ->  Bitmap Index Scan on idx_leads_status  (cost=0.00..4.29 rows=1 width=0) (actual time=0.013..0.013 rows=0 loops=1)
+                          Index Cond: (status = 'New'::text)
+                    ->  Bitmap Index Scan on idx_leads_staff_status_updated  (cost=0.00..4.61 rows=8 width=0) (actual time=0.166..0.166 rows=1496 loops=1)
+                          Index Cond: (status = 'Unassigned'::text)
+        ->  Index Only Scan using idx_comments_lead on comments  (cost=0.29..4.30 rows=1 width=4) (actual time=0.001..0.001 rows=1 loops=1496)
+              Index Cond: (lead_id = leads.id)
+              Heap Fetches: 160
+Planning Time: 0.451 ms
+Execution Time: 2.801 ms
+
+== FOLLOW UP TAB QUERY ==
+Limit  (cost=255.86..255.96 rows=43 width=20) (actual time=21.231..21.261 rows=200 loops=1)
+  ->  Sort  (cost=255.86..255.96 rows=43 width=20) (actual time=21.228..21.241 rows=200 loops=1)
+        Sort Key: leads.created_at DESC, leads.updated_at DESC
+        Sort Method: top-N heapsort  Memory: 53kB
+        ->  Nested Loop Semi Join  (cost=4.80..254.69 rows=43 width=20) (actual time=0.678..17.732 rows=8686 loops=1)
+              ->  Bitmap Heap Scan on leads  (cost=4.51..141.25 rows=43 width=20) (actual time=0.663..3.783 rows=8704 loops=1)
+                    Recheck Cond: (deleted_at IS NULL)
+                    Heap Blocks: exact=664
+                    ->  Bitmap Index Scan on idx_leads_staff_status_updated  (cost=0.00..4.50 rows=43 width=0) (actual time=0.537..0.538 rows=8705 loops=1)
+              ->  Index Only Scan using idx_comments_lead on comments  (cost=0.29..2.63 rows=1 width=4) (actual time=0.001..0.001 rows=1 loops=8704)
+                    Index Cond: (lead_id = leads.id)
+                    Heap Fetches: 180
+Planning Time: 0.451 ms
+Execution Time: 21.365 ms

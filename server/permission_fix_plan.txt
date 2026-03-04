@@ -1,0 +1,80 @@
+# Plan: Fix 404 on Lead Detail and Comments
+
+The user is experiencing 404 errors when trying to open leads, particularly from the dashboard's "Assigned By Me" or "Recent Activity" sections. 
+This is because `SALES_TEAM` members are strictly restricted to leads currently assigned to them (`assigned_staff_id = userId`). 
+If they assigned a lead to someone else, or created a lead that was later assigned away, they can still see it in their activity/assigned-list, but clicking it results in a 404 check failure.
+
+## Proposed Changes
+
+### `server/routes/leads.js`
+
+1.  **Update `GET /api/leads/:id`**:
+    *   Fetch the lead by ID only (no `assigned_staff_id` filter in `db.getLeads`).
+    *   Implement an asynchronous permission check:
+        *   `ADMIN` and `STAFF` roles: Access all.
+        *   `SALES_TEAM_HEAD` role: Access if assigned to self OR assigned to a team member (managed by them).
+        *   `SALES_TEAM` role: Access if assigned to self OR created by them OR if they once assigned it to someone else (check notifications).
+    *   For simplicity and performance, start by allowing `SALES_TEAM` to see leads they **created** or are **currently assigned to**. To truly support "Assigned By Me", we could also check if they are the `created_by` of a `lead_assigned` notification for this lead.
+
+2.  **Update `GET /api/leads/:id/comments`**:
+    *   Apply the same permission logic.
+
+3.  **Update `POST /api/leads/:id/comments`**:
+    *   Apply the same permission logic.
+
+4.  **Update `PUT /api/leads/:id`**:
+    *   Apply the same permission logic for reading the existing lead, and ensure they can still update if they are the "owner" in some way (though typically only the current assignee or an admin should update sensitive fields).
+
+## Implementation Details
+
+I'll create a helper function `checkLeadAccess(lead, user)` to reuse across these routes.
+
+```javascript
+async function checkLeadAccess(lead, user) {
+  if (!lead) return false;
+  const role = user.role;
+  const userId = user.id;
+
+  if (role === 'ADMIN' || role === 'STAFF' || role === 'PROCESSING') return true;
+
+  if (role === 'SALES_TEAM_HEAD') {
+    if (lead.assigned_staff_id === userId) return true;
+    if (!lead.assigned_staff_id) return true; // Allow heads to see unassigned leads
+    
+    // Check if assigned to a team member
+    const teamMembers = await db.getUsers({ managed_by: userId });
+    const teamMemberIds = teamMembers.map(u => u.id);
+    if (teamMemberIds.includes(lead.assigned_staff_id)) return true;
+    
+    return false;
+  }
+
+  if (role === 'SALES_TEAM') {
+    // Access if assigned to self
+    if (lead.assigned_staff_id === userId) return true;
+    
+    // Access if they created the lead
+    if (lead.created_by === userId) return true;
+    
+    // Access if they assigned it to someone else (check notifications)
+    const assignmentNotif = await db.query(
+      "SELECT 1 FROM notifications WHERE type = 'lead_assigned' AND lead_id = $1 AND created_by = $2 LIMIT 1",
+      [lead.id, userId]
+    );
+    if (assignmentNotif.rows.length > 0) return true;
+
+    return false;
+  }
+
+  return false;
+}
+```
+
+This looks much more robust and fixes the 404 for users viewing their own assignment history.
+
+## Verification
+
+*   Log in as a Sales Team member.
+*   Assign a lead to someone else.
+*   Try to open that lead from "Assigned By Me" on the dashboard.
+*   Verify it no longer 404s.

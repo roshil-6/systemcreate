@@ -358,23 +358,17 @@ router.get('/assigned-leads/:staffId', authenticate, async (req, res) => {
 
     // For ADMIN: show ALL leads currently assigned to the target staff member.
     // For other roles: show leads assigned to that staff that were created by this user.
-    let leads;
-    if (role === 'ADMIN') {
-      leads = await db.getLeads({ assigned_staff_id: staffId });
-    } else {
-      // Use notifications to find leads this user personally assigned
-      const assignedLeadsResult = await db.query(`
-        SELECT DISTINCT n.lead_id
-        FROM notifications n
-        WHERE n.type = 'lead_assigned' AND n.created_by = $1 AND n.user_id = $2
-      `, [userId, staffId]);
+    // Use notifications to find leads this user personally assigned (for all roles including Admin)
+    let leads = [];
+    const assignedLeadsResult = await db.query(`
+      SELECT DISTINCT n.lead_id
+      FROM notifications n
+      WHERE n.type = 'lead_assigned' AND n.created_by = $1 AND n.user_id = $2
+    `, [userId, staffId]);
 
-      const leadIds = assignedLeadsResult.rows.map(row => row.lead_id);
+    const leadIds = assignedLeadsResult.rows.map(row => row.lead_id);
 
-      if (leadIds.length === 0) {
-        return res.json([]);
-      }
-
+    if (leadIds.length > 0) {
       const allLeads = await db.getLeads();
       leads = allLeads.filter(l => leadIds.includes(l.id));
     }
