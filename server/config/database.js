@@ -263,10 +263,18 @@ const database = {
       params.push(Number(filter.id));
     }
     if (filter.assigned_staff_ids && Array.isArray(filter.assigned_staff_ids)) {
-      whereConditions += ` AND (assigned_staff_id = ANY($${paramIndex++}) OR assigned_staff_id IS NULL)`;
+      if (filter.include_unassigned) {
+        whereConditions += ` AND (assigned_staff_id = ANY($${paramIndex++}) OR assigned_staff_id IS NULL)`;
+      } else {
+        whereConditions += ` AND assigned_staff_id = ANY($${paramIndex++})`;
+      }
       params.push(filter.assigned_staff_ids);
     } else if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
-      whereConditions += ` AND assigned_staff_id = $${paramIndex++}`;
+      if (filter.include_unassigned) {
+        whereConditions += ` AND (assigned_staff_id = $${paramIndex++} OR assigned_staff_id IS NULL)`;
+      } else {
+        whereConditions += ` AND assigned_staff_id = $${paramIndex++}`;
+      }
       params.push(Number(filter.assigned_staff_id));
     }
     if (filter.status) {
@@ -1090,7 +1098,11 @@ const database = {
       }
       params.push(filter.assigned_staff_ids);
     } else if (filter.assigned_staff_id !== undefined && filter.assigned_staff_id !== null) {
-      whereClause += ` AND assigned_staff_id = $${paramIndex++}`;
+      if (filter.include_unassigned) {
+        whereClause += ` AND (assigned_staff_id = $${paramIndex++} OR assigned_staff_id IS NULL)`;
+      } else {
+        whereClause += ` AND assigned_staff_id = $${paramIndex++}`;
+      }
       params.push(Number(filter.assigned_staff_id));
     }
 

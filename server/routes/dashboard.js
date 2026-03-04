@@ -420,9 +420,12 @@ router.get('/', authenticate, async (req, res) => {
       metrics.leadsByStatus = metrics.leadsByStatus || {};
       metrics.leadsByStatus['Registration Completed'] = metrics.leadsByStatus['Registration Completed'] || 0;
 
-      // Get clients for restricted view (strictly filtered for this Staff Member)
+      // Get clients - strictly filtered for this Staff Member or Processing Staff
       const allClientsReq = await db.getClients() || [];
-      const restrictedClients = allClientsReq.filter(c => Number(c.assigned_staff_id) === Number(userId));
+      const restrictedClients = allClientsReq.filter(c =>
+        Number(c.assigned_staff_id) === Number(userId) ||
+        Number(c.processing_staff_id) === Number(userId)
+      );
 
       // Get Sneha and Kripa user IDs dynamically
       let snehaUserId = null;
@@ -473,7 +476,7 @@ router.get('/', authenticate, async (req, res) => {
         limit: 5 // We only need 5 for the recent activity overview
       });
 
-      const recentLeads = (restrictedRecentLeads || [])
+      const recentActivityItems = (restrictedRecentLeads || [])
         .sort((a, b) => new Date(b?.updated_at || b?.created_at || Date.now()) - new Date(a?.updated_at || a?.created_at || Date.now()))
         .map(l => ({
           type: 'status_change',
@@ -517,9 +520,15 @@ router.get('/', authenticate, async (req, res) => {
           }
         });
       const userComments = (await Promise.all(userCommentsPromises)).filter(c => c !== null);
-      const allActivity = [...(recentLeads || []), ...(userComments || [])]
+      const allActivity = [...(recentActivityItems || []), ...(userComments || [])]
         .sort((a, b) => new Date(b?.timestamp || Date.now()) - new Date(a?.timestamp || Date.now()))
         .slice(0, 10);
+
+      // Fetch true Recent Leads for the list view (Strictly isolated)
+      const trueRecentLeads = await db.getLeads({
+        assigned_staff_id: userId, // Strict isolation
+        limit: 10
+      });
 
       // Augment metrics with old-style fields for frontend compatibility
       metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
@@ -551,7 +560,7 @@ router.get('/', authenticate, async (req, res) => {
         role: role,
         metrics,
         recentActivity: allActivity,
-        recentLeads: recentLeads.slice(0, 20),
+        recentLeads: trueRecentLeads,
         recentClients: restrictedClients.slice(0, 20),
         isRestricted: true,
         assignedByMe: staffAssignedByMe,

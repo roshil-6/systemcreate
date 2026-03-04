@@ -937,7 +937,7 @@ const Dashboard = () => {
               </form>
             </div>
             {renderStaffMetrics()}
-            {dashboardMode !== 'main' && renderStatusBreakdown()}
+            {renderStatusBreakdown()}
             {dashboardMode !== 'main' && renderAssignedByMe()}
             <div className="recent-activity">
               <h2>Recent Activity</h2>
@@ -1011,7 +1011,7 @@ const Dashboard = () => {
         )}
 
         {renderStaffMetrics()}
-        {dashboardMode !== 'main' && renderStatusBreakdown()}
+        {renderStatusBreakdown()}
         {dashboardMode !== 'main' && renderAssignedByMe()}
         {
           (data.staffPerformance && data.staffPerformance.length > 0 && dashboardMode !== 'main') && (
