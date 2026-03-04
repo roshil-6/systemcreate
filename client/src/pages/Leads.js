@@ -1326,6 +1326,7 @@ const Leads = () => {
                     />
                   </th>
                 )}
+                <th style={{ width: '50px', textAlign: 'center', color: '#6b7280' }}>#</th>
                 <th className="sticky-name" style={{ minWidth: '150px' }}>Name</th>
                 <th style={{ minWidth: '130px' }}>Phone</th>
                 <th style={{ minWidth: '180px' }}>Email</th>
@@ -1339,7 +1340,7 @@ const Leads = () => {
               </tr>
             </thead>
             <tbody>
-              {leads.map((lead) => (
+              {leads.map((lead, index) => (
                 <tr
                   key={lead.id}
                   onClick={(e) => {
@@ -1360,6 +1361,9 @@ const Leads = () => {
                       />
                     </td>
                   )}
+                  <td style={{ textAlign: 'center', fontWeight: 500, color: '#9ca3af', fontSize: '13px' }}>
+                    {offset + index + 1}
+                  </td>
                   <td className="name-cell sticky-name" title={lead.name}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name}</span>
