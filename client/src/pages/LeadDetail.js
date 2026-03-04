@@ -53,7 +53,7 @@ const LeadDetail = () => {
         target_country: '',
         residing_country: '',
         program: '',
-        status: 'Unassigned',
+        status: 'New',
         assigned_staff_id: user?.role === 'STAFF' ? user.id : null,
         priority: '',
         comment: '',
@@ -82,7 +82,7 @@ const LeadDetail = () => {
       setFormData(response.data);
     } catch (error) {
       if (error.response?.status === 404) {
-        navigate('/leads');
+        handleBack();
       }
     } finally {
       setLoading(false);
@@ -122,7 +122,7 @@ const LeadDetail = () => {
         // Only clear the cache if a completely new Lead is created, to force it onto page 1
         sessionStorage.removeItem('leadsPageState');
         await axios.post(`${API_BASE_URL}/api/leads`, cleanedData);
-        navigate('/leads');
+        handleBack();
       } else {
         await axios.put(`${API_BASE_URL}/api/leads/${id}`, cleanedData);
 
@@ -297,6 +297,28 @@ const LeadDetail = () => {
     }
   };
 
+  const handleBack = () => {
+    try {
+      const cachedState = sessionStorage.getItem('leadsPageState');
+      if (cachedState) {
+        const state = JSON.parse(cachedState);
+        const params = new URLSearchParams();
+        if (state.search) params.append('search', state.search);
+        if (state.phoneSearch) params.append('phone', state.phoneSearch);
+        if (state.statusFilter) params.append('status', state.statusFilter);
+        if (state.assignedStaffFilter) params.append('assigned_staff_id', state.assignedStaffFilter);
+        if (state.viewType && state.viewType !== 'all') params.append('viewType', state.viewType);
+
+        const queryString = params.toString();
+        navigate(`/leads${queryString ? `?${queryString}` : ''}`);
+        return;
+      }
+    } catch (e) {
+      console.error('Error parsing leads page state for back navigation', e);
+    }
+    navigate('/leads');
+  };
+
   if (loading) {
     return <div className="lead-detail-loading">Loading...</div>;
   }
@@ -306,7 +328,7 @@ const LeadDetail = () => {
       <div className="lead-detail-error">
         <h2>Lead Not Found</h2>
         <p>The requested lead could not be loaded. It may have been deleted or you do not have permission to view it.</p>
-        <button onClick={() => navigate('/leads')} className="btn-back">
+        <button onClick={handleBack} className="btn-back">
           Back to Leads
         </button>
       </div>
@@ -339,7 +361,7 @@ const LeadDetail = () => {
     <div className="lead-detail">
       <div className="lead-detail-header">
         <div className="header-left">
-          <button className="btn-back" onClick={() => navigate('/leads')}>
+          <button className="btn-back" onClick={handleBack}>
             <FiArrowLeft /> Back
           </button>
           <div>
@@ -726,7 +748,7 @@ const LeadDetail = () => {
                 <label>Status</label>
                 <select
                   name="status"
-                  value={formData.status || 'Unassigned'}
+                  value={formData.status || 'New'}
                   onChange={handleChange}
                   disabled={!canEdit}
                 >

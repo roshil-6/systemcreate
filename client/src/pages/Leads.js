@@ -701,7 +701,7 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Unassigned', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+  const statusOptions = ['New', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
@@ -823,7 +823,7 @@ const Leads = () => {
                   fontWeight: viewType === 'new' ? 600 : 500,
                 }}
               >
-                New (Unassigned & No Comments)
+                New (No Comments)
               </button>
               <button
                 onClick={() => handleViewTypeChange('follow_up')}

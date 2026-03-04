@@ -889,7 +889,7 @@ router.post(
         year_of_experience,
         country,
         program,
-        status = 'Unassigned',
+        status = 'New',
         assigned_staff_id,
         priority,
         comment,
@@ -952,8 +952,8 @@ router.post(
 
       // Create notification if lead is assigned to staff (admin or team head)
       if (finalAssignedStaffId) {
-        // AUTOMATIC STATUS UPDATE: If lead is assigned, set status to 'Assigned' (if it was Unassigned)
-        if (status === 'Unassigned') {
+        // AUTOMATIC STATUS UPDATE: If lead is assigned, set status to 'Assigned' (if it was New/Unassigned)
+        if (status === 'New' || status === 'Unassigned') {
           await db.updateLead(newLead.id, { status: 'Assigned' });
           newLead.status = 'Assigned'; // Update response object
         }
@@ -1151,8 +1151,8 @@ router.put('/:id', authenticate, async (req, res) => {
       if ((assigned_staff_id === null || assigned_staff_id === '') && existingStaffId !== null) {
         // Only if current status is 'Assigned'
         if (existingLead.status === 'Assigned') {
-          updates.status = 'Unassigned';
-          console.log(`🔄 Auto-updating status to 'Unassigned' for lead ${leadId}`);
+          updates.status = 'New';
+          console.log(`🔄 Auto-updating status to 'New' for lead ${leadId}`);
         }
       }
 
