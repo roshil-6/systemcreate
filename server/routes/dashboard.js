@@ -43,6 +43,11 @@ async function getAccessibleUserIds(user) {
   const role = user.role;
   const userId = user.id;
 
+  // Check if personal view is forced via query params (passed from the route)
+  if (user.forcePersonal) {
+    return [userId];
+  }
+
   if (role === 'SALES_TEAM' || role === 'STAFF') {
     // Sales team and Staff (Kripa) see only themselves
     return [userId];
@@ -398,10 +403,11 @@ router.get('/', authenticate, async (req, res) => {
     // SQLite doesn't need loadDatabase - data is always fresh
     const userId = req.user.id;
     const role = req.user.role;
-    const accessibleUserIds = await getAccessibleUserIds(req.user);
+    const isPersonalView = req.query.view === 'personal';
+    const accessibleUserIds = await getAccessibleUserIds({ ...req.user, forcePersonal: isPersonalView });
 
-    // Determine if this is a restricted view (strictly SALES_TEAM)
-    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF';
+    // Determine if this is a restricted view (strictly SALES_TEAM, STAFF or forced personal)
+    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF' || isPersonalView;
 
     if (isRestrictedView) {
       // Restricted view - only accessible metrics
