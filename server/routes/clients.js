@@ -50,9 +50,10 @@ router.get('/', authenticate, async (req, res) => {
     // Absolute isolation for targeted users (Sneha, Kripa, Emy)
     const userNameRaw = (req.user.name || '').toLowerCase().trim();
     const userEmailRaw = (req.user.email || '').toLowerCase().trim();
-    const restrictedNames = ['sneha', 'kripa', 'emy', 'shilpa', 'jibna', 'karthika', 'asna'];
-    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
-    const isTargetedUser = restrictedNames.includes(userNameRaw) || restrictedEmails.includes(userEmailRaw);
+    const restrictedNames = ['sneha', 'kripa', 'emy', 'shilpa', 'jibna', 'jibina', 'karthika', 'asna'];
+    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6];
+    const isTargetedUser = restrictedNames.some(n => userNameRaw.startsWith(n)) || restrictedEmails.includes(userEmailRaw) || restrictedUserIds.includes(userId);
 
     if (isTargetedUser && !req.query.assigned_staff_id && !req.query.processing_staff_id) {
       // If no specific staff requested, default to ONLY their own data

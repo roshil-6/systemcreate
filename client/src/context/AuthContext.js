@@ -66,10 +66,12 @@ export const AuthProvider = ({ children }) => {
 
       console.log('✅ Login successful:', response.data.user);
       const { token, user } = response.data;
+      // Clear any cached data from the previous user session to prevent data leakage
+      sessionStorage.clear();
       localStorage.setItem('token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
-      return { success: true, user }; // Return user object for role checking
+      return { success: true, user };
     } catch (error) {
       console.error('❌ Login error:', {
         message: error.message,
@@ -87,6 +89,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     delete axios.defaults.headers.common['Authorization'];
+    // Clear all cached page state so the next user doesn't see stale data
+    sessionStorage.clear();
     setUser(null);
   };
 

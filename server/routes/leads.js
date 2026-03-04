@@ -138,10 +138,11 @@ router.get('/', authenticate, async (req, res) => {
     // High-priority: Strict isolation for specific users regardless of role
     const userName = req.user.name || '';
     const userEmail = req.user.email || '';
-    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const restrictedNames = ['Sneha', 'SNEHA', 'SNEHA RIGIN', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6]; // Sneha(12), Kripa(13), Emy(4), Shilpa(5), Jibina(8), Karthika(7), Asna(6)
 
-    const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
+    const isTargetedUser = restrictedNames.some(n => userName.toUpperCase().startsWith(n.toUpperCase())) || restrictedEmails.includes(userEmail.toLowerCase()) || restrictedUserIds.includes(userId);
 
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;

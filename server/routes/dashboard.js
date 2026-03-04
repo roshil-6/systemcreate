@@ -44,10 +44,11 @@ async function getAccessibleUserIds(user) {
   const userId = user.id;
 
   // High-priority: Strict isolation for specific users regardless of role
-  const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+  const restrictedNames = ['Sneha', 'SNEHA', 'SNEHA RIGIN', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+  const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6]; // Sneha(12),Kripa(13),Emy(4),Shilpa(5),Jibina(8),Karthika(7),Asna(6)
 
-  const isTargetedUser = restrictedNames.includes(user.name) || restrictedEmails.includes(user.email);
+  const isTargetedUser = restrictedNames.some(n => (user.name || '').toUpperCase().startsWith(n.toUpperCase())) || restrictedEmails.includes((user.email || '').toLowerCase()) || restrictedUserIds.includes(user.id);
 
   // Check if personal view is forced OR if the user is one of the strictly restricted ones
   if (user.forcePersonal || isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
