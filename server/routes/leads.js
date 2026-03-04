@@ -10,6 +10,62 @@ const path = require('path');
 
 const router = express.Router();
 
+/**
+ * Robust permission check for single lead access.
+ * Returns the lead object if access is granted, null otherwise.
+ */
+async function getLeadWithAccessCheck(leadId, user) {
+  const userId = user.id;
+  const role = user.role;
+
+  // 1. Fetch the lead by ID only (no restrictive filter yet)
+  const leads = await db.getLeads({ id: leadId });
+  const lead = leads[0];
+
+  if (!lead) return null;
+
+  // 2. CRITICAL: Filter out "Registration Completed" leads - they are now clients
+  // (unless role is ADMIN/PROCESSING who might need to see them, but typically they go to Client route)
+  if (lead.status === 'Registration Completed' && role !== 'ADMIN' && role !== 'PROCESSING') {
+    return null;
+  }
+
+  // 3. Permission logic
+  if (role === 'ADMIN' || role === 'STAFF' || role === 'PROCESSING') {
+    return lead; // Full access
+  }
+
+  if (role === 'SALES_TEAM_HEAD') {
+    // Heads can see leads assigned to self, unassigned leads, or leads assigned to their team
+    if (lead.assigned_staff_id === userId || !lead.assigned_staff_id) return lead;
+
+    const teamMembers = await db.getUsers({ managed_by: userId });
+    const teamMemberIds = teamMembers.map(u => u.id);
+    if (teamMemberIds.includes(lead.assigned_staff_id)) return lead;
+
+    return null;
+  }
+
+  if (role === 'SALES_TEAM') {
+    // Current owner
+    if (lead.assigned_staff_id === userId) return lead;
+
+    // Original creator
+    if (lead.created_by === userId) return lead;
+
+    // Historically handled (assigned it to someone else)
+    const assignmentNotif = await db.query(
+      "SELECT 1 FROM notifications WHERE type = 'lead_assigned' AND lead_id = $1 AND created_by = $2 LIMIT 1",
+      [lead.id, userId]
+    );
+    if (assignmentNotif.rows.length > 0) return lead;
+
+    return null;
+  }
+
+  return null;
+}
+
 // Configure multer for CSV file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -815,27 +871,11 @@ router.get('/:id/excel-details', authenticate, async (req, res) => {
 
 router.get('/:id', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const role = req.user.role;
     const leadId = parseInt(req.params.id);
-
-    const filter = { id: leadId };
-
-    // CRITICAL: Non-admin roles can only see their own leads (or team leads for heads)
-    if (role === 'SALES_TEAM') {
-      filter.assigned_staff_id = userId;
-    }
-    // ADMIN, SALES_TEAM_HEAD, STAFF, PROCESSING see all leads, no extra filter needed.
-
-    let leads = await db.getLeads(filter);
-
-    // CRITICAL: Filter out "Registration Completed" leads - they are now clients
-    leads = leads.filter(lead => lead.status !== 'Registration Completed');
-
-    const lead = leads[0];
+    const lead = await getLeadWithAccessCheck(leadId, req.user);
 
     if (!lead) {
-      return res.status(404).json({ error: 'Lead not found or has been converted to client' });
+      return res.status(404).json({ error: 'Lead not found or access denied' });
     }
 
     // Add assigned staff name
@@ -987,16 +1027,15 @@ router.put('/:id', authenticate, async (req, res) => {
     const role = req.user.role;
     const leadId = parseInt(req.params.id);
 
-    // Check if lead exists - get it first without role filtering
-    let existingLeads = await db.getLeads({ id: leadId });
-    let existingLead = existingLeads[0];
+    // Check if lead exists and user has at least read access
+    const existingLead = await getLeadWithAccessCheck(leadId, req.user);
 
     if (!existingLead) {
-      return res.status(404).json({ error: 'Lead not found' });
+      return res.status(404).json({ error: 'Lead not found or access denied' });
     }
 
-    // Check if user has access to this lead
-    if (role === 'SALES_TEAM') {
+    // Role-based editing restrictions
+    if (role === 'SALES_TEAM' || role === 'PROCESSING') {
       const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
       // Allow update if assigned to self OR if unassigned (claiming)
       if (leadOwnerId !== userId && leadOwnerId !== null) {
@@ -1184,31 +1223,25 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
     const leadId = parseInt(req.params.id);
     const { assessment_authority, occupation_mapped, registration_fee_paid } = req.body;
 
-    // Check if lead exists
-    const leads = await db.getLeads({ id: leadId });
-    const lead = leads[0];
+    // Check if lead exists and user has at least read access
+    const existingLead = await getLeadWithAccessCheck(leadId, req.user);
 
-    if (!lead) {
-      return res.status(404).json({ error: 'Lead not found' });
+    if (!existingLead) {
+      return res.status(404).json({ error: 'Lead not found or access denied' });
     }
 
-    if (lead.status === 'Registration Completed') {
-      return res.status(400).json({ error: 'Lead is already registered' });
-    }
+    // Role-based editing restrictions
+    const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
 
-    // Check permissions (Admin, Sales Head, or Lead Owner)
     if (role !== 'ADMIN') {
       if (role === 'SALES_TEAM_HEAD') {
         const teamMembers = await db.getUsers({ managed_by: userId });
         const teamIds = teamMembers.map(u => u.id);
-        const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
 
-        if (leadOwnerId !== userId && !teamIds.includes(leadOwnerId) && lead.assigned_staff_id !== null) {
+        if (leadOwnerId !== userId && !teamIds.includes(leadOwnerId) && existingLead.assigned_staff_id !== null) {
           return res.status(403).json({ error: 'Access denied' });
         }
-      } else if (role === 'SALES_TEAM') {
-        // Sales Team
-        const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
+      } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
         if (leadOwnerId !== userId) {
           return res.status(403).json({ error: 'Access denied' });
         }
@@ -1296,20 +1329,11 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
 // Get comments for a lead
 router.get('/:id/comments', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const role = req.user.role;
     const leadId = parseInt(req.params.id);
+    const lead = await getLeadWithAccessCheck(leadId, req.user);
 
-    // Check if user has access to this lead
-    let filter = { id: leadId };
-    if (role === 'SALES_TEAM') {
-      filter.assigned_staff_id = userId;
-    }
-
-    let leads = await db.getLeads(filter);
-
-    if (leads.length === 0) {
-      return res.status(404).json({ error: 'Lead not found' });
+    if (!lead) {
+      return res.status(404).json({ error: 'Access denied' });
     }
 
     const comments = await db.getComments(leadId);
@@ -1333,7 +1357,6 @@ router.get('/:id/comments', authenticate, async (req, res) => {
 router.post('/:id/comments', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
-    const role = req.user.role;
     const leadId = parseInt(req.params.id);
     const { text } = req.body;
 
@@ -1342,14 +1365,9 @@ router.post('/:id/comments', authenticate, async (req, res) => {
     }
 
     // Check if user has access to this lead
-    let filter = { id: leadId };
-    if (role === 'SALES_TEAM') {
-      filter.assigned_staff_id = userId;
-    }
+    const lead = await getLeadWithAccessCheck(leadId, req.user);
 
-    let leads = await db.getLeads(filter);
-
-    if (leads.length === 0) {
+    if (!lead) {
       return res.status(404).json({ error: 'Lead not found or access denied' });
     }
 
