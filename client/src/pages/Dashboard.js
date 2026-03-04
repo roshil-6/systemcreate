@@ -22,6 +22,7 @@ const Dashboard = () => {
   // Drill-down state for "ASSIGNED BY ME"
   const [isAssignedLeadsModalOpen, setIsAssignedLeadsModalOpen] = useState(false);
   const [selectedStaffName, setSelectedStaffName] = useState('');
+  const [selectedStaffLeads, setSelectedStaffLeads] = useState([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
 
   // Custom dashboard mode for dual-access users
