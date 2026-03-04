@@ -1326,7 +1326,7 @@ const Leads = () => {
                     />
                   </th>
                 )}
-                <th style={{ width: '50px', textAlign: 'center', color: '#6b7280' }}>#</th>
+                <th className="number-column" style={{ textAlign: 'center', color: '#6b7280' }}>#</th>
                 <th className="sticky-name" style={{ minWidth: '150px' }}>Name</th>
                 <th style={{ minWidth: '130px' }}>Phone</th>
                 <th style={{ minWidth: '180px' }}>Email</th>
@@ -1361,7 +1361,7 @@ const Leads = () => {
                       />
                     </td>
                   )}
-                  <td style={{ textAlign: 'center', fontWeight: 500, color: '#9ca3af', fontSize: '13px' }}>
+                  <td className="number-column" style={{ textAlign: 'center', fontWeight: 500, color: '#9ca3af', fontSize: '13px' }}>
                     {offset + index + 1}
                   </td>
                   <td className="name-cell sticky-name" title={lead.name}>
