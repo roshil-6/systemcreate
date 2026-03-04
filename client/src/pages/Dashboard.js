@@ -21,9 +21,12 @@ const Dashboard = () => {
 
   // Drill-down state for "ASSIGNED BY ME"
   const [isAssignedLeadsModalOpen, setIsAssignedLeadsModalOpen] = useState(false);
-  const [selectedStaffLeads, setSelectedStaffLeads] = useState([]);
   const [selectedStaffName, setSelectedStaffName] = useState('');
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+
+  // Custom dashboard mode for dual-access users
+  const [dashboardMode, setDashboardMode] = useState('processing');
+
 
   const fetchAssignedLeads = async (staffId, staffName) => {
     setIsLoadingLeads(true);
@@ -40,10 +43,10 @@ const Dashboard = () => {
   };
 
   // Check if user is Sneha
-  const isSneha = user?.name === 'Sneha' || user?.name === 'SNEHA' || user?.email === 'sneha@toniosenora.com';
+  const isSneha = user?.name?.includes('Sneha') || user?.name?.includes('SNEHA') || user?.email === 'sneha@toniosenora.com';
 
   // Check if user is Kripa
-  const isKripa = user?.name === 'Kripa' || user?.name === 'KRIPA' || user?.email === 'kripa@toniosenora.com';
+  const isKripa = user?.name?.includes('Kripa') || user?.name?.includes('KRIPA') || user?.email === 'kripa@toniosenora.com';
 
   // Check if user is Emy
   const isEmy = user?.name === 'Emy' || user?.name === 'EMY' || user?.email === 'emy@toniosenora.com';
@@ -63,6 +66,8 @@ const Dashboard = () => {
           'Pragma': 'no-cache'
         },
         params: {
+          type: 'main',
+          view: dashboardMode === 'main' ? 'personal' : undefined,
           _t: new Date().getTime() // Add timestamp to prevent caching
         }
       });
@@ -141,7 +146,12 @@ const Dashboard = () => {
     try {
       const endpoint = currentStaffId ? `${API_BASE_URL}/api/dashboard/staff/${currentStaffId}` : `${API_BASE_URL}/api/dashboard`;
       const response = await axios.get(endpoint, {
-        params: { metricsOnly: 'true', _t: new Date().getTime() },
+        params: {
+          type: 'main',
+          view: dashboardMode === 'main' ? 'personal' : undefined,
+          metricsOnly: 'true',
+          _t: new Date().getTime()
+        },
         headers: { 'Cache-Control': 'no-cache' }
       });
 
@@ -377,23 +387,52 @@ const Dashboard = () => {
     (!data && loading)
   );
 
-  // If Sneha is viewing her own dashboard, show it immediately
-  if (viewingSneha) {
-    return <SnehaDashboard viewingStaffId={null} />;
-  }
-
-  // If Kripa is viewing her own dashboard, show it immediately
-  if (viewingKripa) {
-    return <KripaDashboard viewingStaffId={null} />;
-  }
-
   if (loading) {
     return <div className="dashboard-loading">Loading dashboard...</div>;
+  }
+
+  // Dual Dashboard Switcher for Sneha/Kripa
+  if ((viewingSneha || viewingKripa) && dashboardMode === 'processing') {
+    return (
+      <div className="dashboard-container" style={{ padding: '0 20px' }}>
+        <div style={{ padding: '20px 0', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', display: 'flex', gap: '10px' }}>
+          <button
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontWeight: 600,
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: '#2563eb',
+              color: 'white'
+            }}
+          >
+            {viewingSneha ? 'Stage 1 Processing' : 'Stage 2 Processing'}
+          </button>
+          <button
+            onClick={() => setDashboardMode('main')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontWeight: 600,
+              border: '1px solid #d1d5db',
+              cursor: 'pointer',
+              backgroundColor: 'white',
+              color: '#374151'
+            }}
+          >
+            Company Dashboard
+          </button>
+        </div>
+        {viewingSneha ? <SnehaDashboard viewingStaffId={null} /> : <KripaDashboard viewingStaffId={null} />}
+      </div>
+    );
   }
 
   if (!data) {
     return <div className="dashboard-error">Error loading dashboard data</div>;
   }
+
 
   // After data is loaded, check again for admin viewing Sneha/Kripa
   // Sneha's ID is 12, Kripa's ID is 8 (from backend code)
@@ -661,16 +700,15 @@ const Dashboard = () => {
                 <div style={{ fontSize: '12px', color: '#6b7280' }}>Assigned Staff</div>
               </div>
               <div style={{
-                background: 'linear-gradient(135deg, #FFF4D6 0%, #FDE68A 100%)',
+                background: 'rgba(212, 175, 55, 0.1)',
                 color: '#8B6914',
                 padding: '8px 12px',
                 borderRadius: '8px',
-                fontWeight: '700',
-                fontSize: '16px',
-                minWidth: '40px',
+                fontWeight: '600',
+                fontSize: '13px',
                 textAlign: 'center'
               }}>
-                {item.assigned_count}
+                View List ➔
               </div>
             </div>
           ))}
@@ -756,6 +794,7 @@ const Dashboard = () => {
                 <table>
                   <thead>
                     <tr>
+                      <th style={{ width: '40px' }}>#</th>
                       <th>Name</th>
                       <th>Phone</th>
                       <th>Email</th>
@@ -765,8 +804,11 @@ const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedStaffLeads.map((lead) => (
+                    {selectedStaffLeads.map((lead, index) => (
                       <tr key={lead.id}>
+                        <td style={{ color: '#6b7280', fontSize: '13px' }}>
+                          {index + 1}
+                        </td>
                         <td>
                           <div style={{ fontWeight: 600, color: '#111827' }}>{lead.name}</div>
                         </td>
@@ -1305,6 +1347,38 @@ const Dashboard = () => {
   // ADMIN Dashboard
   return (
     <div className="dashboard">
+      {(isSneha || isKripa) && (
+        <div style={{ padding: '0 0 20px 0', borderBottom: '1px solid #e5e7eb', marginBottom: '20px', display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => setDashboardMode('processing')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontWeight: 600,
+              border: dashboardMode === 'processing' ? 'none' : '1px solid #d1d5db',
+              cursor: 'pointer',
+              backgroundColor: dashboardMode === 'processing' ? '#2563eb' : 'white',
+              color: dashboardMode === 'processing' ? 'white' : '#374151'
+            }}
+          >
+            {isSneha ? 'Stage 1 Processing' : 'Stage 2 Processing'}
+          </button>
+          <button
+            onClick={() => setDashboardMode('main')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontWeight: 600,
+              border: dashboardMode === 'main' ? 'none' : '1px solid #d1d5db',
+              cursor: 'pointer',
+              backgroundColor: dashboardMode === 'main' ? '#2563eb' : 'white',
+              color: dashboardMode === 'main' ? 'white' : '#374151'
+            }}
+          >
+            My Leads
+          </button>
+        </div>
+      )}
       <div className="dashboard-header">
         <h1 className="dashboard-title">
           {data.role === 'ADMIN' ? 'Company Dashboard' : 'Team Dashboard'}
