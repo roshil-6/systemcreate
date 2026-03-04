@@ -119,6 +119,9 @@ const Leads = () => {
   useEffect(() => {
     const saveState = () => {
       if (leads.length > 0) {
+        const container = document.querySelector('.leads-table-container');
+        const scrollPos = container ? container.scrollTop : window.scrollY;
+
         sessionStorage.setItem('leadsPageState', JSON.stringify({
           leads,
           offset,
@@ -128,7 +131,7 @@ const Leads = () => {
           phoneSearch,
           assignedStaffFilter,
           viewType,
-          scrollPosition: window.scrollY,
+          scrollPosition: scrollPos,
           timestamp: Date.now()
         }));
       }
