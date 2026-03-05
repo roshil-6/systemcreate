@@ -184,8 +184,10 @@ router.get('/', authenticate, async (req, res) => {
       filter.phone = phone;
     }
 
-    // Performance: Filter out Registration Completed at database level
-    filter.excludeStatus = 'Registration Completed';
+    // Performance: Only filter out Registration Completed at database level when not explicitly requested
+    if (!status) {
+      filter.excludeStatus = 'Registration Completed';
+    }
 
     const leadsRaw = await db.getLeads(filter);
     const totalCount = leadsRaw.length > 0 ? parseInt(leadsRaw[0].full_count) : 0;
