@@ -149,6 +149,7 @@
   padding: 16px;
   border-radius: 8px;
   border: 2px solid;
+  cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
   gap: 8px;
 }

@@ -558,6 +558,14 @@ const Dashboard = () => {
     return colors[status] || colors['New'];
   };
 
+  const handleStatusClick = (status) => {
+    // Navigate to leads page with status filter
+    // We use URLSearchParams to ensure proper encoding
+    const params = new URLSearchParams();
+    params.set('status', status);
+    navigate(`/leads?${params.toString()}`);
+  };
+
   const renderStatusBreakdown = () => {
     // Don't show status breakdown for processing team (they don't deal with leads)
     if (isStaffDetailView && data.isProcessingTeam) {
@@ -583,43 +591,78 @@ const Dashboard = () => {
             // New format with leadsByStatus
             <>
               {data.metrics.leadsByStatus['New'] !== undefined && (
-                <div className="status-item" style={newColor}>
+                <div
+                  className="status-item"
+                  style={newColor}
+                  onClick={() => handleStatusClick('New')}
+                  title="View New Leads"
+                >
                   <span className="status-label" style={{ color: newColor.color }}>New</span>
                   <span className="status-count" style={{ color: newColor.color }}>{data.metrics.leadsByStatus['New']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Follow-up'] !== undefined && (
-                <div className="status-item" style={followUpColor}>
+                <div
+                  className="status-item"
+                  style={followUpColor}
+                  onClick={() => handleStatusClick('Follow-up')}
+                  title="View Follow-up Leads"
+                >
                   <span className="status-label" style={{ color: followUpColor.color }}>Follow-up</span>
                   <span className="status-count" style={{ color: followUpColor.color }}>{data.metrics.leadsByStatus['Follow-up']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Prospect'] !== undefined && (
-                <div className="status-item" style={prospectColor}>
+                <div
+                  className="status-item"
+                  style={prospectColor}
+                  onClick={() => handleStatusClick('Prospect')}
+                  title="View Prospect Leads"
+                >
                   <span className="status-label" style={{ color: prospectColor.color }}>Prospect</span>
                   <span className="status-count" style={{ color: prospectColor.color }}>{data.metrics.leadsByStatus['Prospect']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Pending Lead'] !== undefined && (
-                <div className="status-item" style={pendingColor}>
+                <div
+                  className="status-item"
+                  style={pendingColor}
+                  onClick={() => handleStatusClick('Pending Lead')}
+                  title="View Pending Leads"
+                >
                   <span className="status-label" style={{ color: pendingColor.color }}>Pending Lead</span>
                   <span className="status-count" style={{ color: pendingColor.color }}>{data.metrics.leadsByStatus['Pending Lead']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Not Eligible'] !== undefined && (
-                <div className="status-item" style={notEligibleColor}>
+                <div
+                  className="status-item"
+                  style={notEligibleColor}
+                  onClick={() => handleStatusClick('Not Eligible')}
+                  title="View Not Eligible Leads"
+                >
                   <span className="status-label" style={{ color: notEligibleColor.color }}>Not Eligible</span>
                   <span className="status-count" style={{ color: notEligibleColor.color }}>{data.metrics.leadsByStatus['Not Eligible']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Not Interested'] !== undefined && (
-                <div className="status-item" style={notInterestedColor}>
+                <div
+                  className="status-item"
+                  style={notInterestedColor}
+                  onClick={() => handleStatusClick('Not Interested')}
+                  title="View Not Interested Leads"
+                >
                   <span className="status-label" style={{ color: notInterestedColor.color }}>Not Interested</span>
                   <span className="status-count" style={{ color: notInterestedColor.color }}>{data.metrics.leadsByStatus['Not Interested']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Registration Completed'] !== undefined && (
-                <div className="status-item" style={registrationCompletedColor}>
+                <div
+                  className="status-item"
+                  style={registrationCompletedColor}
+                  onClick={() => handleStatusClick('Registration Completed')}
+                  title="View Completed Registrations"
+                >
                   <span className="status-label" style={{ color: registrationCompletedColor.color }}>Registration Completed</span>
                   <span className="status-count" style={{ color: registrationCompletedColor.color }}>{data.metrics.leadsByStatus['Registration Completed']}</span>
                 </div>
@@ -628,19 +671,39 @@ const Dashboard = () => {
           ) : (
             // Old format with individual metrics
             <>
-              <div className="status-item" style={newColor}>
+              <div
+                className="status-item"
+                style={newColor}
+                onClick={() => handleStatusClick('New')}
+                title="View New Leads"
+              >
                 <span className="status-label" style={{ color: newColor.color }}>New</span>
                 <span className="status-count" style={{ color: newColor.color }}>{data.metrics.newLeads}</span>
               </div>
-              <div className="status-item" style={followUpColor}>
+              <div
+                className="status-item"
+                style={followUpColor}
+                onClick={() => handleStatusClick('Follow-up')}
+                title="View Follow-up Leads"
+              >
                 <span className="status-label" style={{ color: followUpColor.color }}>Follow-up</span>
                 <span className="status-count" style={{ color: followUpColor.color }}>{data.metrics.followupLeads}</span>
               </div>
-              <div className="status-item" style={prospectColor}>
+              <div
+                className="status-item"
+                style={prospectColor}
+                onClick={() => handleStatusClick('Prospect')}
+                title="View Prospect Leads"
+              >
                 <span className="status-label" style={{ color: prospectColor.color }}>Prospect</span>
                 <span className="status-count" style={{ color: prospectColor.color }}>{data.metrics.processingLeads}</span>
               </div>
-              <div className="status-item" style={pendingColor}>
+              <div
+                className="status-item"
+                style={pendingColor}
+                onClick={() => handleStatusClick('Pending Lead')}
+                title="View Pending Leads"
+              >
                 <span className="status-label" style={{ color: pendingColor.color }}>Pending Lead</span>
                 <span className="status-count" style={{ color: pendingColor.color }}>{data.metrics.convertedLeads}</span>
               </div>
