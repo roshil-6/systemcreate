@@ -228,11 +228,11 @@ router.get('/staff/list', authenticate, async (req, res) => {
     const userId = req.user.id;
     let users = [];
 
-    // Admin can assign to anyone
+    // Admin can assign to any non-admin staff
     if (role === 'ADMIN') {
       const allUsers = await db.getUsers();
-      // Allow Admin to see everyone including other admins
-      users = allUsers;
+      // Exclude admin accounts — the PUT route rejects assignment to admins
+      users = allUsers.filter(u => u.role !== 'ADMIN');
     }
     // Sales Team Head can assign to self + team
     else if (role === 'SALES_TEAM_HEAD') {

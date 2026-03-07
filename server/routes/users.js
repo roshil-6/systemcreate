@@ -24,6 +24,30 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+// Get specific user (ADMIN or HR only)
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+
+    // Authorization: Admin and HR can see anyone. Others might only see themselves (optional)
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'HR' && req.user.id !== userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const users = await db.getUsers({ id: userId });
+    if (users.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+    const { password: _, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Server error', details: error.message });
+  }
+});
+
 // Create new user (ADMIN only)
 router.post(
   '/',
