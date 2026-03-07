@@ -1143,7 +1143,7 @@ const database = {
   },
 
   getStaffPerformance: async (accessibleIds = null) => {
-    let whereClause = `WHERE (role != 'ADMIN' OR id IN (12, 13)) AND id NOT IN (17, 18, 19)`; // id 12 = SNEHA RIGIN, id 13 = Kripa; exclude test users
+    let whereClause = `WHERE (role != 'ADMIN' OR email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com')) AND email LIKE '%@toniosenora.com'`; // Only real staff; exclude test/dummy accounts
 
     const params = [];
     if (accessibleIds) {

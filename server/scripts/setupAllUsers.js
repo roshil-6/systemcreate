@@ -28,8 +28,6 @@ async function setupAllUsers() {
       { name: 'SHEELA', email: 'sheela@toniosenora.com', password: 'sheelasenorasub000', role: 'ADMIN', team: 'admin' },
       { name: 'SNEHA', email: 'sneha@toniosenora.com', password: 'snehasenora010', role: 'ADMIN', team: 'admin' },
       
-      // Dummy Staff Account
-      { name: 'Abhinand (Dummy Staff)', email: 'abhinand@123.com', password: '32123456', role: 'STAFF', team: 'staff' },
     ];
 
     // Create sales team heads first
