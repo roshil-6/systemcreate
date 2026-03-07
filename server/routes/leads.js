@@ -10,6 +10,9 @@ const path = require('path');
 
 const router = express.Router();
 
+// Staff who hold ADMIN role but are also assignable processing/sales members
+const PROCESSING_ADMIN_EMAILS = ['sneha@toniosenora.com', 'kripa@toniosenora.com'];
+
 /**
  * Robust permission check for single lead access.
  * Returns the lead object if access is granted, null otherwise.
@@ -228,9 +231,11 @@ router.get('/staff/list', authenticate, async (req, res) => {
     const userId = req.user.id;
     let users = [];
 
-    // Only real company staff (exclude test/dummy accounts and admin-role users)
+    // Only real company staff — exclude pure admins and test/dummy accounts.
+    // Exception: Sneha & Kripa hold ADMIN role but are assignable processing staff.
     const isRealStaff = (u) =>
-      u.role !== 'ADMIN' && u.email && u.email.endsWith('@toniosenora.com');
+      u.email && u.email.endsWith('@toniosenora.com') &&
+      (u.role !== 'ADMIN' || PROCESSING_ADMIN_EMAILS.includes(u.email));
 
     // Admin can assign to any real non-admin staff
     if (role === 'ADMIN') {
@@ -1148,7 +1153,8 @@ router.put('/:id', authenticate, async (req, res) => {
       } else {
         const targetUsers = await db.getUsers({ id: normalizedStaffId });
         const targetUser = targetUsers[0];
-        if (!targetUser || targetUser.role === 'ADMIN') {
+        const isProcessingAdmin = targetUser && PROCESSING_ADMIN_EMAILS.includes(targetUser.email);
+        if (!targetUser || (targetUser.role === 'ADMIN' && !isProcessingAdmin)) {
           return res.status(400).json({ error: 'Invalid staff member' });
         }
 
