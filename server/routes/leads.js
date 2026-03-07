@@ -228,35 +228,30 @@ router.get('/staff/list', authenticate, async (req, res) => {
     const userId = req.user.id;
     let users = [];
 
-    // Admin can assign to any non-admin staff
+    // Only real company staff (exclude test/dummy accounts and admin-role users)
+    const isRealStaff = (u) =>
+      u.role !== 'ADMIN' && u.email && u.email.endsWith('@toniosenora.com');
+
+    // Admin can assign to any real non-admin staff
     if (role === 'ADMIN') {
       const allUsers = await db.getUsers();
-      // Exclude admin accounts — the PUT route rejects assignment to admins
-      users = allUsers.filter(u => u.role !== 'ADMIN');
+      users = allUsers.filter(isRealStaff);
     }
     // Sales Team Head can assign to self + team
     else if (role === 'SALES_TEAM_HEAD') {
       const teamMembers = await db.getUsers({ managed_by: userId });
-      users = [req.user, ...teamMembers];
+      users = [req.user, ...teamMembers].filter(isRealStaff);
     }
     // Regular Staff/Sales/Processing
     else {
-      // Can assign to self (Claim)
       users.push(req.user);
-
-      // Can transfer to other staff? 
-      // Existing logic allows transfer to non-admins. So they should see other staff.
       const allStaff = await db.getUsers();
-      const otherStaff = allStaff.filter(u =>
-        u.role !== 'ADMIN' && u.id !== userId
-      );
+      const otherStaff = allStaff.filter(u => isRealStaff(u) && u.id !== userId);
       users = [...users, ...otherStaff];
     }
 
-    // Deduplicate by ID
+    // Deduplicate by ID and sort
     const uniqueUsers = Array.from(new Map(users.map(item => [item.id, item])).values());
-
-    // Sort by name
     uniqueUsers.sort((a, b) => a.name.localeCompare(b.name));
 
     res.json(uniqueUsers);
@@ -1438,14 +1433,11 @@ router.post('/:id/comments', authenticate, async (req, res) => {
 // Get all staff members (for assigning leads)
 router.get('/staff/list', authenticate, async (req, res) => {
   try {
-    // Get all non-admin users for lead assignment
+    // Get real company staff only (non-admin, @toniosenora.com email)
     const allUsers = await db.getUsers();
-    const staff = allUsers.filter(u => u.role !== 'ADMIN');
-    const staffList = staff.map(s => ({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-    }));
+    const staffList = allUsers
+      .filter(u => u.role !== 'ADMIN' && u.email && u.email.endsWith('@toniosenora.com'))
+      .map(s => ({ id: s.id, name: s.name, email: s.email }));
 
     res.json(staffList);
   } catch (error) {
