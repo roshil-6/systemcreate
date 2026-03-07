@@ -13,6 +13,16 @@ const router = express.Router();
 // Staff who hold ADMIN role but are also assignable processing/sales members
 const PROCESSING_ADMIN_EMAILS = ['sneha@toniosenora.com', 'kripa@toniosenora.com'];
 
+// Returns true if user is Sneha or Kripa (processing staff who may hold ADMIN role)
+function isProcessingAdmin(u) {
+  if (!u) return false;
+  const email = (u.email || '').toLowerCase();
+  const name  = (u.name  || '').toLowerCase();
+  return PROCESSING_ADMIN_EMAILS.includes(email) ||
+         name.includes('sneha') ||
+         name.includes('kripa');
+}
+
 /**
  * Robust permission check for single lead access.
  * Returns the lead object if access is granted, null otherwise.
@@ -235,7 +245,7 @@ router.get('/staff/list', authenticate, async (req, res) => {
     // Exception: Sneha & Kripa hold ADMIN role but are assignable processing staff.
     const isRealStaff = (u) =>
       u.email && u.email.endsWith('@toniosenora.com') &&
-      (u.role !== 'ADMIN' || PROCESSING_ADMIN_EMAILS.includes(u.email));
+      (u.role !== 'ADMIN' || isProcessingAdmin(u));
 
     // Admin can assign to any real non-admin staff
     if (role === 'ADMIN') {
@@ -1153,8 +1163,7 @@ router.put('/:id', authenticate, async (req, res) => {
       } else {
         const targetUsers = await db.getUsers({ id: normalizedStaffId });
         const targetUser = targetUsers[0];
-        const isProcessingAdmin = targetUser && PROCESSING_ADMIN_EMAILS.includes(targetUser.email);
-        if (!targetUser || (targetUser.role === 'ADMIN' && !isProcessingAdmin)) {
+        if (!targetUser || (targetUser.role === 'ADMIN' && !isProcessingAdmin(targetUser))) {
           return res.status(400).json({ error: 'Invalid staff member' });
         }
 
@@ -1439,10 +1448,10 @@ router.post('/:id/comments', authenticate, async (req, res) => {
 // Get all staff members (for assigning leads)
 router.get('/staff/list', authenticate, async (req, res) => {
   try {
-    // Get real company staff only (non-admin, @toniosenora.com email)
+    // Get real company staff only (non-pure-admin, @toniosenora.com email)
     const allUsers = await db.getUsers();
     const staffList = allUsers
-      .filter(u => u.role !== 'ADMIN' && u.email && u.email.endsWith('@toniosenora.com'))
+      .filter(u => u.email && u.email.endsWith('@toniosenora.com') && (u.role !== 'ADMIN' || isProcessingAdmin(u)))
       .map(s => ({ id: s.id, name: s.name, email: s.email }));
 
     res.json(staffList);
