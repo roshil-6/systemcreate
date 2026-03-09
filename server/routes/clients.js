@@ -54,10 +54,11 @@ router.get('/', authenticate, async (req, res) => {
     const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
     const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6];
     const isTargetedUser = restrictedNames.some(n => userNameRaw.startsWith(n)) || restrictedEmails.includes(userEmailRaw) || restrictedUserIds.includes(userId);
+    const isProcessingStaff = role === 'PROCESSING' || userEmailRaw === 'kripa@toniosenora.com' || userEmailRaw === 'sneha@toniosenora.com';
 
     if (isTargetedUser && !req.query.assigned_staff_id && !req.query.processing_staff_id) {
       // If no specific staff requested, default to ONLY their own data
-      filter.assigned_staff_ids = [userId];
+      filter.assigned_staff_id = userId;
       // Note: We'll also handle processing_staff_id check in memory below for completeness
     }
 

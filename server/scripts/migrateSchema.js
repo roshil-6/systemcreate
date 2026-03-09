@@ -30,9 +30,28 @@ async function migrate() {
         ADD COLUMN IF NOT EXISTS age                    TEXT,
         ADD COLUMN IF NOT EXISTS qualification          TEXT,
         ADD COLUMN IF NOT EXISTS year_of_experience     TEXT,
-        ADD COLUMN IF NOT EXISTS ielts_score            TEXT
+        ADD COLUMN IF NOT EXISTS ielts_score            TEXT,
+        ADD COLUMN IF NOT EXISTS target_country         TEXT,
+        ADD COLUMN IF NOT EXISTS residing_country       TEXT,
+        ADD COLUMN IF NOT EXISTS deleted_at             TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS deleted_by             INTEGER
     `);
-    console.log('  ✅ leads: secondary_phone_number, excel_row_data, whatsapp_country_code, age, qualification, year_of_experience, ielts_score');
+    console.log('  ✅ leads: secondary_phone_number, excel_row_data, whatsapp_country_code, age, qualification, year_of_experience, ielts_score, target_country, residing_country, deleted_at, deleted_by');
+
+    console.log('\n📋 Patching clients table...');
+    await client.query(`
+      ALTER TABLE clients
+        ADD COLUMN IF NOT EXISTS target_country         TEXT,
+        ADD COLUMN IF NOT EXISTS residing_country       TEXT,
+        ADD COLUMN IF NOT EXISTS assessment_authority   TEXT,
+        ADD COLUMN IF NOT EXISTS occupation_mapped      TEXT,
+        ADD COLUMN IF NOT EXISTS registration_fee_paid  BOOLEAN DEFAULT false,
+        ADD COLUMN IF NOT EXISTS completed_actions      TEXT[] DEFAULT ARRAY[]::TEXT[],
+        ADD COLUMN IF NOT EXISTS lead_id                INTEGER,
+        ADD COLUMN IF NOT EXISTS created_by             INTEGER,
+        ADD COLUMN IF NOT EXISTS is_active              BOOLEAN DEFAULT true
+    `);
+    console.log('  ✅ clients: target_country, residing_country, assessment_authority, occupation_mapped, registration_fee_paid, completed_actions, lead_id, created_by, is_active');
 
     // ── users table: add contact / profile columns ───────────────────────────
     console.log('\n📋 Patching users table...');
@@ -84,6 +103,8 @@ async function migrate() {
     console.log('\n📋 Adding indexes...');
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_leads_secondary_phone ON leads(secondary_phone_number);
+      CREATE INDEX IF NOT EXISTS idx_leads_deleted_at      ON leads(deleted_at);
+      CREATE INDEX IF NOT EXISTS idx_clients_lead_id       ON clients(lead_id);
       CREATE INDEX IF NOT EXISTS idx_import_history_user   ON import_history(created_by);
       CREATE INDEX IF NOT EXISTS idx_staff_documents_user  ON staff_documents(user_id);
     `);

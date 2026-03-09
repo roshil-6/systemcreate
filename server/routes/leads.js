@@ -4,7 +4,7 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const iconv = require('iconv-lite');
 const db = require('../config/database');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
 
@@ -409,8 +409,9 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
 
 // Get single lead
 // Maintenance route to fix phone numbers (Run once)
-router.get('/fix-phones-maintenance', async (req, res) => {
-  if (req.query.key !== 'fix_my_phones_please') {
+router.get('/fix-phones-maintenance', authenticate, requireAdmin, async (req, res) => {
+  const maintenanceKey = process.env.MAINTENANCE_KEY || 'fix_my_phones_please';
+  if (req.query.key !== maintenanceKey) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -483,8 +484,9 @@ router.get('/fix-phones-maintenance', async (req, res) => {
 
 // Maintenance route to wipe ALL leads (Run with caution)
 // Maintenance route to wipe ALL leads (Run with caution)
-router.get('/delete-all-maintenance', async (req, res) => {
-  if (req.query.key !== 'fix_my_phones_please') {
+router.get('/delete-all-maintenance', authenticate, requireAdmin, async (req, res) => {
+  const maintenanceKey = process.env.MAINTENANCE_KEY || 'fix_my_phones_please';
+  if (req.query.key !== maintenanceKey) {
     return res.status(403).json({ error: 'Unauthorized' });
   }
 
@@ -625,16 +627,67 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'No lead IDs provided' });
     }
 
-    // Non-admins can only soft-delete leads assigned to them
+    const normalizedLeadIds = Array.from(
+      new Set(
+        leadIds
+          .map(id => Number(id))
+          .filter(id => Number.isInteger(id) && id > 0)
+      )
+    );
+
+    if (normalizedLeadIds.length === 0) {
+      return res.status(400).json({ error: 'No valid lead IDs provided' });
+    }
+
     await client.query('BEGIN');
+    const leadsResult = await client.query(
+      'SELECT id, assigned_staff_id, created_by FROM leads WHERE id = ANY($1) AND deleted_at IS NULL',
+      [normalizedLeadIds]
+    );
+
+    const existingLeads = leadsResult.rows;
+    let permittedLeadIds = [];
+
+    if (role === 'ADMIN') {
+      permittedLeadIds = existingLeads.map(l => l.id);
+    } else if (role === 'SALES_TEAM_HEAD') {
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      const teamMemberIds = new Set(teamMembers.map(u => Number(u.id)));
+      permittedLeadIds = existingLeads
+        .filter(l => {
+          const assignedTo = l.assigned_staff_id !== null ? Number(l.assigned_staff_id) : null;
+          const createdBy = l.created_by !== null ? Number(l.created_by) : null;
+          return assignedTo === userId || teamMemberIds.has(assignedTo) || createdBy === userId;
+        })
+        .map(l => l.id);
+    } else {
+      // Sales/Staff/Processing can only delete leads assigned to them or created by them.
+      permittedLeadIds = existingLeads
+        .filter(l => {
+          const assignedTo = l.assigned_staff_id !== null ? Number(l.assigned_staff_id) : null;
+          const createdBy = l.created_by !== null ? Number(l.created_by) : null;
+          return assignedTo === userId || createdBy === userId;
+        })
+        .map(l => l.id);
+    }
+
+    if (permittedLeadIds.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Not authorized to delete the selected leads' });
+    }
+
     const result = await client.query(
       'UPDATE leads SET deleted_at = NOW(), deleted_by = $2 WHERE id = ANY($1) AND deleted_at IS NULL',
-      [leadIds, userId]
+      [permittedLeadIds, userId]
     );
     await client.query('COMMIT');
 
     console.log(`✅ Soft-deleted ${result.rowCount} leads by user ${userId}`);
-    res.json({ success: true, deletedCount: result.rowCount });
+    res.json({
+      success: true,
+      deletedCount: result.rowCount,
+      skippedCount: normalizedLeadIds.length - result.rowCount
+    });
 
   } catch (error) {
     await client.query('ROLLBACK');

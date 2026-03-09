@@ -2,6 +2,13 @@ const express = require('express');
 console.log('🚀 CRM Server: Starting initialization...');
 const cors = require('cors');
 require('dotenv').config();
+const crypto = require('crypto');
+
+// Ensure JWT secret exists for this process without relying on a hardcoded fallback.
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = crypto.randomBytes(48).toString('hex');
+  console.warn('⚠️ JWT_SECRET missing. Generated an ephemeral secret for this process.');
+}
 
 const dns = require('dns');
 // Force IPv4 first to avoid Railway/Render connection timeouts (fixes "timeout exceeded")
@@ -128,11 +135,9 @@ async function ensureCriticalUsers() {
         const current = existing[0];
         // Only update if role is wrong (e.g. stored as lowercase or wrong value)
         if (current.role !== u.role) {
-          await db.updateUser(current.id, { role: u.role, name: u.name, password: hashed });
+          await db.updateUser(current.id, { role: u.role, name: u.name });
           console.log(`🔄 Fixed role for ${u.email}: was "${current.role}", now "${u.role}"`);
         } else {
-          // Always refresh the password hash so the known password works
-          await db.updateUser(current.id, { password: hashed });
           console.log(`✅ Critical user verified: ${u.email} (${u.role})`);
         }
       } else {

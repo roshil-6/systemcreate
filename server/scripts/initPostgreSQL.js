@@ -66,6 +66,8 @@ async function initDatabase() {
         qualification TEXT,
         year_of_experience TEXT,
         country TEXT,
+        target_country TEXT,
+        residing_country TEXT,
         program TEXT,
         status TEXT DEFAULT 'New',
         priority TEXT,
@@ -75,7 +77,11 @@ async function initDatabase() {
         assigned_staff_id INTEGER,
         source TEXT,
         ielts_score TEXT,
+        secondary_phone_number TEXT,
+        excel_row_data TEXT,
         created_by INTEGER,
+        deleted_at TIMESTAMPTZ,
+        deleted_by INTEGER,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (assigned_staff_id) REFERENCES users(id) ON DELETE SET NULL,
@@ -99,15 +105,26 @@ async function initDatabase() {
         qualification TEXT,
         year_of_experience TEXT,
         country TEXT,
+        target_country TEXT,
+        residing_country TEXT,
         program TEXT,
+        assessment_authority TEXT,
+        occupation_mapped TEXT,
+        registration_fee_paid BOOLEAN DEFAULT false,
         fee_status TEXT,
         amount_paid REAL DEFAULT 0,
         payment_due_date TIMESTAMP,
         processing_status TEXT,
+        completed_actions TEXT[] DEFAULT ARRAY[]::TEXT[],
+        lead_id INTEGER,
+        created_by INTEGER,
+        is_active BOOLEAN DEFAULT true,
         processing_staff_id INTEGER,
         assigned_staff_id INTEGER,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (processing_staff_id) REFERENCES users(id) ON DELETE SET NULL,
         FOREIGN KEY (assigned_staff_id) REFERENCES users(id) ON DELETE SET NULL
       )
@@ -242,6 +259,21 @@ async function initDatabase() {
         FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
       )
     `);
+
+    console.log('Creating import_history table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS import_history (
+        id SERIAL PRIMARY KEY,
+        filename TEXT NOT NULL,
+        original_filename TEXT NOT NULL,
+        total_rows INTEGER DEFAULT 0,
+        successful_rows INTEGER DEFAULT 0,
+        skipped_rows INTEGER DEFAULT 0,
+        error_rows INTEGER DEFAULT 0,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     
     // Create indexes for performance
     console.log('Creating indexes...');
@@ -251,8 +283,10 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_leads_assigned ON leads(assigned_staff_id);
       CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
       CREATE INDEX IF NOT EXISTS idx_leads_follow_up_date ON leads(follow_up_date);
+      CREATE INDEX IF NOT EXISTS idx_leads_deleted_at ON leads(deleted_at);
       CREATE INDEX IF NOT EXISTS idx_clients_assigned ON clients(assigned_staff_id);
       CREATE INDEX IF NOT EXISTS idx_clients_processing ON clients(processing_staff_id);
+      CREATE INDEX IF NOT EXISTS idx_clients_lead_id ON clients(lead_id);
       CREATE INDEX IF NOT EXISTS idx_comments_lead ON comments(lead_id);
       CREATE INDEX IF NOT EXISTS idx_comments_client ON comments(client_id);
       CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance(user_id);
@@ -261,6 +295,7 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_login_logs_email ON login_logs(email);
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+      CREATE INDEX IF NOT EXISTS idx_import_history_user ON import_history(created_by);
     `);
     
     await client.query('COMMIT');

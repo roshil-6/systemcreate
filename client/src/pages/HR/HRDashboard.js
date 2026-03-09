@@ -30,8 +30,8 @@ const HRDashboard = () => {
 
             setStats({
                 totalStaff: staffRes.data.length,
-                presentToday: staffRes.data.length - (attendanceRes.data.missing_staff?.length || 0),
-                missingAttendance: attendanceRes.data.missing_staff?.length || 0
+                presentToday: staffRes.data.length - (attendanceRes.data.missingStaff?.length || 0),
+                missingAttendance: attendanceRes.data.missingStaff?.length || 0
             });
             setUpcomingBirthdays(birthdaysRes.data || []);
         } catch (error) {
@@ -133,7 +133,7 @@ const HRDashboard = () => {
                         <h2>Quick Access</h2>
                     </div>
                     <div className="quick-links">
-                        <button onClick={() => navigate('/hr/staff-list')} className="quick-link-card">
+                        <button onClick={() => navigate('/hr/staff')} className="quick-link-card">
                             <FiUser />
                             <span>Manage Staff</span>
                             <FiArrowRight className="arrow" />

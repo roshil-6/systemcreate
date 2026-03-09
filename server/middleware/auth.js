@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'emergency_fallback_secret_2024';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Verify JWT token
 const authenticate = async (req, res, next) => {

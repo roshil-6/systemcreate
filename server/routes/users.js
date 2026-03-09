@@ -26,7 +26,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
 });
 
 // Get specific user (ADMIN or HR only)
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id(\\d+)', authenticate, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
 
