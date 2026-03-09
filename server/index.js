@@ -20,6 +20,7 @@ const hrRoutes = require('./routes/hr');
 const db = require('./config/database');
 const { startEmailScheduler } = require('./services/emailScheduler');
 const fixCompletedActionsType = require('./scripts/fixCompletedActionsType');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -112,6 +113,42 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Upserts critical system accounts on every startup so they always exist with correct credentials.
+// Safe to run repeatedly — only updates if something is wrong or missing.
+async function ensureCriticalUsers() {
+  const criticalUsers = [
+    { name: 'Sneha Unnikrishnan', email: 'hr@toniosenora.com', password: 'hrmainsenora000', role: 'HR', team: 'hr' },
+  ];
+
+  for (const u of criticalUsers) {
+    try {
+      const existing = await db.getUsers({ email: u.email });
+      const hashed = await bcrypt.hash(u.password, 10);
+      if (existing.length > 0) {
+        const current = existing[0];
+        // Only update if role is wrong (e.g. stored as lowercase or wrong value)
+        if (current.role !== u.role) {
+          await db.updateUser(current.id, { role: u.role, name: u.name, password: hashed });
+          console.log(`🔄 Fixed role for ${u.email}: was "${current.role}", now "${u.role}"`);
+        } else {
+          // Always refresh the password hash so the known password works
+          await db.updateUser(current.id, { password: hashed });
+          console.log(`✅ Critical user verified: ${u.email} (${u.role})`);
+        }
+      } else {
+        await db.createUser({
+          name: u.name, email: u.email, password: hashed,
+          role: u.role, team: u.team,
+          created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        });
+        console.log(`✅ Created critical user: ${u.email} (${u.role})`);
+      }
+    } catch (err) {
+      console.error(`⚠️ Could not ensure critical user ${u.email}:`, err.message);
+    }
+  }
+}
+
 // Function for database initialization (Background)
 async function initializeDatabase() {
   const maxRetries = 10;
@@ -127,6 +164,9 @@ async function initializeDatabase() {
       // Check connectivity using the resilient query function
       // Force a query to ensure the pool can actually talk to the DB
       await db.getUsers({}, { retries: 5 });
+
+      // Ensure critical accounts (HR manager, etc.) always exist with correct credentials
+      await ensureCriticalUsers();
 
       console.log('✅ PostgreSQL database connected and schema verified');
       isDatabaseReady = true; // <--- UNLOCK THE GATEKEEPER
