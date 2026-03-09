@@ -5,6 +5,7 @@ const db = require('../config/database');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
+const ALLOWED_ROLES = ['ADMIN', 'STAFF', 'SALES_TEAM', 'SALES_TEAM_HEAD', 'PROCESSING', 'HR'];
 
 // Get all users (ADMIN only)
 router.get('/', authenticate, requireAdmin, async (req, res) => {
@@ -57,7 +58,7 @@ router.post(
     body('name').notEmpty().withMessage('Name is required'),
     body('email').isEmail().withMessage('Valid email is required'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('role').isIn(['ADMIN', 'STAFF', 'SALES_TEAM', 'SALES_TEAM_HEAD', 'PROCESSING', 'HR']).withMessage('Role must be ADMIN, STAFF, SALES_TEAM, SALES_TEAM_HEAD, PROCESSING, or HR'),
+    body('role').isIn(ALLOWED_ROLES).withMessage('Role must be ADMIN, STAFF, SALES_TEAM, SALES_TEAM_HEAD, PROCESSING, or HR'),
     body('phone_number').optional(),
     body('office_number').optional(),
   ],
@@ -118,6 +119,10 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
     const userId = parseInt(req.params.id);
     const { name, email, password, role, phone_number, office_number, dob } = req.body;
 
+    if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
     const users = await db.getUsers({ id: userId });
     if (users.length === 0) {
       return res.status(404).json({ error: 'User not found' });
@@ -135,7 +140,7 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
       }
       updates.email = email;
     }
-    if (password !== undefined) {
+    if (password !== undefined && String(password).trim() !== '') {
       updates.password = await bcrypt.hash(password, 10);
     }
     if (role !== undefined) {

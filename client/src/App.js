@@ -172,6 +172,19 @@ function App() {
               <PrivateRoute>
                 <RoleRoute allowedRoles={HR_ROLES}>
                   <AppLayout>
+                    <HRDashboard />
+                  </AppLayout>
+                </RoleRoute>
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/hr/staff"
+            element={
+              <PrivateRoute>
+                <RoleRoute allowedRoles={HR_ROLES}>
+                  <AppLayout>
                     <StaffList />
                   </AppLayout>
                 </RoleRoute>

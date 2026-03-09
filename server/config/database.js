@@ -225,6 +225,10 @@ const database = {
       updatesList.push(`dob = $${paramIndex++}`);
       params.push(updates.dob);
     }
+    if (updates.profile_photo !== undefined) {
+      updatesList.push(`profile_photo = $${paramIndex++}`);
+      params.push(updates.profile_photo);
+    }
 
     updatesList.push(`updated_at = $${paramIndex++}`);
     params.push(new Date().toISOString());

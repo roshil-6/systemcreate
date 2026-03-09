@@ -33,7 +33,7 @@ const StaffList = () => {
         const searchParams = new URLSearchParams(location.search);
         if (searchParams.get('create') === 'true') {
             openCreateForm();
-            navigate('/hr', { replace: true });
+            navigate('/hr/staff', { replace: true });
         }
     }, [location.search]);
 

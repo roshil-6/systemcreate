@@ -41,9 +41,26 @@ async function migrate() {
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS phone_number   TEXT,
         ADD COLUMN IF NOT EXISTS office_number  TEXT,
-        ADD COLUMN IF NOT EXISTS dob            TEXT
+        ADD COLUMN IF NOT EXISTS dob            TEXT,
+        ADD COLUMN IF NOT EXISTS profile_photo  TEXT
     `);
-    console.log('  ✅ users: phone_number, office_number, dob');
+    console.log('  ✅ users: phone_number, office_number, dob, profile_photo');
+
+    console.log('\n📋 Creating staff_documents table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS staff_documents (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        slot_number INTEGER NOT NULL,
+        file_path   TEXT NOT NULL,
+        file_name   TEXT NOT NULL,
+        uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, slot_number)
+      )
+    `);
+    console.log('  ✅ staff_documents table ready');
 
     // ── import_history table ─────────────────────────────────────────────────
     console.log('\n📋 Creating import_history table...');
@@ -68,6 +85,7 @@ async function migrate() {
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_leads_secondary_phone ON leads(secondary_phone_number);
       CREATE INDEX IF NOT EXISTS idx_import_history_user   ON import_history(created_by);
+      CREATE INDEX IF NOT EXISTS idx_staff_documents_user  ON staff_documents(user_id);
     `);
     console.log('  ✅ Indexes added');
 

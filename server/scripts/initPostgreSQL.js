@@ -40,6 +40,10 @@ async function initDatabase() {
         role TEXT NOT NULL,
         team TEXT,
         managed_by INTEGER,
+        phone_number TEXT,
+        office_number TEXT,
+        dob TEXT,
+        profile_photo TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (managed_by) REFERENCES users(id) ON DELETE SET NULL
@@ -219,6 +223,23 @@ async function initDatabase() {
         sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE SET NULL,
         FOREIGN KEY (template_id) REFERENCES email_templates(id) ON DELETE SET NULL
+      )
+    `);
+
+    console.log('Creating staff_documents table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS staff_documents (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        slot_number INTEGER NOT NULL,
+        file_path TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        uploaded_by INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, slot_number),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
       )
     `);
     

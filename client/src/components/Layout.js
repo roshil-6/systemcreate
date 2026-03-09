@@ -18,7 +18,7 @@ const Layout = ({ children }) => {
 
   const handleCreateLead = () => {
     if (location.pathname.startsWith('/hr')) {
-      navigate('/hr?create=true');
+      navigate('/hr/staff?create=true');
     } else {
       navigate('/leads/new');
     }
@@ -61,10 +61,16 @@ const Layout = ({ children }) => {
             </>
           )}
           {user?.role === 'HR' && (
-            <Link to="/hr" className={`nav-item ${isActive('/hr') && location.pathname === '/hr' ? 'active' : ''}`}>
-              <FiHome className="nav-icon" />
-              <span>HR Dashboard</span>
-            </Link>
+            <>
+              <Link to="/hr" className={`nav-item ${location.pathname === '/hr' ? 'active' : ''}`}>
+                <FiHome className="nav-icon" />
+                <span>HR Dashboard</span>
+              </Link>
+              <Link to="/hr/staff" className={`nav-item ${isActive('/hr/staff') ? 'active' : ''}`}>
+                <FiUsers className="nav-icon" />
+                <span>Staff Directory</span>
+              </Link>
+            </>
           )}
           {(user?.role === 'ADMIN' ||
             user?.role === 'SALES_TEAM_HEAD' ||
