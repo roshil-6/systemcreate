@@ -205,22 +205,21 @@ router.get('/', authenticate, async (req, res) => {
     const leadsRaw = await db.getLeads(filter);
     const totalCount = leadsRaw.length > 0 ? parseInt(leadsRaw[0].full_count) : 0;
 
-    // OPTIMIZATION: Fetch all users once and create a lookup map
+    // OPTIMIZATION: Fetch all users once and create a lookup map (keyed by string for safe access)
     let userMap = {};
     try {
       const allUsers = await db.getUsers();
       allUsers.forEach(u => {
-        userMap[u.id] = u.name;
+        userMap[String(u.id)] = u.name;
       });
     } catch (error) {
       console.error('Optimization warning: Failed to fetch users for lookup, falling back to null names', error);
     }
 
-    // Add assigned staff name using the lookup map
     const leads = leadsRaw.map(lead => ({
       ...lead,
-      assigned_staff_name: lead.assigned_staff_id ? (userMap[lead.assigned_staff_id] || null) : null,
-      full_count: undefined // Remove internal count from response
+      assigned_staff_name: lead.assigned_staff_id ? (userMap[String(lead.assigned_staff_id)] || null) : null,
+      full_count: undefined
     }));
 
     // Response includes leads and the real total count from database
@@ -578,34 +577,33 @@ router.get('/last-imported-file', authenticate, async (req, res) => {
 // IMPORTANT: This must be defined BEFORE the /:id wildcard route
 router.get('/check-duplicate', authenticate, async (req, res) => {
   try {
-    const { phone } = req.query;
-    if (!phone || phone.trim().length < 5) {
-      return res.json({ exists: false });
+    const { phone, email } = req.query;
+
+    if (phone && phone.trim().length >= 5) {
+      const cleanPhone = phone.trim().replace(/[\s\-().+]/g, '');
+      const result = await db.query(
+        `SELECT id, name, status, phone_number, whatsapp_number FROM leads
+         WHERE deleted_at IS NULL AND (
+           REGEXP_REPLACE(phone_number, '[\\s\\-().]', '', 'g') = $1
+           OR REGEXP_REPLACE(whatsapp_number, '[\\s\\-().]', '', 'g') = $1
+         ) LIMIT 1`,
+        [cleanPhone]
+      );
+      if (result.rows.length > 0) {
+        const match = result.rows[0];
+        return res.json({ exists: true, field: 'phone', lead: { id: match.id, name: match.name, status: match.status } });
+      }
     }
 
-    const cleanPhone = phone.trim().replace(/[\s\-().+]/g, '');
-
-    // Query DB directly for efficiency rather than loading all leads into memory
-    const result = await db.query(
-      `SELECT id, name, status, phone_number, whatsapp_number FROM leads
-       WHERE REGEXP_REPLACE(phone_number, '[\\s\\-().]', '', 'g') = $1
-          OR REGEXP_REPLACE(whatsapp_number, '[\\s\\-().]', '', 'g') = $1
-       LIMIT 1`,
-      [cleanPhone]
-    );
-
-    if (result.rows.length > 0) {
-      const match = result.rows[0];
-      return res.json({
-        exists: true,
-        lead: {
-          id: match.id,
-          name: match.name,
-          status: match.status,
-          phone_number: match.phone_number,
-          whatsapp_number: match.whatsapp_number,
-        },
-      });
+    if (email && email.trim().length >= 3) {
+      const result = await db.query(
+        `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(email) = $1 LIMIT 1`,
+        [email.trim().toLowerCase()]
+      );
+      if (result.rows.length > 0) {
+        const match = result.rows[0];
+        return res.json({ exists: true, field: 'email', lead: { id: match.id, name: match.name, status: match.status } });
+      }
     }
 
     res.json({ exists: false });
@@ -826,21 +824,19 @@ router.get('/export/csv', authenticate, async (req, res) => {
       );
     }
 
-    // OPTIMIZATION: Fetch all users once and create a lookup map
     let userMap = {};
     try {
       const allUsers = await db.getUsers();
       allUsers.forEach(u => {
-        userMap[u.id] = u.name;
+        userMap[String(u.id)] = u.name;
       });
     } catch (error) {
       console.error('Optimization warning: Failed to fetch users for lookup, falling back to null names', error);
     }
 
-    // Add assigned staff name using the lookup map
     leads = leads.map(lead => ({
       ...lead,
-      assigned_staff_name: lead.assigned_staff_id ? (userMap[lead.assigned_staff_id] || 'Unassigned') : 'Unassigned',
+      assigned_staff_name: lead.assigned_staff_id ? (userMap[String(lead.assigned_staff_id)] || 'Unassigned') : 'Unassigned',
     }));
 
     // Convert to CSV
@@ -1062,15 +1058,20 @@ router.post(
         }
       }
 
-      // Check for duplicate phone/email
-      const allLeads = await db.getLeads();
-      const duplicate = allLeads.find(l =>
-        l.phone_number === phone_number ||
-        (email && l.email === email)
-      );
+      // Check for duplicate phone/email using dedicated indexes (not paginated getLeads)
+      const normalizedPhone = phone_number ? String(phone_number).replace(/\D/g, '') : '';
+      const [phoneRows, emailRows] = await Promise.all([
+        normalizedPhone ? db.getLeadPhones() : Promise.resolve([]),
+        email ? db.getLeadEmails() : Promise.resolve([]),
+      ]);
+      const existingPhones = new Set(phoneRows.map(r => String(r.phone_number || '').replace(/\D/g, '')));
+      const existingEmails = new Set(emailRows.map(r => String(r.email || '').toLowerCase()));
 
-      if (duplicate) {
-        return res.status(400).json({ error: 'Lead with this phone number or email already exists' });
+      if (normalizedPhone && existingPhones.has(normalizedPhone)) {
+        return res.status(400).json({ error: 'Lead with this phone number already exists' });
+      }
+      if (email && existingEmails.has(email.toLowerCase().trim())) {
+        return res.status(400).json({ error: 'Lead with this email already exists' });
       }
 
       const newLead = await db.createLead({
@@ -1099,8 +1100,7 @@ router.post(
 
       // Create notification if lead is assigned to staff (admin or team head)
       if (finalAssignedStaffId) {
-        // AUTOMATIC STATUS UPDATE: If lead is assigned, set status to 'Assigned' (if it was New/Unassigned)
-        if (status === 'New' || status === 'Unassigned') {
+        if (status === 'New' || status === 'Unassigned' || status === 'Direct Lead') {
           await db.updateLead(newLead.id, { status: 'Assigned' });
           newLead.status = 'Assigned'; // Update response object
         }
@@ -1271,8 +1271,7 @@ router.put('/:id', authenticate, async (req, res) => {
       if (normalizedStaffId && existingStaffId !== normalizedStaffId) {
 
         // AUTOMATIC STATUS UPDATE: If lead is being assigned, set status to 'Assigned'
-        // Only if current status is 'Unassigned'
-        if (existingLead.status === 'Unassigned') {
+        if (existingLead.status === 'Unassigned' || existingLead.status === 'New' || existingLead.status === 'Direct Lead') {
           updates.status = 'Assigned';
           console.log(`🔄 Auto-updating status to 'Assigned' for lead ${leadId}`);
         }
@@ -1295,10 +1294,9 @@ router.put('/:id', authenticate, async (req, res) => {
 
       // AUTOMATIC STATUS UPDATE: If lead is being UNASSIGNED (staffId is null)
       if ((assigned_staff_id === null || assigned_staff_id === '') && existingStaffId !== null) {
-        // Only if current status is 'Assigned'
         if (existingLead.status === 'Assigned') {
-          updates.status = 'New';
-          console.log(`🔄 Auto-updating status to 'New' for lead ${leadId}`);
+          updates.status = 'Unassigned';
+          console.log(`🔄 Auto-updating status to 'Unassigned' for lead ${leadId}`);
         }
       }
 
@@ -1919,8 +1917,10 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
 
           // AUTO-ASSIGN LOGIC: If staffId is found, the status should be 'Assigned' 
           // (unless the user explicitly provided a more specific status like 'Follow-up')
-          if (staffId && (sl === 'new' || sl === 'unassigned' || !st)) {
+          if (staffId && (sl === 'new' || sl === 'unassigned' || sl === 'direct lead' || !st)) {
             st = 'Assigned';
+          } else if (sl.includes('direct')) {
+            st = 'Direct Lead';
           } else if (sl.includes('follow')) {
             st = 'Follow-up';
           } else if (sl.includes('prospect')) {

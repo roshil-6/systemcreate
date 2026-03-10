@@ -18,9 +18,11 @@ const LeadDetail = () => {
   const [formData, setFormData] = useState({});
   const [newComment, setNewComment] = useState('');
   const [staffList, setStaffList] = useState([]);
-  const [duplicateWarning, setDuplicateWarning] = useState(null); // { id, name, status } of matched lead
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
   const duplicateCheckTimer = useRef(null);
+  const [showChatComments, setShowChatComments] = useState(false);
+  const chatEndRef = useRef(null);
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [registrationData, setRegistrationData] = useState({
     assessment_authority: '',
@@ -155,7 +157,8 @@ const LeadDetail = () => {
         text: newComment,
       });
       setNewComment('');
-      fetchComments();
+      await fetchComments();
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
       // Soft update the specific lead's comment count/status in cache instead of nuking the entire cache
       try {
@@ -176,13 +179,14 @@ const LeadDetail = () => {
   };
 
   // Real-time duplicate check — debounced 600ms, only on new lead form
-  const checkDuplicate = (phoneValue) => {
+  const checkDuplicate = (phoneValue, emailValue) => {
     if (!isNew) return;
     if (duplicateCheckTimer.current) clearTimeout(duplicateCheckTimer.current);
     setDuplicateWarning(null);
 
-    const cleaned = (phoneValue || '').replace(/[\s\-().+]/g, '');
-    if (cleaned.length < 5) {
+    const cleanedPhone = (phoneValue || '').replace(/[\s\-().+]/g, '');
+    const cleanedEmail = (emailValue || '').trim();
+    if (cleanedPhone.length < 5 && cleanedEmail.length < 3) {
       setCheckingDuplicate(false);
       return;
     }
@@ -191,8 +195,11 @@ const LeadDetail = () => {
     duplicateCheckTimer.current = setTimeout(async () => {
       try {
         const token = localStorage.getItem('token');
+        const params = new URLSearchParams();
+        if (cleanedPhone.length >= 5) params.set('phone', cleanedPhone);
+        if (cleanedEmail.length >= 3) params.set('email', cleanedEmail);
         const response = await axios.get(
-          `${API_BASE_URL}/api/leads/check-duplicate?phone=${encodeURIComponent(cleaned)}`,
+          `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (response.data.exists) {
@@ -222,9 +229,11 @@ const LeadDetail = () => {
       [name]: name === 'assigned_staff_id' ? (value === '' ? null : Number(value)) : value,
     });
 
-    // Trigger real-time duplicate check for phone/whatsapp fields when creating a new lead
     if (isNew && (name === 'phone_number' || name === 'whatsapp_number')) {
-      checkDuplicate(value);
+      checkDuplicate(value, formData.email);
+    }
+    if (isNew && name === 'email') {
+      checkDuplicate(formData.phone_number, value);
     }
   };
 
@@ -409,27 +418,42 @@ const LeadDetail = () => {
           )}
         </div>
         <div className="header-field-group">
-          <label>Source</label>
-          {isNew ? (
-            <input
-              type="text"
-              name="source"
-              value={formData.source || ''}
-              onChange={handleChange}
-              placeholder="e.g., Meta Ads, Website"
-              className="header-field-input"
-            />
-          ) : (
-            <input
-              type="text"
-              name="source"
-              value={formData.source || ''}
-              onChange={handleHeaderFieldChange}
-              disabled={!canEditHeaderFields}
-              placeholder="e.g., Meta Ads, Website"
-              className="header-field-input"
-            />
-          )}
+          <label>Reference / Source</label>
+          {(() => {
+            const presetSources = ['WhatsApp', 'Direct', 'Meta Ads', 'Website', 'Referral', 'Bulk Import'];
+            const currentVal = formData.source || '';
+            const isPreset = presetSources.some(s => s.toLowerCase() === currentVal.toLowerCase());
+            const showManual = !isPreset && currentVal !== '';
+            const changeHandler = isNew ? handleChange : handleHeaderFieldChange;
+            const isDisabled = !isNew && !canEditHeaderFields;
+            return (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <select
+                  name="source"
+                  value={isPreset ? currentVal : (showManual ? '__custom__' : '')}
+                  onChange={(e) => {
+                    if (e.target.value === '__custom__') {
+                      const custom = prompt('Enter custom source / reference:');
+                      if (custom && custom.trim()) {
+                        changeHandler({ target: { name: 'source', value: custom.trim() } });
+                      }
+                    } else {
+                      changeHandler(e);
+                    }
+                  }}
+                  disabled={isDisabled}
+                  className="header-field-select"
+                  style={{ minWidth: '130px' }}
+                >
+                  <option value="">Select Source</option>
+                  {presetSources.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                  <option value="__custom__">{showManual ? `✎ ${currentVal}` : '✎ Enter Manually...'}</option>
+                </select>
+              </div>
+            );
+          })()}
         </div>
         <div className="header-field-group">
           <label>Follow-up Date</label>
@@ -574,7 +598,7 @@ const LeadDetail = () => {
                   />
                 </div>
               </div>
-              {/* Duplicate warning — shown after typing phone/WhatsApp number */}
+              {/* Duplicate warning — shown after typing phone/WhatsApp/email */}
               {isNew && (checkingDuplicate || duplicateWarning) && (
                 <div
                   className={`duplicate-warning ${duplicateWarning ? 'duplicate-warning--visible' : 'duplicate-warning--checking'}`}
@@ -591,7 +615,7 @@ const LeadDetail = () => {
                       <div className="duplicate-warning__body">
                         <div className="duplicate-warning__title">Lead Already Exists in the System!</div>
                         <div className="duplicate-warning__detail">
-                          This phone number is already registered under{' '}
+                          This {duplicateWarning.field === 'email' ? 'email' : 'phone number'} is already registered under{' '}
                           <strong>{duplicateWarning.name}</strong>
                           <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
                         </div>
@@ -764,6 +788,7 @@ const LeadDetail = () => {
                 >
                   <option value="New">New</option>
                   <option value="Unassigned">Unassigned</option>
+                  <option value="Direct Lead">Direct Lead</option>
                   <option value="Assigned">Assigned</option>
                   <option value="Follow-up">Follow-up</option>
                   <option value="Prospect">Prospect</option>
@@ -833,43 +858,84 @@ const LeadDetail = () => {
               return null;
             })()}
 
-            {/* Comments Section */}
-            <div className="comments-section">
-              <h2>
-                <FiMessageSquare /> Activity Comments
-              </h2>
-              <div className="comment-input">
-                <textarea
-                  placeholder="Add a comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  rows="3"
-                />
-                <button onClick={handleAddComment} className="btn-add-comment">
-                  Add Comment
-                </button>
-              </div>
-              <div className="comments-list">
-                {comments.length === 0 ? (
-                  <p className="no-comments">No comments yet</p>
-                ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="comment-item">
-                      <div className="comment-header">
-                        <span className="comment-author">{comment.author_name}</span>
-                        <span className="comment-time">
-                          {new Date(comment.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="comment-text">{comment.text}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            {/* Chat toggle button */}
+            <button
+              onClick={() => setShowChatComments(true)}
+              className="btn-open-chat"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '12px 20px', background: '#D4AF37', color: '#fff',
+                border: 'none', borderRadius: '25px', cursor: 'pointer',
+                fontSize: '15px', fontWeight: 600, boxShadow: '0 4px 15px rgba(212,175,55,0.35)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <FiMessageSquare size={18} />
+              Activity Chat ({comments.length})
+            </button>
           </div>
         )}
       </div>
+
+      {/* Floating Chat Dialog */}
+      {showChatComments && !isNew && (
+        <div className="chat-overlay" onClick={() => setShowChatComments(false)}>
+          <div className="chat-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="chat-dialog-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FiMessageSquare size={18} />
+                <span>Activity Chat</span>
+                <span className="chat-badge">{comments.length}</span>
+              </div>
+              <button className="chat-close-btn" onClick={() => setShowChatComments(false)}>&times;</button>
+            </div>
+            <div className="chat-messages">
+              {comments.length === 0 ? (
+                <div className="chat-empty">
+                  <FiMessageSquare size={40} style={{ opacity: 0.2, marginBottom: '10px' }} />
+                  <p>No messages yet</p>
+                  <p style={{ fontSize: '12px', color: '#9ca3af' }}>Start the conversation below</p>
+                </div>
+              ) : (
+                [...comments].reverse().map((comment) => {
+                  const isMe = comment.author_name === user?.name;
+                  return (
+                    <div key={comment.id} className={`chat-bubble ${isMe ? 'chat-bubble-me' : 'chat-bubble-other'}`}>
+                      {!isMe && <div className="chat-bubble-author">{comment.author_name}</div>}
+                      <div className="chat-bubble-text">{comment.text}</div>
+                      <div className="chat-bubble-time">
+                        {new Date(comment.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <div className="chat-input-area">
+              <textarea
+                placeholder="Type a message..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                rows="2"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAddComment();
+                  }
+                }}
+              />
+              <button
+                onClick={handleAddComment}
+                className="chat-send-btn"
+                disabled={!newComment.trim()}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Registration Completed Modal */}
       {showRegistrationModal && (

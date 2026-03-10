@@ -302,7 +302,7 @@ const database = {
 
     // New vs Follow Up Views filtering using optimized EXISTS
     if (filter.viewType === 'new') {
-      whereConditions += ` AND (status = 'New' OR status = 'Unassigned') 
+      whereConditions += ` AND (status = 'New' OR status = 'Unassigned' OR status = 'Direct Lead') 
                            AND NOT EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id) 
                            AND (comment IS NULL OR comment = '')`;
     } else if (filter.viewType === 'follow_up') {
@@ -344,7 +344,7 @@ const database = {
   },
 
   getLeadEmails: async () => {
-    const result = await query('SELECT LOWER(email) as email FROM leads WHERE email IS NOT NULL');
+    const result = await query('SELECT LOWER(email) as email FROM leads WHERE email IS NOT NULL AND deleted_at IS NULL');
     return result.rows;
   },
 
@@ -1087,7 +1087,7 @@ const database = {
 
   // Fast lookup: only phone_number + email for duplicate checking during bulk import
   getLeadPhones: async () => {
-    const result = await query('SELECT LOWER(phone_number) as phone_number, LOWER(email) as email FROM leads');
+    const result = await query('SELECT LOWER(phone_number) as phone_number, LOWER(email) as email FROM leads WHERE deleted_at IS NULL');
     return result.rows;
   },
 

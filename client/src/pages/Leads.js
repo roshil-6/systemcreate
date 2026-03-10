@@ -709,34 +709,36 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+  const statusOptions = ['New', 'Unassigned', 'Direct Lead', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
-      'New': '#34D399', // Emerald/Green for New
-      'Unassigned': '#87CEEB', // Soft blue
-      'Assigned': '#cbd5e1', // Slate 300 - Greyish blue for assigned
-      'Follow-up': '#E6E6FA', // Lavender
-      'Prospect': '#B0E0E6', // Powder blue
-      'Pending Lead': '#DDA0DD', // Plum
-      'Not Eligible': '#FCA5A5', // Light red
-      'Not Interested': '#D3D3D3', // Light gray
-      'Registration Completed': '#86EFAC', // Light green
+      'New': '#34D399',
+      'Unassigned': '#87CEEB',
+      'Direct Lead': '#FBBF24',
+      'Assigned': '#cbd5e1',
+      'Follow-up': '#E6E6FA',
+      'Prospect': '#B0E0E6',
+      'Pending Lead': '#DDA0DD',
+      'Not Eligible': '#FCA5A5',
+      'Not Interested': '#D3D3D3',
+      'Registration Completed': '#86EFAC',
     };
     return colors[status] || '#87CEEB';
   };
 
   const getStatusTextColor = (status) => {
     const colors = {
-      'New': '#065F46', // Dark emerald
-      'Unassigned': '#1e40af', // Dark blue
-      'Assigned': '#334155', // Slate 700
-      'Follow-up': '#6b21a8', // Dark purple
-      'Prospect': '#0e7490', // Dark cyan
-      'Pending Lead': '#7c2d12', // Dark brown
-      'Not Eligible': '#991B1B', // Dark red
-      'Not Interested': '#374151', // Dark gray
-      'Registration Completed': '#166534', // Dark green
+      'New': '#065F46',
+      'Unassigned': '#1e40af',
+      'Direct Lead': '#92400e',
+      'Assigned': '#334155',
+      'Follow-up': '#6b21a8',
+      'Prospect': '#0e7490',
+      'Pending Lead': '#7c2d12',
+      'Not Eligible': '#991B1B',
+      'Not Interested': '#374151',
+      'Registration Completed': '#166534',
     };
     return colors[status] || '#1e40af';
   };
