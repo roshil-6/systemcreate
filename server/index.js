@@ -55,6 +55,26 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires']
 }));
 
+// Hard preflight guard: ensure CORS headers are present even during cold starts/readiness states.
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const isAllowedOrigin = origin && (allowedOrigins.includes(origin) || origin.includes('vercel.app'));
+
+  if (isAllowedOrigin) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Pragma, Expires');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
+
 // --- READINESS GATEKEEPER ---
 // Prevent DB queries from being fired before the pool is stabilized
 app.use((req, res, next) => {
