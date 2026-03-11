@@ -853,6 +853,30 @@ const Leads = () => {
           )}
         </div>
 
+        {/* Status Filter Boxes — prominent row right below view tabs */}
+        <div className="status-filters" style={{ marginBottom: '16px' }}>
+          <button
+            className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
+            onClick={() => handleStatusFilter('')}
+          >
+            All
+          </button>
+          {statusOptions.map((status) => (
+            <button
+              key={status}
+              className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
+              onClick={() => handleStatusFilter(status)}
+              style={{
+                borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
+                backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
+                color: statusFilter === status ? (status === 'Closed / Rejected' ? '#666' : '#333') : '#6b7280',
+              }}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+
         <div className="leads-controls">
           <form onSubmit={handleSearch} className="leads-search">
             <FiSearch className="search-icon" />
@@ -902,28 +926,6 @@ const Leads = () => {
           >
             <FiDownload /> Export to Google Sheets
           </button>
-          <div className="status-filters">
-            <button
-              className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
-              onClick={() => handleStatusFilter('')}
-            >
-              All
-            </button>
-            {statusOptions.map((status) => (
-              <button
-                key={status}
-                className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
-                onClick={() => handleStatusFilter(status)}
-                style={{
-                  borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
-                  backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
-                  color: statusFilter === status ? (status === 'Closed / Rejected' ? '#666' : '#333') : '#6b7280',
-                }}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
