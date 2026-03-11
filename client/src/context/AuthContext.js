@@ -6,6 +6,21 @@ const BASE_URL = API_BASE_URL;
 
 const AuthContext = createContext();
 
+// Global request interceptor — reads token fresh from localStorage on every request.
+// This is the single source of truth for auth headers and avoids any timing issues
+// with axios.defaults being set/cleared at different points in the component lifecycle.
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,7 +28,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       fetchUser();
     } else {
       setLoading(false);
@@ -43,10 +57,9 @@ export const AuthProvider = ({ children }) => {
           continue;
         }
 
-        // If generic error or 401/403, log out immediately (or after retries exhausted)
+        // If generic error or 401/403, clear the stored token and log out
         console.error('Error fetching user:', error);
         localStorage.removeItem('token');
-        delete axios.defaults.headers.common['Authorization'];
         setUser(null);
         setLoading(false);
         return;
@@ -66,10 +79,8 @@ export const AuthProvider = ({ children }) => {
 
       console.log('✅ Login successful:', response.data.user);
       const { token, user } = response.data;
-      // Clear any cached data from the previous user session to prevent data leakage
       sessionStorage.clear();
       localStorage.setItem('token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setUser(user);
       return { success: true, user };
     } catch (error) {
@@ -88,8 +99,6 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
-    // Clear all cached page state so the next user doesn't see stale data
     sessionStorage.clear();
     setUser(null);
   };

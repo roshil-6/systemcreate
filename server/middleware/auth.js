@@ -1,8 +1,6 @@
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
 // Verify JWT token
 const authenticate = async (req, res, next) => {
   try {
@@ -31,7 +29,7 @@ const authenticate = async (req, res, next) => {
 
     const decoded = jwt.verify(
       token,
-      JWT_SECRET
+      process.env.JWT_SECRET
     );
 
     // Verify user still exists
