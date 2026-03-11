@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireHrOrAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const ALLOWED_ROLES = ['ADMIN', 'STAFF', 'SALES_TEAM', 'SALES_TEAM_HEAD', 'PROCESSING', 'HR'];
@@ -113,14 +113,25 @@ router.post(
   }
 );
 
-// Update user (ADMIN only)
-router.put('/:id', authenticate, requireAdmin, async (req, res) => {
+// Update user (ADMIN or HR)
+router.put('/:id', authenticate, requireHrOrAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
+    const callerRole = req.user.role;
     const { name, email, password, role, phone_number, office_number, dob } = req.body;
 
     if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    // HR cannot change roles or passwords — only ADMIN can
+    if (callerRole === 'HR') {
+      if (role !== undefined) {
+        return res.status(403).json({ error: 'Only admins can change user roles' });
+      }
+      if (password !== undefined && String(password).trim() !== '') {
+        return res.status(403).json({ error: 'Only admins can reset passwords' });
+      }
     }
 
     const users = await db.getUsers({ id: userId });
@@ -133,7 +144,6 @@ router.put('/:id', authenticate, requireAdmin, async (req, res) => {
 
     if (name !== undefined) updates.name = name;
     if (email !== undefined) {
-      // Check if email is already taken by another user
       const emailUsers = await db.getUsers({ email });
       if (emailUsers.length > 0 && emailUsers[0].id !== userId) {
         return res.status(400).json({ error: 'Email already exists' });
