@@ -514,11 +514,13 @@ h3 {
 
 /* ── My Leads Overview ── */
 .hr-leads-overview {
-    background: var(--card-bg, #1a1a2e);
+    background: #ffffff !important;
     border-radius: 16px;
     padding: 24px;
     margin-bottom: 24px;
-    border: 1px solid var(--border-color, rgba(255,255,255,0.08));
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+    color: #111827;
 }
 
 .hr-leads-overview .section-header {
@@ -533,6 +535,7 @@ h3 {
     align-items: center;
     margin: 0;
     font-size: 1.15rem;
+    color: #111827;
 }
 
 .view-all-btn {
@@ -563,21 +566,32 @@ h3 {
 }
 
 .lead-stat-card {
-    background: var(--input-bg, rgba(255,255,255,0.04));
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
     border-radius: 10px;
     padding: 16px;
     text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    appearance: none;
+    width: 100%;
+}
+
+.lead-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    border-color: #cbd5e1;
 }
 
 .lead-stat-value {
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--dark-text, #fff);
+    color: #111827;
 }
 
 .lead-stat-label {
     font-size: 0.78rem;
-    color: var(--text-secondary, #9ca3af);
+    color: #475467;
     margin-top: 4px;
     font-weight: 500;
 }
@@ -589,7 +603,7 @@ h3 {
 
 .recent-leads-table h3 {
     font-size: 0.95rem;
-    color: var(--text-secondary, #9ca3af);
+    color: #374151;
     margin-bottom: 12px;
 }
 
@@ -604,15 +618,23 @@ h3 {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--text-secondary, #9ca3af);
-    border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08));
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .recent-leads-table td {
     padding: 10px 12px;
     font-size: 0.875rem;
-    border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.04));
-    color: var(--dark-text, #fff);
+    border-bottom: 1px solid #f1f5f9;
+    color: #111827;
+}
+
+.recent-lead-row {
+    cursor: pointer;
+}
+
+.recent-lead-row:hover {
+    background: #f8fafc;
 }
 
 .lead-name-cell {
@@ -621,7 +643,7 @@ h3 {
 }
 
 .lead-name-cell small {
-    color: var(--text-secondary, #9ca3af);
+    color: #6b7280;
     font-size: 0.75rem;
 }
 
@@ -643,6 +665,12 @@ h3 {
 .status-contacted, .status-follow-up {
     background: #ede9fe; color: #5b21b6;
 }
+.status-responded {
+    background: #e0f2fe; color: #075985;
+}
+.status-not-available, .status-not-attended {
+    background: #fef3c7; color: #92400e;
+}
 .status-converted, .status-won {
     background: #d1fae5; color: #065f46;
 }
@@ -661,13 +689,27 @@ h3 {
 
 .view-lead-btn {
     background: transparent;
-    border: 1px solid var(--border-color, rgba(255,255,255,0.15));
-    color: var(--dark-text, #fff);
+    border: 1px solid #d1d5db;
+    color: #111827;
     padding: 4px 12px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.78rem;
     transition: all 0.2s ease;
+}
+
+.hr-leads-overview .lead-name-cell span,
+.hr-leads-overview .recent-leads-table td,
+.hr-leads-overview .lead-stat-value,
+.hr-leads-overview .section-header h2,
+.hr-leads-overview .recent-leads-table h3 {
+    color: #111827;
+}
+
+.hr-leads-overview .lead-name-cell small,
+.hr-leads-overview .recent-leads-table th,
+.hr-leads-overview .lead-stat-label {
+    color: #6b7280;
 }
 
 .view-lead-btn:hover {

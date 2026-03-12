@@ -766,25 +766,28 @@ const Leads = () => {
   }
 
   const isAdmin = user?.role === 'ADMIN';
+  const isHr = user?.role === 'HR';
   const canManageLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF';
   const allSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
 
   return (
     <div className="leads-page">
       <div className="leads-header">
-        <button className="leads-back-btn" onClick={() => navigate('/')}>
+        <button className="leads-back-btn" onClick={() => navigate(isHr ? '/hr' : '/')}>
           <FiArrowLeft /> Back to Dashboard
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <h1>Clients (Leads)</h1>
-            <button
-              className="header-history-btn"
-              onClick={() => { setShowHistoryModal(true); fetchImportHistory(); }}
-              title="View full history of imported Excel files"
-            >
-              <FiClock /> Import History
-            </button>
+            <h1>{isHr ? 'My Leads' : 'Clients (Leads)'}</h1>
+            {!isHr && (
+              <button
+                className="header-history-btn"
+                onClick={() => { setShowHistoryModal(true); fetchImportHistory(); }}
+                title="View full history of imported Excel files"
+              >
+                <FiClock /> Import History
+              </button>
+            )}
             {isAdmin && (
               <button
                 className="header-trash-btn"

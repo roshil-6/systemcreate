@@ -71,6 +71,11 @@ const HRDashboard = () => {
         return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'long' });
     };
 
+    const openMyLeads = (status = '') => {
+        const query = status ? `?from=hr-my-leads&status=${encodeURIComponent(status)}` : '?from=hr-my-leads';
+        navigate(`/leads${query}`);
+    };
+
     if (loading) return <div className="hr-dashboard-loading">Loading Dashboard...</div>;
 
     return (
@@ -114,35 +119,35 @@ const HRDashboard = () => {
             <div className="hr-leads-overview">
                 <div className="section-header">
                     <h2><FiFileText style={{ marginRight: '10px', color: '#4f46e5' }} /> My Assigned Leads</h2>
-                    <button className="view-all-btn" onClick={() => navigate('/leads')}>
-                        View All <FiArrowRight />
+                    <button className="view-all-btn" onClick={() => openMyLeads()}>
+                        Open My Leads <FiArrowRight />
                     </button>
                 </div>
                 <div className="hr-leads-stats-grid">
-                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #4f46e5' }}>
+                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #4f46e5' }} onClick={() => openMyLeads()}>
                         <div className="lead-stat-value">{leadStats.total}</div>
                         <div className="lead-stat-label">Total Leads</div>
-                    </div>
-                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                    </button>
+                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #f59e0b' }} onClick={() => openMyLeads('Unassigned')}>
                         <div className="lead-stat-value">{leadStats.new}</div>
                         <div className="lead-stat-label">New / Unassigned</div>
-                    </div>
-                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                    </button>
+                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #3b82f6' }} onClick={() => openMyLeads('Assigned')}>
                         <div className="lead-stat-value">{leadStats.assigned}</div>
                         <div className="lead-stat-label">Assigned</div>
-                    </div>
-                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                    </button>
+                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #8b5cf6' }} onClick={() => openMyLeads('Contacted')}>
                         <div className="lead-stat-value">{leadStats.contacted}</div>
                         <div className="lead-stat-label">Contacted</div>
-                    </div>
-                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                    </button>
+                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #10b981' }} onClick={() => openMyLeads('Converted')}>
                         <div className="lead-stat-value">{leadStats.converted}</div>
                         <div className="lead-stat-label">Converted</div>
-                    </div>
-                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                    </button>
+                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #ef4444' }} onClick={() => openMyLeads('Closed')}>
                         <div className="lead-stat-value">{leadStats.closed}</div>
                         <div className="lead-stat-label">Closed / Lost</div>
-                    </div>
+                    </button>
                 </div>
 
                 {recentLeads.length > 0 && (
@@ -160,7 +165,7 @@ const HRDashboard = () => {
                             </thead>
                             <tbody>
                                 {recentLeads.map(lead => (
-                                    <tr key={lead.id}>
+                                    <tr key={lead.id} className="recent-lead-row" onClick={() => navigate(`/leads/${lead.id}`)}>
                                         <td className="lead-name-cell">
                                             <span>{lead.name || 'Unnamed'}</span>
                                             {lead.email && <small>{lead.email}</small>}
@@ -177,7 +182,7 @@ const HRDashboard = () => {
                                         </td>
                                         <td>{new Date(lead.created_at).toLocaleDateString('en-IN')}</td>
                                         <td>
-                                            <button className="view-lead-btn" onClick={() => navigate(`/leads/${lead.id}`)}>
+                                            <button className="view-lead-btn" onClick={(e) => { e.stopPropagation(); navigate(`/leads/${lead.id}`); }}>
                                                 View
                                             </button>
                                         </td>
@@ -237,7 +242,7 @@ const HRDashboard = () => {
                         <h2>Quick Access</h2>
                     </div>
                     <div className="quick-links">
-                        <button onClick={() => navigate('/leads')} className="quick-link-card">
+                        <button onClick={() => navigate('/leads?from=hr-my-leads')} className="quick-link-card">
                             <FiFileText />
                             <span>My Leads</span>
                             <FiArrowRight className="arrow" />
