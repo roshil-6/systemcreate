@@ -66,6 +66,10 @@ const Layout = ({ children }) => {
                 <FiHome className="nav-icon" />
                 <span>HR Dashboard</span>
               </Link>
+              <Link to="/leads" className={`nav-item ${isActive('/leads') ? 'active' : ''}`}>
+                <FiFileText className="nav-icon" />
+                <span>My Leads</span>
+              </Link>
               <Link to="/hr/staff" className={`nav-item ${isActive('/hr/staff') ? 'active' : ''}`}>
                 <FiUsers className="nav-icon" />
                 <span>Staff Directory</span>

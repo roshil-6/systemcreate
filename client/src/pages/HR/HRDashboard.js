@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
-import { FiUsers, FiClock, FiCalendar, FiGift, FiArrowRight, FiUser } from 'react-icons/fi';
+import { FiUsers, FiClock, FiCalendar, FiGift, FiArrowRight, FiUser, FiFileText } from 'react-icons/fi';
 import './HR.css';
 
 const HRDashboard = () => {
@@ -12,6 +12,15 @@ const HRDashboard = () => {
         presentToday: 0,
         missingAttendance: 0
     });
+    const [leadStats, setLeadStats] = useState({
+        total: 0,
+        new: 0,
+        assigned: 0,
+        contacted: 0,
+        converted: 0,
+        closed: 0
+    });
+    const [recentLeads, setRecentLeads] = useState([]);
     const [upcomingBirthdays, setUpcomingBirthdays] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -22,10 +31,11 @@ const HRDashboard = () => {
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const [staffRes, birthdaysRes, attendanceRes] = await Promise.all([
+            const [staffRes, birthdaysRes, attendanceRes, leadsRes] = await Promise.all([
                 axios.get(`${API_BASE_URL}/api/hr/staff`),
                 axios.get(`${API_BASE_URL}/api/hr/birthdays/upcoming`),
-                axios.get(`${API_BASE_URL}/api/attendance/missing`)
+                axios.get(`${API_BASE_URL}/api/attendance/missing`),
+                axios.get(`${API_BASE_URL}/api/leads`, { params: { page: 1, limit: 200 } })
             ]);
 
             setStats({
@@ -34,6 +44,21 @@ const HRDashboard = () => {
                 missingAttendance: attendanceRes.data.missingStaff?.length || 0
             });
             setUpcomingBirthdays(birthdaysRes.data || []);
+
+            const leads = leadsRes.data?.leads || leadsRes.data || [];
+            const statusCounts = { new: 0, assigned: 0, contacted: 0, converted: 0, closed: 0 };
+            leads.forEach(l => {
+                const s = (l.status || '').toLowerCase();
+                if (s === 'new' || s === 'unassigned' || s === 'direct lead') statusCounts.new++;
+                else if (s === 'assigned') statusCounts.assigned++;
+                else if (s === 'contacted' || s === 'follow up' || s === 'follow-up') statusCounts.contacted++;
+                else if (s === 'converted' || s === 'won') statusCounts.converted++;
+                else if (s === 'closed' || s === 'lost' || s === 'rejected') statusCounts.closed++;
+            });
+            setLeadStats({ total: leads.length, ...statusCounts });
+
+            const sorted = [...leads].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            setRecentLeads(sorted.slice(0, 5));
         } catch (error) {
             console.error('Error fetching HR dashboard data:', error);
         } finally {
@@ -85,6 +110,85 @@ const HRDashboard = () => {
                 </div>
             </div>
 
+            {/* My Leads Overview */}
+            <div className="hr-leads-overview">
+                <div className="section-header">
+                    <h2><FiFileText style={{ marginRight: '10px', color: '#4f46e5' }} /> My Assigned Leads</h2>
+                    <button className="view-all-btn" onClick={() => navigate('/leads')}>
+                        View All <FiArrowRight />
+                    </button>
+                </div>
+                <div className="hr-leads-stats-grid">
+                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #4f46e5' }}>
+                        <div className="lead-stat-value">{leadStats.total}</div>
+                        <div className="lead-stat-label">Total Leads</div>
+                    </div>
+                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                        <div className="lead-stat-value">{leadStats.new}</div>
+                        <div className="lead-stat-label">New / Unassigned</div>
+                    </div>
+                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                        <div className="lead-stat-value">{leadStats.assigned}</div>
+                        <div className="lead-stat-label">Assigned</div>
+                    </div>
+                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                        <div className="lead-stat-value">{leadStats.contacted}</div>
+                        <div className="lead-stat-label">Contacted</div>
+                    </div>
+                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                        <div className="lead-stat-value">{leadStats.converted}</div>
+                        <div className="lead-stat-label">Converted</div>
+                    </div>
+                    <div className="lead-stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+                        <div className="lead-stat-value">{leadStats.closed}</div>
+                        <div className="lead-stat-label">Closed / Lost</div>
+                    </div>
+                </div>
+
+                {recentLeads.length > 0 && (
+                    <div className="recent-leads-table">
+                        <h3>Recent Leads</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Priority</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {recentLeads.map(lead => (
+                                    <tr key={lead.id}>
+                                        <td className="lead-name-cell">
+                                            <span>{lead.name || 'Unnamed'}</span>
+                                            {lead.email && <small>{lead.email}</small>}
+                                        </td>
+                                        <td>
+                                            <span className={`lead-status-badge status-${(lead.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                                                {lead.status || 'N/A'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`lead-priority-badge priority-${(lead.priority || '').toLowerCase()}`}>
+                                                {lead.priority || '-'}
+                                            </span>
+                                        </td>
+                                        <td>{new Date(lead.created_at).toLocaleDateString('en-IN')}</td>
+                                        <td>
+                                            <button className="view-lead-btn" onClick={() => navigate(`/leads/${lead.id}`)}>
+                                                View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
             <div className="hr-dashboard-content">
                 {/* Birthday Reminders */}
                 <div className="birthday-reminders-section">
@@ -133,6 +237,11 @@ const HRDashboard = () => {
                         <h2>Quick Access</h2>
                     </div>
                     <div className="quick-links">
+                        <button onClick={() => navigate('/leads')} className="quick-link-card">
+                            <FiFileText />
+                            <span>My Leads</span>
+                            <FiArrowRight className="arrow" />
+                        </button>
                         <button onClick={() => navigate('/hr/staff')} className="quick-link-card">
                             <FiUser />
                             <span>Manage Staff</span>

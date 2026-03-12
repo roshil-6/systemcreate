@@ -160,10 +160,8 @@ router.get('/', authenticate, async (req, res) => {
     // Determine accessible user IDs based on role
     let accessibleUserIds = null;
 
-    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
-      // These users see ONLY their own leads — ignore any query param assigned_staff_id
+    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
       accessibleUserIds = [userId];
-      // Force override: do NOT let the URL query param override this
       delete filter.assigned_staff_id;
       delete filter.assigned_staff_ids;
     } else if (role === 'SALES_TEAM_HEAD') {

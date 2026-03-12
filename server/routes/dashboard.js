@@ -51,7 +51,7 @@ async function getAccessibleUserIds(user) {
   const isTargetedUser = restrictedNames.some(n => (user.name || '').toUpperCase().startsWith(n.toUpperCase())) || restrictedEmails.includes((user.email || '').toLowerCase()) || restrictedUserIds.includes(user.id);
 
   // Check if personal view is forced OR if the user is one of the strictly restricted ones
-  if (user.forcePersonal || isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
+  if (user.forcePersonal || isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
     return [userId];
   }
 

@@ -24,6 +24,8 @@ const AppLayout = ({ children }) => (
 
 // Roles who can access the main dashboard and operational pages
 const DASHBOARD_ROLES = ['ADMIN', 'SALES_TEAM_HEAD', 'SALES_TEAM', 'PROCESSING', 'STAFF'];
+// Roles who can access leads (includes HR since she gets assigned leads too)
+const LEADS_ROLES = [...DASHBOARD_ROLES, 'HR'];
 // Roles who can access HR section
 const HR_ROLES = ['HR', 'ADMIN'];
 
@@ -65,7 +67,7 @@ function App() {
             path="/leads"
             element={
               <PrivateRoute>
-                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                <RoleRoute allowedRoles={LEADS_ROLES}>
                   <AppLayout>
                     <Leads />
                   </AppLayout>
@@ -78,7 +80,7 @@ function App() {
             path="/leads/:id"
             element={
               <PrivateRoute>
-                <RoleRoute allowedRoles={DASHBOARD_ROLES}>
+                <RoleRoute allowedRoles={LEADS_ROLES}>
                   <AppLayout>
                     <LeadDetail />
                   </AppLayout>
