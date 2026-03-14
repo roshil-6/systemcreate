@@ -36,10 +36,13 @@ async function getLeadWithAccessCheck(leadId, user) {
   const lead = leads[0];
 
   if (!lead) return null;
+  const leadAssignedUserId = lead.assigned_staff_id !== null && lead.assigned_staff_id !== undefined
+    ? Number(lead.assigned_staff_id)
+    : null;
 
   // 2. CRITICAL: Filter out "Registration Completed" leads - they are now clients
   // (unless role is ADMIN/PROCESSING who might need to see them, but typically they go to Client route)
-  if (lead.status === 'Registration Completed' && role !== 'ADMIN' && role !== 'PROCESSING') {
+  if (lead.status === 'Registration Completed' && role !== 'ADMIN' && role !== 'PROCESSING' && role !== 'HR') {
     return null;
   }
 
@@ -57,24 +60,30 @@ async function getLeadWithAccessCheck(leadId, user) {
 
   if (role === 'STAFF') {
     // Kripa is STAFF - restrict to assigned only
-    if (lead.assigned_staff_id === userId) return lead;
+    if (leadAssignedUserId === Number(userId)) return lead;
+    return null;
+  }
+
+  if (role === 'HR') {
+    // HR should only access leads assigned to themselves
+    if (leadAssignedUserId === Number(userId)) return lead;
     return null;
   }
 
   if (role === 'SALES_TEAM_HEAD') {
     // Heads can see leads assigned to self, unassigned leads, or leads assigned to their team
-    if (lead.assigned_staff_id === userId || !lead.assigned_staff_id) return lead;
+    if (leadAssignedUserId === Number(userId) || leadAssignedUserId === null) return lead;
 
     const teamMembers = await db.getUsers({ managed_by: userId });
-    const teamMemberIds = teamMembers.map(u => u.id);
-    if (teamMemberIds.includes(lead.assigned_staff_id)) return lead;
+    const teamMemberIds = teamMembers.map(u => Number(u.id));
+    if (teamMemberIds.includes(leadAssignedUserId)) return lead;
 
     return null;
   }
 
   if (role === 'SALES_TEAM') {
     // Current owner
-    if (lead.assigned_staff_id === userId) return lead;
+    if (leadAssignedUserId === Number(userId)) return lead;
 
     // Original creator
     if (lead.created_by === userId) return lead;
@@ -791,7 +800,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
     const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
     const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
 
-    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF') {
+    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'HR') {
       accessibleUserIds = [userId];
     } else {
       // Regular ADMIN, SALES_TEAM_HEAD, PROCESSING see everyone

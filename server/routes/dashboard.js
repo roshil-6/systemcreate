@@ -420,7 +420,7 @@ router.get('/', authenticate, async (req, res) => {
     const isTargetedUser = restrictedNames.includes(req.user.name) || restrictedEmails.includes(req.user.email);
 
     // Determine if this is a restricted view (strictly SALES_TEAM, STAFF, PROCESSING or forced personal or targeted user)
-    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || isPersonalView || isTargetedUser;
+    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR' || isPersonalView || isTargetedUser;
 
     if (isRestrictedView) {
       // Restricted view - only accessible metrics

@@ -28,14 +28,19 @@ const HRDashboard = () => {
         fetchDashboardData();
     }, []);
 
+    const sumStatuses = (statusMap, names) => {
+        return names.reduce((sum, name) => sum + (statusMap[name.toLowerCase()] || 0), 0);
+    };
+
     const fetchDashboardData = async () => {
         try {
             setLoading(true);
-            const [staffRes, birthdaysRes, attendanceRes, leadsRes] = await Promise.all([
+            const [staffRes, birthdaysRes, attendanceRes, leadsRes, dashboardRes] = await Promise.all([
                 axios.get(`${API_BASE_URL}/api/hr/staff`),
                 axios.get(`${API_BASE_URL}/api/hr/birthdays/upcoming`),
                 axios.get(`${API_BASE_URL}/api/attendance/missing`),
-                axios.get(`${API_BASE_URL}/api/leads`, { params: { page: 1, limit: 200 } })
+                axios.get(`${API_BASE_URL}/api/leads`, { params: { limit: 10, offset: 0 } }),
+                axios.get(`${API_BASE_URL}/api/dashboard`, { params: { metricsOnly: true, view: 'personal' } })
             ]);
 
             setStats({
@@ -45,18 +50,31 @@ const HRDashboard = () => {
             });
             setUpcomingBirthdays(birthdaysRes.data || []);
 
-            const leads = leadsRes.data?.leads || leadsRes.data || [];
-            const statusCounts = { new: 0, assigned: 0, contacted: 0, converted: 0, closed: 0 };
-            leads.forEach(l => {
-                const s = (l.status || '').toLowerCase();
-                if (s === 'new' || s === 'unassigned' || s === 'direct lead') statusCounts.new++;
-                else if (s === 'assigned') statusCounts.assigned++;
-                else if (s === 'contacted' || s === 'follow up' || s === 'follow-up') statusCounts.contacted++;
-                else if (s === 'converted' || s === 'won') statusCounts.converted++;
-                else if (s === 'closed' || s === 'lost' || s === 'rejected') statusCounts.closed++;
+            const metrics = dashboardRes.data?.metrics || {};
+            const leadsByStatusRaw = metrics.leadsByStatus || {};
+            const leadsByStatus = {};
+            Object.entries(leadsByStatusRaw).forEach(([status, count]) => {
+                leadsByStatus[String(status || '').toLowerCase()] = Number(count) || 0;
             });
-            setLeadStats({ total: leads.length, ...statusCounts });
 
+            const grouped = {
+                new: sumStatuses(leadsByStatus, ['New', 'Unassigned', 'Direct Lead']),
+                assigned: sumStatuses(leadsByStatus, ['Assigned', 'Prospect', 'Pending Lead']),
+                contacted: sumStatuses(leadsByStatus, ['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended']),
+                converted: sumStatuses(leadsByStatus, ['Registration Completed', 'Converted', 'Won']),
+                closed: sumStatuses(leadsByStatus, ['Closed', 'Closed / Rejected', 'Lost', 'Rejected', 'Not Interested', 'Not Eligible'])
+            };
+
+            const metricsTotal = Number(metrics.totalLeads || 0);
+            const groupedTotal = grouped.new + grouped.assigned + grouped.contacted + grouped.converted + grouped.closed;
+            if (metricsTotal > groupedTotal) {
+                // Keep totals consistent if any custom status is outside our groups.
+                grouped.assigned += (metricsTotal - groupedTotal);
+            }
+
+            setLeadStats({ total: metricsTotal, ...grouped });
+
+            const leads = leadsRes.data?.leads || leadsRes.data || [];
             const sorted = [...leads].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
             setRecentLeads(sorted.slice(0, 5));
         } catch (error) {
