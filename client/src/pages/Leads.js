@@ -23,6 +23,8 @@ const Leads = () => {
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [assignedStaffFilter, setAssignedStaffFilter] = useState(searchParams.get('assigned_staff_id') || '');
   const [viewType, setViewType] = useState(searchParams.get('viewType') || 'all');
+  const [dateFrom, setDateFrom] = useState(searchParams.get('created_from') || '');
+  const [dateTo, setDateTo] = useState(searchParams.get('created_to') || '');
   const [excelModal, setExcelModal] = useState({ open: false, data: null, loading: false, leadName: '' });
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
@@ -55,6 +57,8 @@ const Leads = () => {
     const urlPhone = searchParams.get('phone') || '';
     const urlStatus = searchParams.get('status') || '';
     const urlViewType = searchParams.get('viewType') || 'all';
+    const urlDateFrom = searchParams.get('created_from') || '';
+    const urlDateTo = searchParams.get('created_to') || '';
     const showHistory = searchParams.get('showHistory') === 'true';
 
     setSearch(urlSearch);
@@ -63,6 +67,8 @@ const Leads = () => {
     setPhoneSearchInput(urlPhone);
     setStatusFilter(urlStatus);
     setViewType(urlViewType);
+    setDateFrom(urlDateFrom);
+    setDateTo(urlDateTo);
 
     if (showHistory) {
       setShowHistoryModal(true);
@@ -84,7 +90,7 @@ const Leads = () => {
         // Only restore if the filters match the URL filters to avoid stale data on new searches
         if (isRecent && state.search === search && state.statusFilter === statusFilter &&
           state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter &&
-          state.viewType === viewType) {
+          state.viewType === viewType && state.dateFrom === dateFrom && state.dateTo === dateTo) {
 
           setLeads(state.leads);
           setOffset(state.offset);
@@ -174,6 +180,8 @@ const Leads = () => {
           phoneSearch,
           assignedStaffFilter,
           viewType,
+          dateFrom,
+          dateTo,
           scrollPosition: scrollPos,
           timestamp: Date.now()
         }));
@@ -184,10 +192,10 @@ const Leads = () => {
     return () => {
       saveState();
     };
-  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType]);
+  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo]);
 
   useEffect(() => {
-    if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF') {
+    if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR') {
       fetchStaffList();
     }
   }, [user]);
@@ -229,6 +237,8 @@ const Leads = () => {
       const statusVal = searchParams.get('status');
       const assigned_staff_id = searchParams.get('assigned_staff_id');
       const viewTypeVal = searchParams.get('viewType');
+      const createdFrom = searchParams.get('created_from');
+      const createdTo = searchParams.get('created_to');
 
       const params = new URLSearchParams();
       if (searchVal) params.append('search', searchVal);
@@ -236,6 +246,8 @@ const Leads = () => {
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
+      if (createdFrom) params.append('created_from', createdFrom);
+      if (createdTo) params.append('created_to', createdTo);
 
       const currentOffset = reset ? 0 : offset;
       params.append('limit', LEADS_PER_PAGE.toString());
@@ -286,12 +298,16 @@ const Leads = () => {
       const statusVal = searchParams.get('status');
       const assigned_staff_id = searchParams.get('assigned_staff_id');
       const viewTypeVal = searchParams.get('viewType');
+      const createdFrom = searchParams.get('created_from');
+      const createdTo = searchParams.get('created_to');
 
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
+      if (createdFrom) params.append('created_from', createdFrom);
+      if (createdTo) params.append('created_to', createdTo);
 
       params.append('limit', LEADS_PER_PAGE.toString());
       params.append('offset', newOffset.toString());
@@ -330,6 +346,8 @@ const Leads = () => {
         phoneSearch,
         assignedStaffFilter,
         viewType,
+        dateFrom,
+        dateTo,
         clickedLeadId: leadId,
         scrollPosition: container ? container.scrollTop : 0,
         timestamp: Date.now()
@@ -368,17 +386,23 @@ const Leads = () => {
     }
   };
 
-  const handleSearch = (e) => {
-    e.preventDefault();
+  const buildLeadsParams = () => {
     const params = new URLSearchParams();
     if (searchInput.trim()) params.set('search', searchInput.trim());
     if (phoneSearchInput.trim()) params.set('phone', phoneSearchInput.trim());
     if (statusFilter) params.set('status', statusFilter);
     if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
     if (viewType && viewType !== 'all') params.set('viewType', viewType);
+    if (dateFrom) params.set('created_from', dateFrom);
+    if (dateTo) params.set('created_to', dateTo);
+    return params;
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
     setSearch(searchInput.trim());
     setPhoneSearch(phoneSearchInput.trim());
-    navigate(`/leads?${params.toString()}`);
+    navigate(`/leads?${buildLeadsParams().toString()}`);
   };
 
   const handleSearchInputChange = (e) => {
@@ -391,43 +415,39 @@ const Leads = () => {
 
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (phoneSearch) params.set('phone', phoneSearch);
+    const params = buildLeadsParams();
     if (status) params.set('status', status);
-    if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
-    if (viewType && viewType !== 'all') params.set('viewType', viewType);
+    else params.delete('status');
     navigate(`/leads?${params.toString()}`);
   };
 
   const handleStaffFilter = (staffId) => {
     setAssignedStaffFilter(staffId);
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (phoneSearch) params.set('phone', phoneSearch);
-    if (statusFilter) params.set('status', statusFilter);
+    const params = buildLeadsParams();
     if (staffId) params.set('assigned_staff_id', staffId);
-    if (viewType && viewType !== 'all') params.set('viewType', viewType);
+    else params.delete('assigned_staff_id');
+    navigate(`/leads?${params.toString()}`);
+  };
+
+  const handleDateFilter = (from, to) => {
+    setDateFrom(from);
+    setDateTo(to);
+    const params = buildLeadsParams();
+    if (from) params.set('created_from', from);
+    else params.delete('created_from');
+    if (to) params.set('created_to', to);
+    else params.delete('created_to');
     navigate(`/leads?${params.toString()}`);
   };
 
   const handleViewTypeChange = (type) => {
     setViewType(type);
-
-    // Clear the status filter when switching top-level views to prevent contradictory filters
-    if (type !== 'all') {
-      setStatusFilter('');
-    }
-
-    const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (phoneSearch) params.set('phone', phoneSearch);
-
-    // Only apply statusFilter if we are on 'all' view or user explicitly sets it later
+    if (type !== 'all') setStatusFilter('');
+    const params = buildLeadsParams();
     if (type === 'all' && statusFilter) params.set('status', statusFilter);
-
-    if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
+    else if (type !== 'all') params.delete('status');
     if (type && type !== 'all') params.set('viewType', type);
+    else params.delete('viewType');
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -898,6 +918,34 @@ const Leads = () => {
             />
             <button type="submit" style={{ display: 'none' }}></button>
           </form>
+
+          <div className="date-filter-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '10px' }}>
+            <FiCalendar style={{ color: '#6b7280', flexShrink: 0 }} />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => handleDateFilter(e.target.value, dateTo)}
+              placeholder="From"
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+            />
+            <span style={{ color: '#9ca3af' }}>to</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
+              placeholder="To"
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+            />
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => handleDateFilter('', '')}
+                style={{ padding: '4px 8px', fontSize: '12px', color: '#6b7280', background: 'transparent', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer' }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
 
           {canManageLeads && (
             <select

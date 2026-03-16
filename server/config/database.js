@@ -299,6 +299,22 @@ const database = {
       params.push(`%${filter.phone}%`);
       paramIndex += 1;
     }
+    if (filter.created_from) {
+      whereConditions += ` AND created_at::date >= $${paramIndex++}`;
+      params.push(filter.created_from);
+    }
+    if (filter.created_to) {
+      whereConditions += ` AND created_at::date <= $${paramIndex++}`;
+      params.push(filter.created_to);
+    }
+    if (filter.updated_from) {
+      whereConditions += ` AND updated_at::date >= $${paramIndex++}`;
+      params.push(filter.updated_from);
+    }
+    if (filter.updated_to) {
+      whereConditions += ` AND updated_at::date <= $${paramIndex++}`;
+      params.push(filter.updated_to);
+    }
 
     // New vs Follow Up Views filtering using optimized EXISTS
     if (filter.viewType === 'new') {

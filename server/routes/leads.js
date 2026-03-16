@@ -59,7 +59,12 @@ async function getLeadWithAccessCheck(leadId, user) {
   }
 
   if (role === 'STAFF') {
-    // Kripa is STAFF - restrict to assigned only
+    if (leadAssignedUserId === Number(userId)) return lead;
+    return null;
+  }
+
+  if (role === 'PROCESSING') {
+    // Processing staff (Sneha, Kripa) can access leads assigned to them
     if (leadAssignedUserId === Number(userId)) return lead;
     return null;
   }
@@ -148,7 +153,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, viewType, limit, offset } = req.query;
+    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, updated_from, updated_to } = req.query;
 
     const filter = {
       limit: limit ? parseInt(limit) : undefined,
@@ -203,6 +208,10 @@ router.get('/', authenticate, async (req, res) => {
     if (phone) {
       filter.phone = phone;
     }
+    if (created_from) filter.created_from = created_from;
+    if (created_to) filter.created_to = created_to;
+    if (updated_from) filter.updated_from = updated_from;
+    if (updated_to) filter.updated_to = updated_to;
 
     // Performance: Only filter out Registration Completed at database level when not explicitly requested
     if (!status) {
@@ -310,7 +319,7 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
 
     const staffUsers = await db.getUsers({ id: staffId });
     const staffUser = staffUsers[0];
-    if (!staffUser || staffUser.role === 'ADMIN') {
+    if (!staffUser || (staffUser.role === 'ADMIN' && !isProcessingAdmin(staffUser))) {
       return res.status(400).json({ error: 'Invalid staff member' });
     }
 
@@ -791,7 +800,8 @@ router.get('/export/csv', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone } = req.query;
+    const { status, search, phone, created_from, created_to } = req.query;
+    const filter = {};
 
     let accessibleUserIds = null;
     const userName = req.user.name || '';
@@ -822,6 +832,8 @@ router.get('/export/csv', authenticate, async (req, res) => {
     if (phone) {
       filter.phone = phone;
     }
+    if (created_from) filter.created_from = created_from;
+    if (created_to) filter.created_to = created_to;
 
     let leads = await db.getLeads(filter);
 
@@ -1263,8 +1275,8 @@ router.put('/:id', authenticate, async (req, res) => {
                   return res.status(400).json({ error: 'Can only transfer to yourself or your team members' });
                 }
               }
-            } else if (role === 'SALES_TEAM') {
-              // Regular sales team can only transfer their own leads
+            } else if (role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
+              // Staff can only transfer leads assigned to them
               if (leadOwnerId !== userId) {
                 return res.status(403).json({ error: 'You can only transfer leads assigned to you' });
               }
@@ -1354,29 +1366,39 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
         if (leadOwnerId !== userId && !teamIds.includes(leadOwnerId) && existingLead.assigned_staff_id !== null) {
           return res.status(403).json({ error: 'Access denied' });
         }
-      } else if (role === 'SALES_TEAM' || role === 'PROCESSING') {
+      } else if (role === 'SALES_TEAM' || role === 'PROCESSING' || role === 'STAFF' || role === 'HR') {
         if (leadOwnerId !== userId) {
           return res.status(403).json({ error: 'Access denied' });
         }
       }
     }
 
-    // Find Sneha (Processing Staff) to assign the client to
+    // Assign to Sneha or Kripa (processing staff) for remaining procedure — round-robin by client count
     let processingStaffId = null;
     try {
       const snehaUsers = await db.getUsers({ email: 'sneha@toniosenora.com' });
-      if (snehaUsers.length > 0) {
-        processingStaffId = snehaUsers[0].id;
-      } else {
-        const snehaByName = await db.getUsers({ name: 'Sneha' });
-        if (snehaByName.length > 0) {
-          processingStaffId = snehaByName[0].id;
-        }
+      const kripaUsers = await db.getUsers({ email: 'kripa@toniosenora.com' });
+      const sneha = snehaUsers[0] || (await db.getUsers({ name: 'Sneha' }))[0];
+      const kripa = kripaUsers[0] || (await db.getUsers({ name: 'Kripa' }))[0];
+      const snehaId = sneha?.id;
+      const kripaId = kripa?.id;
+      if (snehaId && kripaId) {
+        const countRes = await db.query(
+          'SELECT COUNT(*) as c FROM clients WHERE processing_staff_id IN ($1, $2)',
+          [snehaId, kripaId]
+        );
+        const c = parseInt(countRes.rows[0]?.c || 0, 10);
+        processingStaffId = c % 2 === 0 ? snehaId : kripaId;
+      } else if (snehaId) {
+        processingStaffId = snehaId;
+      } else if (kripaId) {
+        processingStaffId = kripaId;
       }
     } catch (e) {
-      console.error('Error finding Sneha for assignment:', e);
+      console.error('Error finding Sneha/Kripa for assignment:', e);
     }
 
+    const lead = existingLead;
     // 1. Create Client Record
     const clientData = {
       name: lead.name,
@@ -1387,11 +1409,11 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
       occupation: lead.occupation,
       qualification: lead.qualification,
       year_of_experience: lead.year_of_experience,
-      country: lead.country, // Current country
-      target_country: lead.country, // Default target to current if not specified, or use logic
+      country: lead.country,
+      target_country: lead.country,
       program: lead.program,
-      assigned_staff_id: lead.assigned_staff_id, // Keep sales rep
-      processing_staff_id: processingStaffId, // Auto-assign to Sneha
+      assigned_staff_id: lead.assigned_staff_id,
+      processing_staff_id: processingStaffId,
       fee_status: 'Payment Pending', // Initial status
       processing_status: 'Agreement Pending',
       assessment_authority: assessment_authority,
