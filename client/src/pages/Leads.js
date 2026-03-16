@@ -767,7 +767,7 @@ const Leads = () => {
 
   const isAdmin = user?.role === 'ADMIN';
   const isHr = user?.role === 'HR';
-  const canManageLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF';
+  const canManageLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR';
   const allSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
 
   return (

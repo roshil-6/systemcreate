@@ -290,7 +290,7 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
     const { leadIds, assigned_staff_id } = req.body;
 
     // Allow ADMIN, SALES_TEAM_HEAD, and staff to transfer their own leads
-    const canBulkAssign = role === 'ADMIN' || role === 'SALES_TEAM_HEAD' || role === 'SALES_TEAM' || role === 'PROCESSING' || role === 'STAFF';
+    const canBulkAssign = role === 'ADMIN' || role === 'SALES_TEAM_HEAD' || role === 'SALES_TEAM' || role === 'PROCESSING' || role === 'STAFF' || role === 'HR';
 
     if (!canBulkAssign) {
       return res.status(403).json({ error: 'Access denied' });
@@ -378,8 +378,8 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
       }
 
       const updates = { assigned_staff_id: staffId };
-      // AUTOMATIC STATUS UPDATE: Set to 'Assigned' if currently 'Unassigned'
-      if (lead.status === 'Unassigned') {
+      // AUTOMATIC STATUS UPDATE: Set to 'Assigned' when assigning from initial/unassigned buckets
+      if (lead.status === 'Unassigned' || lead.status === 'New' || lead.status === 'Direct Lead') {
         updates.status = 'Assigned';
       }
 
@@ -1202,7 +1202,7 @@ router.put('/:id', authenticate, async (req, res) => {
     if (source !== undefined) updates.source = source;
     if (ielts_score !== undefined) updates.ielts_score = ielts_score;
 
-    const canReassign = role === 'ADMIN' || role === 'SALES_TEAM_HEAD' || role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING';
+    const canReassign = role === 'ADMIN' || role === 'SALES_TEAM_HEAD' || role === 'STAFF' || role === 'SALES_TEAM' || role === 'PROCESSING' || role === 'HR';
     if (assigned_staff_id !== undefined) {
       if (!canReassign) {
         return res.status(403).json({ error: 'Not allowed to change lead assignment' });
@@ -1278,7 +1278,8 @@ router.put('/:id', authenticate, async (req, res) => {
       if (normalizedStaffId && existingStaffId !== normalizedStaffId) {
 
         // AUTOMATIC STATUS UPDATE: If lead is being assigned, set status to 'Assigned'
-        if (existingLead.status === 'Unassigned' || existingLead.status === 'New' || existingLead.status === 'Direct Lead') {
+        if ((status === undefined || status === null || status === '') &&
+          (existingLead.status === 'Unassigned' || existingLead.status === 'New' || existingLead.status === 'Direct Lead')) {
           updates.status = 'Assigned';
           console.log(`🔄 Auto-updating status to 'Assigned' for lead ${leadId}`);
         }
@@ -1301,7 +1302,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
       // AUTOMATIC STATUS UPDATE: If lead is being UNASSIGNED (staffId is null)
       if ((assigned_staff_id === null || assigned_staff_id === '') && existingStaffId !== null) {
-        if (existingLead.status === 'Assigned') {
+        if ((status === undefined || status === null || status === '') && existingLead.status === 'Assigned') {
           updates.status = 'Unassigned';
           console.log(`🔄 Auto-updating status to 'Unassigned' for lead ${leadId}`);
         }

@@ -35,7 +35,8 @@ const LeadDetail = () => {
       || user?.role === 'SALES_TEAM_HEAD'
       || user?.role === 'STAFF'
       || user?.role === 'SALES_TEAM'
-      || user?.role === 'PROCESSING';
+      || user?.role === 'PROCESSING'
+      || user?.role === 'HR';
 
     if (id === 'new') {
       setEditing(true);
