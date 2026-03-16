@@ -326,8 +326,14 @@ const database = {
                            OR (comment IS NOT NULL AND comment != ''))`;
     }
 
-    // Sort by latest interactions/assignments (updated_at DESC)
-    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions} ORDER BY updated_at DESC, id DESC`;
+    // Sort: created_desc (newest first), created_asc (oldest first), updated_desc (latest updated)
+    const sortBy = filter.sort || 'created_desc';
+    let orderClause = 'ORDER BY updated_at DESC, id DESC';
+    if (sortBy === 'created_desc') orderClause = 'ORDER BY created_at DESC, id DESC';
+    else if (sortBy === 'created_asc') orderClause = 'ORDER BY created_at ASC, id ASC';
+    else if (sortBy === 'updated_desc') orderClause = 'ORDER BY updated_at DESC, id DESC';
+    else if (sortBy === 'updated_asc') orderClause = 'ORDER BY updated_at ASC, id ASC';
+    let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions} ${orderClause}`;
 
     // Pagination: default 50 per page to keep the initial load smooth and responsive
     const limit = filter.limit !== undefined ? Number(filter.limit) : 50;

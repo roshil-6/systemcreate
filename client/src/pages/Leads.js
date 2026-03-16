@@ -25,6 +25,7 @@ const Leads = () => {
   const [viewType, setViewType] = useState(searchParams.get('viewType') || 'all');
   const [dateFrom, setDateFrom] = useState(searchParams.get('created_from') || '');
   const [dateTo, setDateTo] = useState(searchParams.get('created_to') || '');
+  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'created_desc');
   const [excelModal, setExcelModal] = useState({ open: false, data: null, loading: false, leadName: '' });
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
@@ -59,6 +60,7 @@ const Leads = () => {
     const urlViewType = searchParams.get('viewType') || 'all';
     const urlDateFrom = searchParams.get('created_from') || '';
     const urlDateTo = searchParams.get('created_to') || '';
+    const urlSort = searchParams.get('sort') || 'created_desc';
     const showHistory = searchParams.get('showHistory') === 'true';
 
     setSearch(urlSearch);
@@ -69,6 +71,7 @@ const Leads = () => {
     setViewType(urlViewType);
     setDateFrom(urlDateFrom);
     setDateTo(urlDateTo);
+    setSortBy(urlSort);
 
     if (showHistory) {
       setShowHistoryModal(true);
@@ -90,7 +93,8 @@ const Leads = () => {
         // Only restore if the filters match the URL filters to avoid stale data on new searches
         if (isRecent && state.search === search && state.statusFilter === statusFilter &&
           state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter &&
-          state.viewType === viewType && state.dateFrom === dateFrom && state.dateTo === dateTo) {
+          state.viewType === viewType && state.dateFrom === dateFrom && state.dateTo === dateTo &&
+          (state.sortBy || 'created_desc') === (sortBy || 'created_desc')) {
 
           setLeads(state.leads);
           setOffset(state.offset);
@@ -182,6 +186,7 @@ const Leads = () => {
           viewType,
           dateFrom,
           dateTo,
+          sortBy: sortBy || 'created_desc',
           scrollPosition: scrollPos,
           timestamp: Date.now()
         }));
@@ -192,7 +197,7 @@ const Leads = () => {
     return () => {
       saveState();
     };
-  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo]);
+  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo, sortBy]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR') {
@@ -239,6 +244,7 @@ const Leads = () => {
       const viewTypeVal = searchParams.get('viewType');
       const createdFrom = searchParams.get('created_from');
       const createdTo = searchParams.get('created_to');
+      const sortVal = searchParams.get('sort') || 'created_desc';
 
       const params = new URLSearchParams();
       if (searchVal) params.append('search', searchVal);
@@ -248,6 +254,7 @@ const Leads = () => {
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
       if (createdFrom) params.append('created_from', createdFrom);
       if (createdTo) params.append('created_to', createdTo);
+      if (sortVal) params.append('sort', sortVal);
 
       const currentOffset = reset ? 0 : offset;
       params.append('limit', LEADS_PER_PAGE.toString());
@@ -300,6 +307,7 @@ const Leads = () => {
       const viewTypeVal = searchParams.get('viewType');
       const createdFrom = searchParams.get('created_from');
       const createdTo = searchParams.get('created_to');
+      const sortVal = searchParams.get('sort') || 'created_desc';
 
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
@@ -308,6 +316,7 @@ const Leads = () => {
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
       if (createdFrom) params.append('created_from', createdFrom);
       if (createdTo) params.append('created_to', createdTo);
+      if (sortVal) params.append('sort', sortVal);
 
       params.append('limit', LEADS_PER_PAGE.toString());
       params.append('offset', newOffset.toString());
@@ -348,6 +357,7 @@ const Leads = () => {
         viewType,
         dateFrom,
         dateTo,
+        sortBy: sortBy || 'created_desc',
         clickedLeadId: leadId,
         scrollPosition: container ? container.scrollTop : 0,
         timestamp: Date.now()
@@ -395,6 +405,7 @@ const Leads = () => {
     if (viewType && viewType !== 'all') params.set('viewType', viewType);
     if (dateFrom) params.set('created_from', dateFrom);
     if (dateTo) params.set('created_to', dateTo);
+    if (sortBy && sortBy !== 'created_desc') params.set('sort', sortBy);
     return params;
   };
 
@@ -421,6 +432,17 @@ const Leads = () => {
     navigate(`/leads?${params.toString()}`);
   };
 
+  const formatDateAdded = (createdAt) => {
+    if (!createdAt) return '-';
+    const d = new Date(createdAt);
+    return (
+      <>
+        <div style={{ fontWeight: 500 }}>{d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+        <div style={{ fontSize: '11px', color: '#6b7280' }}>{d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+      </>
+    );
+  };
+
   const handleStaffFilter = (staffId) => {
     setAssignedStaffFilter(staffId);
     const params = buildLeadsParams();
@@ -437,6 +459,14 @@ const Leads = () => {
     else params.delete('created_from');
     if (to) params.set('created_to', to);
     else params.delete('created_to');
+    navigate(`/leads?${params.toString()}`);
+  };
+
+  const handleSortChange = (value) => {
+    setSortBy(value);
+    const params = buildLeadsParams();
+    if (value && value !== 'created_desc') params.set('sort', value);
+    else params.delete('sort');
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -946,6 +976,18 @@ const Leads = () => {
               </button>
             )}
           </div>
+
+          <select
+            value={sortBy}
+            onChange={(e) => handleSortChange(e.target.value)}
+            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', backgroundColor: 'white', color: '#374151', fontSize: '13px', marginRight: '10px' }}
+            title="Sort leads"
+          >
+            <option value="created_desc">Newest first</option>
+            <option value="created_asc">Oldest first</option>
+            <option value="updated_desc">Latest updated</option>
+            <option value="updated_asc">Oldest updated</option>
+          </select>
 
           {canManageLeads && (
             <select
@@ -1486,10 +1528,7 @@ const Leads = () => {
                   </td>
                   <td>
                     <div className="date-cell" title={lead.created_at ? new Date(lead.created_at).toLocaleString() : ''}>
-                      {lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '-'}
-                      <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                        {lead.created_at ? new Date(lead.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </div>
+                      {formatDateAdded(lead.created_at)}
                     </div>
                   </td>
                   <td>

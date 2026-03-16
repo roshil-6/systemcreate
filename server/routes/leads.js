@@ -153,7 +153,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, updated_from, updated_to } = req.query;
+    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, updated_from, updated_to, sort } = req.query;
 
     const filter = {
       limit: limit ? parseInt(limit) : undefined,
@@ -212,6 +212,7 @@ router.get('/', authenticate, async (req, res) => {
     if (created_to) filter.created_to = created_to;
     if (updated_from) filter.updated_from = updated_from;
     if (updated_to) filter.updated_to = updated_to;
+    if (sort) filter.sort = sort;
 
     // Performance: Only filter out Registration Completed at database level when not explicitly requested
     if (!status) {
