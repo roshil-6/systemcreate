@@ -124,15 +124,8 @@ router.put('/:id', authenticate, requireHrOrAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    // HR cannot change roles or passwords — only ADMIN can
-    if (callerRole === 'HR') {
-      if (role !== undefined) {
-        return res.status(403).json({ error: 'Only admins can change user roles' });
-      }
-      if (password !== undefined && String(password).trim() !== '') {
-        return res.status(403).json({ error: 'Only admins can reset passwords' });
-      }
-    }
+    // HR can edit staff but cannot change roles or passwords — those fields are skipped for HR
+    const isHrCaller = callerRole === 'HR';
 
     const users = await db.getUsers({ id: userId });
     if (users.length === 0) {
@@ -150,10 +143,10 @@ router.put('/:id', authenticate, requireHrOrAdmin, async (req, res) => {
       }
       updates.email = email;
     }
-    if (password !== undefined && String(password).trim() !== '') {
+    if (password !== undefined && String(password).trim() !== '' && !isHrCaller) {
       updates.password = await bcrypt.hash(password, 10);
     }
-    if (role !== undefined) {
+    if (role !== undefined && !isHrCaller) {
       updates.role = role;
     }
     if (phone_number !== undefined) {
