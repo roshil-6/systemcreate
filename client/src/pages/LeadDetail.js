@@ -57,7 +57,7 @@ const LeadDetail = () => {
         residing_country: '',
         program: '',
         status: 'New',
-        assigned_staff_id: user?.role === 'STAFF' ? user.id : null,
+        assigned_staff_id: (user?.role === 'STAFF' || user?.role === 'HR') ? user.id : null,
         priority: '',
         comment: '',
         follow_up_date: '',
@@ -793,6 +793,7 @@ const LeadDetail = () => {
                   <option value="Assigned">Assigned</option>
                   <option value="Follow-up">Follow-up</option>
                   <option value="Prospect">Prospect</option>
+                  <option value="Not Responding">Not Responding</option>
                   <option value="Pending Lead">Pending Lead</option>
                   <option value="Not Eligible">Not Eligible</option>
                   <option value="Not Interested">Not Interested</option>

@@ -1045,7 +1045,7 @@ const Leads = () => {
             <option value="updated_asc">Oldest updated</option>
           </select>
 
-          {canManageLeads && (
+          {canManageLeads && !isHr && (
             <select
               className="staff-filter-select"
               value={assignedStaffFilter}

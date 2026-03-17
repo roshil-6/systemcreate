@@ -1066,7 +1066,7 @@ router.post(
 
       // CRITICAL: Non-admin roles can only assign leads to themselves (or their team for heads)
       let finalAssignedStaffId = assigned_staff_id;
-      if (role === 'SALES_TEAM' || role === 'STAFF') {
+      if (role === 'SALES_TEAM' || role === 'STAFF' || role === 'HR') {
         finalAssignedStaffId = userId;
       } else if (role === 'SALES_TEAM_HEAD' || role === 'PROCESSING') {
         // Now allowed to assign based on the regular flow or leave as is.
