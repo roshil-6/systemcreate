@@ -89,9 +89,14 @@ const Leads = () => {
         const state = JSON.parse(cachedState);
         // Add a timestamp check so we don't use state older than 60 minutes
         const isRecent = state.timestamp && (Date.now() - state.timestamp < 60 * 60 * 1000);
+        const urlFollowUp = searchParams.get('follow_up_date') || '';
+        const urlFollowUpOverdue = searchParams.get('follow_up_overdue') || '';
+
+        // Don't restore from cache when URL has follow-up filters - always fetch fresh
+        const hasFollowUpFilter = !!urlFollowUp || !!urlFollowUpOverdue;
 
         // Only restore if the filters match the URL filters to avoid stale data on new searches
-        if (isRecent && state.search === search && state.statusFilter === statusFilter &&
+        if (!hasFollowUpFilter && isRecent && state.search === search && state.statusFilter === statusFilter &&
           state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter &&
           state.viewType === viewType && state.dateFrom === dateFrom && state.dateTo === dateTo &&
           (state.sortBy || 'created_desc') === (sortBy || 'created_desc')) {
@@ -117,7 +122,7 @@ const Leads = () => {
       setOffset(0);
       fetchLeads(true);
     }
-  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType]);
+  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType, searchParams]);
 
   // Bulletproof scroll restoration via element ID
   React.useLayoutEffect(() => {
@@ -245,6 +250,8 @@ const Leads = () => {
       const createdFrom = searchParams.get('created_from');
       const createdTo = searchParams.get('created_to');
       const sortVal = searchParams.get('sort') || 'created_desc';
+      const followUpDate = searchParams.get('follow_up_date');
+      const followUpOverdue = searchParams.get('follow_up_overdue');
 
       const params = new URLSearchParams();
       if (searchVal) params.append('search', searchVal);
@@ -255,6 +262,8 @@ const Leads = () => {
       if (createdFrom) params.append('created_from', createdFrom);
       if (createdTo) params.append('created_to', createdTo);
       if (sortVal) params.append('sort', sortVal);
+      if (followUpDate) params.append('follow_up_date', followUpDate);
+      if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
 
       const currentOffset = reset ? 0 : offset;
       params.append('limit', LEADS_PER_PAGE.toString());
@@ -308,6 +317,8 @@ const Leads = () => {
       const createdFrom = searchParams.get('created_from');
       const createdTo = searchParams.get('created_to');
       const sortVal = searchParams.get('sort') || 'created_desc';
+      const followUpDate = searchParams.get('follow_up_date');
+      const followUpOverdue = searchParams.get('follow_up_overdue');
 
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
@@ -317,6 +328,8 @@ const Leads = () => {
       if (createdFrom) params.append('created_from', createdFrom);
       if (createdTo) params.append('created_to', createdTo);
       if (sortVal) params.append('sort', sortVal);
+      if (followUpDate) params.append('follow_up_date', followUpDate);
+      if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
 
       params.append('limit', LEADS_PER_PAGE.toString());
       params.append('offset', newOffset.toString());
@@ -759,7 +772,7 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Unassigned', 'Direct Lead', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+  const statusOptions = ['New', 'Unassigned', 'Direct Lead', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Not Eligible', 'Not Interested', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
@@ -770,6 +783,7 @@ const Leads = () => {
       'Follow-up': '#E6E6FA',
       'Prospect': '#B0E0E6',
       'Pending Lead': '#DDA0DD',
+      'Not Responding': '#FCD34D',
       'Not Eligible': '#FCA5A5',
       'Not Interested': '#D3D3D3',
       'Registration Completed': '#86EFAC',
@@ -786,6 +800,7 @@ const Leads = () => {
       'Follow-up': '#6b21a8',
       'Prospect': '#0e7490',
       'Pending Lead': '#7c2d12',
+      'Not Responding': '#92400e',
       'Not Eligible': '#991B1B',
       'Not Interested': '#374151',
       'Registration Completed': '#166534',
@@ -853,6 +868,47 @@ const Leads = () => {
           </div>
         </div>
       </div>
+
+      {/* Follow-up filter banner */}
+      {(searchParams.get('follow_up_date') === 'today' || searchParams.get('follow_up_overdue') === 'true') && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '10px 16px',
+          marginBottom: '12px',
+          backgroundColor: searchParams.get('follow_up_overdue') === 'true' ? '#fef3c7' : '#dbeafe',
+          borderRadius: '8px',
+          border: `1px solid ${searchParams.get('follow_up_overdue') === 'true' ? '#f59e0b' : '#3b82f6'}`,
+        }}>
+          <FiCalendar style={{ flexShrink: 0, color: searchParams.get('follow_up_overdue') === 'true' ? '#b45309' : '#2563eb' }} />
+          <span style={{ fontWeight: 500, color: '#1f2937' }}>
+            {searchParams.get('follow_up_overdue') === 'true'
+              ? 'Showing overdue follow-ups'
+              : "Showing today's follow-ups"}
+          </span>
+          <button
+            onClick={() => {
+              const params = new URLSearchParams(searchParams);
+              params.delete('follow_up_date');
+              params.delete('follow_up_overdue');
+              navigate({ pathname: '/leads', search: params.toString() || undefined });
+            }}
+            style={{
+              marginLeft: 'auto',
+              padding: '4px 12px',
+              fontSize: '13px',
+              backgroundColor: 'rgba(0,0,0,0.06)',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 500,
+            }}
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
 
       {/* Controls Section */}
       <div className="leads-controls-section">

@@ -315,6 +315,17 @@ const database = {
       whereConditions += ` AND updated_at::date <= $${paramIndex++}`;
       params.push(filter.updated_to);
     }
+    if (filter.follow_up_date) {
+      const today = new Date().toISOString().split('T')[0];
+      const targetDate = filter.follow_up_date === 'today' ? today : filter.follow_up_date;
+      whereConditions += ` AND follow_up_date::date = $${paramIndex++}`;
+      params.push(targetDate);
+    }
+    if (filter.follow_up_overdue === true) {
+      const today = new Date().toISOString().split('T')[0];
+      whereConditions += ` AND follow_up_date::date < $${paramIndex++} AND follow_up_date IS NOT NULL`;
+      params.push(today);
+    }
 
     // New vs Follow Up Views filtering using optimized EXISTS
     if (filter.viewType === 'new') {

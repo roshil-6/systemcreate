@@ -505,7 +505,12 @@ const Dashboard = () => {
             <div className="metric-label">New Leads</div>
           </div>
         </div>
-        <div className="metric-card">
+        <div
+          className="metric-card metric-card-clickable"
+          onClick={() => navigate('/leads?follow_up_date=today')}
+          style={{ cursor: 'pointer' }}
+          title="View leads with follow-up set for today"
+        >
           <div className="metric-icon" style={{ background: '#FFF4D6' }}>
             <FiClock style={{ color: '#D4AF37' }} />
           </div>
@@ -514,7 +519,12 @@ const Dashboard = () => {
             <div className="metric-label">Today's Follow-ups</div>
           </div>
         </div>
-        <div className="metric-card">
+        <div
+          className="metric-card metric-card-clickable"
+          onClick={() => navigate('/leads?follow_up_overdue=true')}
+          style={{ cursor: 'pointer' }}
+          title="View overdue follow-ups"
+        >
           <div className="metric-icon" style={{ background: '#FFF4D6' }}>
             <FiXCircle style={{ color: '#D4AF37' }} />
           </div>
@@ -549,6 +559,11 @@ const Dashboard = () => {
         color: '#92400e', // Dark yellow/brown text
         borderColor: '#f59e0b' // Yellow border
       },
+      'Not Responding': {
+        backgroundColor: '#FEF3C7', // Light amber
+        color: '#92400e', // Dark amber text
+        borderColor: '#f59e0b' // Amber border
+      },
       'Closed / Rejected': {
         backgroundColor: '#E5E7EB', // Light gray
         color: '#374151', // Dark gray text
@@ -576,6 +591,7 @@ const Dashboard = () => {
     const followUpColor = getStatusBoxColor('Follow-up');
     const prospectColor = getStatusBoxColor('Prospect');
     const pendingColor = getStatusBoxColor('Pending Lead');
+    const notRespondingColor = getStatusBoxColor('Not Responding');
     const notEligibleColor = getStatusBoxColor('Not Eligible');
     const notInterestedColor = getStatusBoxColor('Not Interested');
     const registrationCompletedColor = getStatusBoxColor('Registration Completed');
@@ -632,6 +648,17 @@ const Dashboard = () => {
                 >
                   <span className="status-label" style={{ color: pendingColor.color }}>Pending Lead</span>
                   <span className="status-count" style={{ color: pendingColor.color }}>{data.metrics.leadsByStatus['Pending Lead']}</span>
+                </div>
+              )}
+              {data.metrics.leadsByStatus['Not Responding'] !== undefined && (
+                <div
+                  className="status-item"
+                  style={notRespondingColor}
+                  onClick={() => handleStatusClick('Not Responding')}
+                  title="View Not Responding Leads"
+                >
+                  <span className="status-label" style={{ color: notRespondingColor.color }}>Not Responding</span>
+                  <span className="status-count" style={{ color: notRespondingColor.color }}>{data.metrics.leadsByStatus['Not Responding']}</span>
                 </div>
               )}
               {data.metrics.leadsByStatus['Not Eligible'] !== undefined && (

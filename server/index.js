@@ -1,7 +1,9 @@
 const express = require('express');
+const path = require('path');
 console.log('🚀 CRM Server: Starting initialization...');
 const cors = require('cors');
-require('dotenv').config();
+// Load .env from server directory regardless of cwd (fixes JWT_SECRET missing when run from root)
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const crypto = require('crypto');
 
 // Ensure JWT secret exists for this process without relying on a hardcoded fallback.
