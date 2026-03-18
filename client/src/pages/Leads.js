@@ -26,6 +26,8 @@ const Leads = () => {
   const [dateFrom, setDateFrom] = useState(searchParams.get('created_from') || '');
   const [dateTo, setDateTo] = useState(searchParams.get('created_to') || '');
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'created_desc');
+  const [createdTodayFilter, setCreatedTodayFilter] = useState(searchParams.get('created_today') === 'true');
+  const [leadSourceTypeFilter, setLeadSourceTypeFilter] = useState(searchParams.get('lead_source_type') || '');
   const [excelModal, setExcelModal] = useState({ open: false, data: null, loading: false, leadName: '' });
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
@@ -54,13 +56,15 @@ const Leads = () => {
   const LEADS_PER_PAGE = 50;
 
   useEffect(() => {
-    const urlSearch = searchParams.get('search') || '';
+      const urlSearch = searchParams.get('search') || '';
     const urlPhone = searchParams.get('phone') || '';
     const urlStatus = searchParams.get('status') || '';
     const urlViewType = searchParams.get('viewType') || 'all';
     const urlDateFrom = searchParams.get('created_from') || '';
     const urlDateTo = searchParams.get('created_to') || '';
     const urlSort = searchParams.get('sort') || 'created_desc';
+    const urlCreatedToday = searchParams.get('created_today') === 'true';
+    const urlLeadSourceType = searchParams.get('lead_source_type') || '';
     const showHistory = searchParams.get('showHistory') === 'true';
 
     setSearch(urlSearch);
@@ -72,6 +76,8 @@ const Leads = () => {
     setDateFrom(urlDateFrom);
     setDateTo(urlDateTo);
     setSortBy(urlSort);
+    setCreatedTodayFilter(urlCreatedToday);
+    setLeadSourceTypeFilter(urlLeadSourceType);
 
     if (showHistory) {
       setShowHistoryModal(true);
@@ -91,9 +97,11 @@ const Leads = () => {
         const isRecent = state.timestamp && (Date.now() - state.timestamp < 60 * 60 * 1000);
         const urlFollowUp = searchParams.get('follow_up_date') || '';
         const urlFollowUpOverdue = searchParams.get('follow_up_overdue') || '';
+        const urlCreatedToday = searchParams.get('created_today') === 'true';
+        const urlLeadSourceType = searchParams.get('lead_source_type') || '';
 
-        // Don't restore from cache when URL has follow-up filters - always fetch fresh
-        const hasFollowUpFilter = !!urlFollowUp || !!urlFollowUpOverdue;
+        // Don't restore from cache when URL has follow-up or other special filters - always fetch fresh
+        const hasFollowUpFilter = !!urlFollowUp || !!urlFollowUpOverdue || urlCreatedToday || !!urlLeadSourceType;
 
         // Only restore if the filters match the URL filters to avoid stale data on new searches
         if (!hasFollowUpFilter && isRecent && state.search === search && state.statusFilter === statusFilter &&
@@ -252,6 +260,8 @@ const Leads = () => {
       const sortVal = searchParams.get('sort') || 'created_desc';
       const followUpDate = searchParams.get('follow_up_date');
       const followUpOverdue = searchParams.get('follow_up_overdue');
+      const createdToday = searchParams.get('created_today');
+      const leadSourceType = searchParams.get('lead_source_type');
 
       const params = new URLSearchParams();
       if (searchVal) params.append('search', searchVal);
@@ -264,6 +274,8 @@ const Leads = () => {
       if (sortVal) params.append('sort', sortVal);
       if (followUpDate) params.append('follow_up_date', followUpDate);
       if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
+      if (createdToday === 'true') params.append('created_today', 'true');
+      if (leadSourceType) params.append('lead_source_type', leadSourceType);
 
       const currentOffset = reset ? 0 : offset;
       params.append('limit', LEADS_PER_PAGE.toString());
@@ -319,6 +331,8 @@ const Leads = () => {
       const sortVal = searchParams.get('sort') || 'created_desc';
       const followUpDate = searchParams.get('follow_up_date');
       const followUpOverdue = searchParams.get('follow_up_overdue');
+      const createdToday = searchParams.get('created_today');
+      const leadSourceType = searchParams.get('lead_source_type');
 
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
@@ -330,6 +344,8 @@ const Leads = () => {
       if (sortVal) params.append('sort', sortVal);
       if (followUpDate) params.append('follow_up_date', followUpDate);
       if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
+      if (createdToday === 'true') params.append('created_today', 'true');
+      if (leadSourceType) params.append('lead_source_type', leadSourceType);
 
       params.append('limit', LEADS_PER_PAGE.toString());
       params.append('offset', newOffset.toString());
@@ -419,6 +435,8 @@ const Leads = () => {
     if (dateFrom) params.set('created_from', dateFrom);
     if (dateTo) params.set('created_to', dateTo);
     if (sortBy && sortBy !== 'created_desc') params.set('sort', sortBy);
+    if (createdTodayFilter) params.set('created_today', 'true');
+    if (leadSourceTypeFilter) params.set('lead_source_type', leadSourceTypeFilter);
     return params;
   };
 
@@ -491,6 +509,22 @@ const Leads = () => {
     else if (type !== 'all') params.delete('status');
     if (type && type !== 'all') params.set('viewType', type);
     else params.delete('viewType');
+    navigate(`/leads?${params.toString()}`);
+  };
+
+  const handleCreatedTodayFilter = (enabled) => {
+    setCreatedTodayFilter(enabled);
+    const params = buildLeadsParams();
+    if (enabled) params.set('created_today', 'true');
+    else params.delete('created_today');
+    navigate(`/leads?${params.toString()}`);
+  };
+
+  const handleLeadSourceTypeFilter = (value) => {
+    setLeadSourceTypeFilter(value);
+    const params = buildLeadsParams();
+    if (value) params.set('lead_source_type', value);
+    else params.delete('lead_source_type');
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -960,6 +994,20 @@ const Leads = () => {
               </button>
             </>
           )}
+          <button
+            onClick={() => handleCreatedTodayFilter(!createdTodayFilter)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: createdTodayFilter ? '#10b981' : 'transparent',
+              color: createdTodayFilter ? 'white' : '#6b7280',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: createdTodayFilter ? 600 : 500,
+            }}
+          >
+            Today's Leads
+          </button>
         </div>
 
         {/* Status Filter Boxes — prominent row right below view tabs */}
@@ -1032,6 +1080,17 @@ const Leads = () => {
               </button>
             )}
           </div>
+
+          <select
+            value={leadSourceTypeFilter}
+            onChange={(e) => handleLeadSourceTypeFilter(e.target.value)}
+            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', backgroundColor: 'white', color: '#374151', fontSize: '13px', marginRight: '10px' }}
+            title="Filter by type of lead"
+          >
+            <option value="">All Types</option>
+            <option value="manual">Manual</option>
+            <option value="bulk_import">Bulk Import</option>
+          </select>
 
           <select
             value={sortBy}
@@ -1649,7 +1708,7 @@ const Leads = () => {
                       {lead.assigned_staff_name || 'Unassigned'}
                     </span>
                   </td>
-                  <td style={{ position: 'relative' }}>
+                  <td className="leads-actions-cell">
                     <div className="action-buttons-row">
                       {canManageLeads && (
                         <button
@@ -1657,7 +1716,7 @@ const Leads = () => {
                           onClick={(e) => {
                             e.stopPropagation();
                             setAssigningLeadId(lead.id);
-                            setAssignStaffId(lead.assigned_staff_id || '');
+                            setAssignStaffId(lead.assigned_staff_id ? String(lead.assigned_staff_id) : '');
                           }}
                           title={isAdmin ? 'Assign Lead' : 'Transfer Lead'}
                         >
@@ -1722,7 +1781,7 @@ const Leads = () => {
                         >
                           <option value="">{isAdmin ? 'Select staff...' : 'Select staff to transfer to...'}</option>
                           {staffList.map((staff) => (
-                            <option key={staff.id} value={staff.id}>
+                            <option key={staff.id} value={String(staff.id)}>
                               {staff.name}
                             </option>
                           ))}

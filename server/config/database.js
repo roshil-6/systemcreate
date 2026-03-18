@@ -326,6 +326,16 @@ const database = {
       whereConditions += ` AND follow_up_date::date < $${paramIndex++} AND follow_up_date IS NOT NULL`;
       params.push(today);
     }
+    if (filter.created_today === true) {
+      const today = new Date().toISOString().split('T')[0];
+      whereConditions += ` AND created_at::date = $${paramIndex++}`;
+      params.push(today);
+    }
+    if (filter.lead_source_type === 'bulk_import') {
+      whereConditions += ` AND (excel_row_data IS NOT NULL OR (source IS NOT NULL AND source ILIKE '%Bulk Import%'))`;
+    } else if (filter.lead_source_type === 'manual') {
+      whereConditions += ` AND excel_row_data IS NULL AND (source IS NULL OR source = '' OR source ILIKE '%manual%')`;
+    }
 
     // New vs Follow Up Views filtering using optimized EXISTS
     if (filter.viewType === 'new') {

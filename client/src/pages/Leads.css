@@ -416,16 +416,26 @@
   background: #357ABD;
 }
 
+/* Actions cell: allow dropdown to overflow (not clipped by table) */
+.leads-actions-cell {
+  position: relative;
+  overflow: visible !important;
+  vertical-align: middle;
+}
+
 .quick-assign-dropdown {
   position: absolute;
+  left: 0;
+  top: 100%;
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
   margin-top: 4px;
-  min-width: 250px;
+  min-width: 260px;
+  white-space: nowrap;
 }
 
 .quick-assign-select {

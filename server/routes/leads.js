@@ -153,7 +153,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, updated_from, updated_to, sort, follow_up_date, follow_up_overdue } = req.query;
+    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type } = req.query;
 
     const filter = {
       limit: limit ? parseInt(limit) : undefined,
@@ -215,6 +215,8 @@ router.get('/', authenticate, async (req, res) => {
     if (sort) filter.sort = sort;
     if (follow_up_date) filter.follow_up_date = follow_up_date;
     if (follow_up_overdue === 'true' || follow_up_overdue === true) filter.follow_up_overdue = true;
+    if (created_today === 'true' || created_today === true) filter.created_today = true;
+    if (lead_source_type) filter.lead_source_type = lead_source_type;
 
     // Performance: Only filter out Registration Completed at database level when not explicitly requested
     if (!status) {
@@ -265,8 +267,8 @@ router.get('/staff/list', authenticate, async (req, res) => {
       u.email && u.email.endsWith('@toniosenora.com') &&
       (u.role !== 'ADMIN' || isProcessingAdmin(u));
 
-    // Admin can assign to any real non-admin staff
-    if (role === 'ADMIN') {
+    // Admin and HR can assign to any real staff
+    if (role === 'ADMIN' || role === 'HR') {
       const allUsers = await db.getUsers();
       users = allUsers.filter(isRealStaff);
     }
