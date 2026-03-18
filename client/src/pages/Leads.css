@@ -94,11 +94,16 @@
 .leads-search .search-icon {
   position: absolute;
   left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   color: #6b7280;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .leads-search input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 8px 12px;
   border: none;
   background: transparent;
@@ -107,6 +112,7 @@
 }
 
 .leads-search input:first-of-type {
+  padding-left: 36px;
   border-right: 1px solid #e5e7eb;
 }
 

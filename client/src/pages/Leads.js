@@ -528,6 +528,29 @@ const Leads = () => {
     navigate(`/leads?${params.toString()}`);
   };
 
+  const getUnifiedFilterValue = () => {
+    if (createdTodayFilter) return 'today';
+    if (viewType === 'new') return 'new';
+    if (viewType === 'follow_up') return 'follow_up';
+    if (leadSourceTypeFilter === 'manual') return 'manual';
+    if (leadSourceTypeFilter === 'bulk_import') return 'bulk_import';
+    return 'all';
+  };
+
+  const handleUnifiedFilterChange = (value) => {
+    setCreatedTodayFilter(value === 'today');
+    setViewType(value === 'new' ? 'new' : value === 'follow_up' ? 'follow_up' : 'all');
+    setLeadSourceTypeFilter(value === 'manual' ? 'manual' : value === 'bulk_import' ? 'bulk_import' : '');
+    const params = new URLSearchParams(searchParams);
+    params.delete('created_today');
+    params.delete('viewType');
+    params.delete('lead_source_type');
+    if (value === 'today') params.set('created_today', 'true');
+    if (value === 'new' || value === 'follow_up') params.set('viewType', value);
+    if (value === 'manual' || value === 'bulk_import') params.set('lead_source_type', value);
+    navigate(`/leads?${params.toString()}`);
+  };
+
   const toggleLeadSelection = (leadId) => {
     setSelectedLeadIds((prev) => (
       prev.includes(leadId) ? prev.filter((id) => id !== leadId) : [...prev, leadId]
@@ -946,71 +969,38 @@ const Leads = () => {
 
       {/* Controls Section */}
       <div className="leads-controls-section">
-        {/* View Type Tabs */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '15px', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
-          <button
-            onClick={() => handleViewTypeChange('all')}
+        {/* Unified Filter Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>Filter:</label>
+          <select
+            value={getUnifiedFilterValue()}
+            onChange={(e) => handleUnifiedFilterChange(e.target.value)}
             style={{
               padding: '8px 16px',
-              backgroundColor: viewType === 'all' ? '#3b82f6' : 'transparent',
-              color: viewType === 'all' ? 'white' : '#6b7280',
-              border: 'none',
               borderRadius: '6px',
+              border: '1px solid #e5e7eb',
+              backgroundColor: 'white',
+              color: '#374151',
+              fontSize: '14px',
+              fontWeight: 500,
+              minWidth: '180px',
               cursor: 'pointer',
-              fontWeight: viewType === 'all' ? 600 : 500,
             }}
           >
-            All Leads
-          </button>
-          {user?.role !== 'SALES_TEAM' && (
-            <>
-              <button
-                onClick={() => handleViewTypeChange('new')}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: viewType === 'new' ? '#10b981' : 'transparent',
-                  color: viewType === 'new' ? 'white' : '#6b7280',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: viewType === 'new' ? 600 : 500,
-                }}
-              >
-                New (No Comments)
-              </button>
-              <button
-                onClick={() => handleViewTypeChange('follow_up')}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: viewType === 'follow_up' ? '#f59e0b' : 'transparent',
-                  color: viewType === 'follow_up' ? 'white' : '#6b7280',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: viewType === 'follow_up' ? 600 : 500,
-                }}
-              >
-                Follow Up (Active)
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => handleCreatedTodayFilter(!createdTodayFilter)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: createdTodayFilter ? '#10b981' : 'transparent',
-              color: createdTodayFilter ? 'white' : '#6b7280',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: createdTodayFilter ? 600 : 500,
-            }}
-          >
-            Today's Leads
-          </button>
+            <option value="all">All Leads</option>
+            <option value="today">Today's Leads</option>
+            {user?.role !== 'SALES_TEAM' && (
+              <>
+                <option value="new">New (No Comments)</option>
+                <option value="follow_up">Follow Up (Active)</option>
+              </>
+            )}
+            <option value="manual">Manual</option>
+            <option value="bulk_import">Bulk Import</option>
+          </select>
         </div>
 
-        {/* Status Filter Boxes — prominent row right below view tabs */}
+        {/* Status Filter Boxes */}
         <div className="status-filters" style={{ marginBottom: '16px' }}>
           <button
             className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
@@ -1043,10 +1033,9 @@ const Leads = () => {
               value={searchInput}
               onChange={handleSearchInputChange}
             />
-            <FiSearch className="search-icon" style={{ marginLeft: '10px' }} />
             <input
               type="text"
-              placeholder="Search lead by phone..."
+              placeholder="Search by phone..."
               value={phoneSearchInput}
               onChange={handlePhoneSearchInputChange}
             />
@@ -1080,17 +1069,6 @@ const Leads = () => {
               </button>
             )}
           </div>
-
-          <select
-            value={leadSourceTypeFilter}
-            onChange={(e) => handleLeadSourceTypeFilter(e.target.value)}
-            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', backgroundColor: 'white', color: '#374151', fontSize: '13px', marginRight: '10px' }}
-            title="Filter by type of lead"
-          >
-            <option value="">All Types</option>
-            <option value="manual">Manual</option>
-            <option value="bulk_import">Bulk Import</option>
-          </select>
 
           <select
             value={sortBy}
