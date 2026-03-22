@@ -829,7 +829,7 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Unassigned', 'Direct Lead', 'Assigned', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Not Eligible', 'Not Interested', 'Registration Completed'];
+  const statusOptions = ['New', 'Unassigned', 'Direct Lead', 'Assigned', 'Contacted', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Not Eligible', 'Not Interested', 'Converted', 'Closed', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
@@ -837,12 +837,15 @@ const Leads = () => {
       'Unassigned': '#87CEEB',
       'Direct Lead': '#FBBF24',
       'Assigned': '#cbd5e1',
+      'Contacted': '#8b5cf6',
       'Follow-up': '#E6E6FA',
       'Prospect': '#B0E0E6',
       'Pending Lead': '#DDA0DD',
       'Not Responding': '#FCD34D',
       'Not Eligible': '#FCA5A5',
       'Not Interested': '#D3D3D3',
+      'Converted': '#10b981',
+      'Closed': '#ef4444',
       'Registration Completed': '#86EFAC',
     };
     return colors[status] || '#87CEEB';
@@ -854,12 +857,15 @@ const Leads = () => {
       'Unassigned': '#1e40af',
       'Direct Lead': '#92400e',
       'Assigned': '#334155',
+      'Contacted': '#5b21b6',
       'Follow-up': '#6b21a8',
       'Prospect': '#0e7490',
       'Pending Lead': '#7c2d12',
       'Not Responding': '#92400e',
       'Not Eligible': '#991B1B',
       'Not Interested': '#374151',
+      'Converted': '#166534',
+      'Closed': '#991B1B',
       'Registration Completed': '#166534',
     };
     return colors[status] || '#1e40af';
@@ -1016,7 +1022,7 @@ const Leads = () => {
               style={{
                 borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
                 backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
-                color: statusFilter === status ? (status === 'Closed / Rejected' ? '#666' : '#333') : '#6b7280',
+                color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
               }}
             >
               {status}

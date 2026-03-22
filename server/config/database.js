@@ -282,8 +282,22 @@ const database = {
       params.push(Number(filter.assigned_staff_id));
     }
     if (filter.status) {
-      whereConditions += ` AND status = $${paramIndex++}`;
-      params.push(filter.status);
+      // Support grouped status filters (from HR dashboard etc.) - map to multiple statuses
+      const statusGroups = {
+        'Contacted': ['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended'],
+        'Closed': ['Closed', 'Closed / Rejected', 'Lost', 'Rejected', 'Not Interested', 'Not Eligible'],
+        'Assigned': ['Assigned', 'Prospect', 'Pending Lead'],
+        'Converted': ['Registration Completed', 'Converted', 'Won'],
+        'New': ['New', 'Unassigned', 'Direct Lead'],
+      };
+      const statusList = statusGroups[filter.status] || [filter.status];
+      if (statusList.length === 1) {
+        whereConditions += ` AND status = $${paramIndex++}`;
+        params.push(statusList[0]);
+      } else {
+        whereConditions += ` AND status = ANY($${paramIndex++}::text[])`;
+        params.push(statusList);
+      }
     }
     if (filter.excludeStatus) {
       whereConditions += ` AND status != $${paramIndex++}`;
