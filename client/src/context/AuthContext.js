@@ -7,18 +7,47 @@ const BASE_URL = API_BASE_URL;
 const AuthContext = createContext();
 
 // Global request interceptor — reads token fresh from localStorage on every request.
-// This is the single source of truth for auth headers and avoids any timing issues
-// with axios.defaults being set/cleared at different points in the component lifecycle.
+// Trims token (avoids JWT verify failures from stray whitespace/newlines).
+// Sets Authorization in both forms for Axios v1 AxiosHeaders compatibility.
+function attachAuthHeader(config) {
+  const raw = localStorage.getItem('token');
+  const token = raw ? String(raw).trim() : '';
+  if (!token) return config;
+  const value = `Bearer ${token}`;
+  if (!config.headers) {
+    config.headers = {};
+  }
+  if (typeof config.headers.set === 'function') {
+    config.headers.set('Authorization', value);
+  } else {
+    config.headers.Authorization = value;
+    config.headers['Authorization'] = value;
+  }
+  return config;
+}
+
 axios.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers = config.headers || {};
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
+  (config) => attachAuthHeader(config),
   (error) => Promise.reject(error)
+);
+
+// On 401, clear stale token so user can re-login (expired JWT, rotated secret, etc.)
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    if (status === 401) {
+      const url = error.config?.url || '';
+      const isLogin = url.includes('/api/auth/login');
+      if (!isLogin) {
+        localStorage.removeItem('token');
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login';
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 export const AuthProvider = ({ children }) => {
@@ -80,7 +109,7 @@ export const AuthProvider = ({ children }) => {
       console.log('✅ Login successful:', response.data.user);
       const { token, user } = response.data;
       sessionStorage.clear();
-      localStorage.setItem('token', token);
+      localStorage.setItem('token', String(token).trim());
       setUser(user);
       return { success: true, user };
     } catch (error) {

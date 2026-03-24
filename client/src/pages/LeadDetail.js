@@ -6,6 +6,15 @@ import API_BASE_URL from '../config/api';
 import './LeadDetail.css';
 import { FiSave, FiMessageSquare, FiUser, FiPhone, FiMail, FiCalendar, FiArrowLeft } from 'react-icons/fi';
 
+/** Explicit Bearer header on every request (belt-and-suspenders with global axios interceptor). */
+function authConfig(extra = {}) {
+  const raw = localStorage.getItem('token');
+  const token = raw ? String(raw).trim() : '';
+  const headers = { ...extra.headers };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return { ...extra, headers };
+}
+
 const LeadDetail = () => {
   const { id } = useParams();
   const isNew = id === 'new';
@@ -80,7 +89,7 @@ const LeadDetail = () => {
 
   const fetchLead = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/leads/${id}`);
+      const response = await axios.get(`${API_BASE_URL}/api/leads/${id}`, authConfig());
       setLead(response.data);
       setFormData(response.data);
     } catch (error) {
@@ -94,7 +103,7 @@ const LeadDetail = () => {
 
   const fetchComments = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/leads/${id}/comments`);
+      const response = await axios.get(`${API_BASE_URL}/api/leads/${id}/comments`, authConfig());
       setComments(response.data);
     } catch (error) {
       console.error('Error fetching comments:', error);
@@ -103,7 +112,7 @@ const LeadDetail = () => {
 
   const fetchStaffList = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/leads/staff/list`);
+      const response = await axios.get(`${API_BASE_URL}/api/leads/staff/list`, authConfig());
       setStaffList(response.data);
     } catch (error) {
       console.error('Error fetching staff list:', error);
@@ -124,10 +133,10 @@ const LeadDetail = () => {
       if (id === 'new') {
         // Only clear the cache if a completely new Lead is created, to force it onto page 1
         sessionStorage.removeItem('leadsPageState');
-        await axios.post(`${API_BASE_URL}/api/leads`, cleanedData);
+        await axios.post(`${API_BASE_URL}/api/leads`, cleanedData, authConfig());
         handleBack();
       } else {
-        await axios.put(`${API_BASE_URL}/api/leads/${id}`, cleanedData);
+        await axios.put(`${API_BASE_URL}/api/leads/${id}`, cleanedData, authConfig());
 
         // Soft update the specific lead in the cache so it doesn't force a page refresh when navigating back
         try {
@@ -156,7 +165,7 @@ const LeadDetail = () => {
     try {
       await axios.post(`${API_BASE_URL}/api/leads/${id}/comments`, {
         text: newComment,
-      });
+      }, authConfig());
       setNewComment('');
       await fetchComments();
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -195,13 +204,12 @@ const LeadDetail = () => {
     setCheckingDuplicate(true);
     duplicateCheckTimer.current = setTimeout(async () => {
       try {
-        const token = localStorage.getItem('token');
         const params = new URLSearchParams();
         if (cleanedPhone.length >= 5) params.set('phone', cleanedPhone);
         if (cleanedEmail.length >= 3) params.set('email', cleanedEmail);
         const response = await axios.get(
           `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          authConfig()
         );
         if (response.data.exists) {
           setDuplicateWarning(response.data.lead);
@@ -251,7 +259,7 @@ const LeadDetail = () => {
         assessment_authority: registrationData.assessment_authority,
         occupation_mapped: registrationData.occupation_mapped,
         registration_fee_paid: registrationData.registration_fee_paid,
-      });
+      }, authConfig());
 
       console.log('✅ Registration completed:', response.data);
       alert('Lead converted to client successfully! The client is now accessible to the processing team (Sneha and Kripa).');
@@ -289,7 +297,7 @@ const LeadDetail = () => {
       try {
         await axios.put(`${API_BASE_URL}/api/leads/${id}`, {
           [name]: normalizedValue,
-        });
+        }, authConfig());
         // Update lead state to reflect changes
         const updatedLead = { ...lead, [name]: normalizedValue };
         setLead(updatedLead);
