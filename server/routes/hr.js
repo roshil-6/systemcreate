@@ -52,7 +52,7 @@ router.get('/staff', authenticate, requireHrOrAdmin, async (req, res) => {
             phone_number: u.phone_number,
             office_number: u.office_number,
             dob: u.dob,
-            profile_photo: u.profile_photo
+            profile_photo: sanitizeProfilePhotoForList(u)
         }));
 
         res.json(staffList);
@@ -195,40 +195,60 @@ router.get('/documents/:id/view', authenticate, requireHrOrAdmin, async (req, re
 const profilePhotoDir = path.join(__dirname, '../uploads/profile_photos');
 if (!fs.existsSync(profilePhotoDir)) fs.mkdirSync(profilePhotoDir, { recursive: true });
 
-const photoStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, profilePhotoDir),
-    filename: (req, file, cb) => cb(null, `profile_${req.params.id}${path.extname(file.originalname)}`),
-});
+/** Max stored size for base64 in DB (~350KB raw image) — works on Render without persistent disk */
+const MAX_PROFILE_PHOTO_CHARS = 500000;
+
 const photoUpload = multer({
-    storage: photoStorage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 4 * 1024 * 1024 }, // 4MB before base64
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/')) cb(null, true);
         else cb(new Error('Only image files allowed'));
     }
 });
 
-// Upload profile photo
+function sanitizeProfilePhotoForList(u) {
+    if (!u.profile_photo) return null;
+    if (String(u.profile_photo).startsWith('data:')) return 'inline';
+    return u.profile_photo;
+}
+
+// Upload profile photo — stored in DB as data URL (survives ephemeral cloud filesystems)
 router.post('/staff/:id/photo', authenticate, requireHrOrAdmin, photoUpload.single('photo'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
+        if (!req.file || !req.file.buffer) return res.status(400).json({ error: 'No image uploaded' });
+        const mime = req.file.mimetype || 'image/jpeg';
+        const b64 = req.file.buffer.toString('base64');
+        const dataUrl = `data:${mime};base64,${b64}`;
+        if (dataUrl.length > MAX_PROFILE_PHOTO_CHARS) {
+            return res.status(400).json({ error: 'Image too large. Please use a smaller image (under ~350KB).' });
+        }
         const photoUrl = `/api/hr/staff/${req.params.id}/photo`;
-        await db.updateUser(parseInt(req.params.id), { profile_photo: req.file.filename });
-        res.json({ photo_url: photoUrl, filename: req.file.filename });
+        await db.updateUser(parseInt(req.params.id, 10), { profile_photo: dataUrl });
+        res.json({ photo_url: photoUrl, storage: 'database' });
     } catch (error) {
         console.error('Profile photo upload error:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });
 
-// Serve profile photo
+// Serve profile photo (from DB data URL or legacy disk file)
 router.get('/staff/:id/photo', authenticate, async (req, res) => {
     try {
         const users = await db.getUsers({ id: req.params.id });
         if (!users.length || !users[0].profile_photo) {
             return res.status(404).json({ error: 'No photo' });
         }
-        const filePath = path.join(profilePhotoDir, users[0].profile_photo);
+        const raw = users[0].profile_photo;
+        if (String(raw).startsWith('data:')) {
+            const m = /^data:([^;]+);base64,(.+)$/s.exec(raw);
+            if (!m) return res.status(500).json({ error: 'Invalid stored photo' });
+            const buf = Buffer.from(m[2], 'base64');
+            res.setHeader('Content-Type', m[1]);
+            res.setHeader('Cache-Control', 'private, max-age=3600');
+            return res.send(buf);
+        }
+        const filePath = path.join(profilePhotoDir, raw);
         if (fs.existsSync(filePath)) {
             res.sendFile(filePath);
         } else {
@@ -263,7 +283,7 @@ router.get('/birthdays/upcoming', authenticate, requireHrOrAdmin, async (req, re
             id: u.id,
             name: u.name,
             dob: u.dob,
-            profile_photo: u.profile_photo,
+            profile_photo: sanitizeProfilePhotoForList(u),
             role: u.role
         }));
 
@@ -287,9 +307,12 @@ router.delete('/staff/:id/photo', authenticate, requireHrOrAdmin, async (req, re
     try {
         const users = await db.getUsers({ id: req.params.id });
         if (users.length && users[0].profile_photo) {
-            const filePath = path.join(profilePhotoDir, users[0].profile_photo);
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            await db.updateUser(parseInt(req.params.id), { profile_photo: null });
+            const p = users[0].profile_photo;
+            if (typeof p === 'string' && !p.startsWith('data:')) {
+                const filePath = path.join(profilePhotoDir, p);
+                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            }
+            await db.updateUser(parseInt(req.params.id, 10), { profile_photo: null });
         }
         res.json({ message: 'Photo removed' });
     } catch (error) {

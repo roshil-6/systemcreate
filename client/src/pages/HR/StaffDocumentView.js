@@ -5,6 +5,11 @@ import API_BASE_URL from '../../config/api';
 import './HR.css';
 import { FiEdit2, FiSave, FiX, FiFile, FiUpload } from 'react-icons/fi';
 
+function authHeaders() {
+    const t = localStorage.getItem('token');
+    return t ? { Authorization: `Bearer ${String(t).trim()}` } : {};
+}
+
 const StaffDocumentView = () => {
     const { id } = useParams();
     const [documents, setDocuments] = useState({});
@@ -106,7 +111,7 @@ const StaffDocumentView = () => {
         form.append('photo', file);
         try {
             await axios.post(`${API_BASE_URL}/api/hr/staff/${id}/photo`, form, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: { ...authHeaders() }
             });
             // Bust cache so new photo loads
             setProfilePhoto(`${API_BASE_URL}/api/hr/staff/${id}/photo?t=${Date.now()}`);
@@ -120,7 +125,7 @@ const StaffDocumentView = () => {
     const handlePhotoDelete = async () => {
         if (!window.confirm('Remove profile photo?')) return;
         try {
-            await axios.delete(`${API_BASE_URL}/api/hr/staff/${id}/photo`);
+            await axios.delete(`${API_BASE_URL}/api/hr/staff/${id}/photo`, { headers: authHeaders() });
             setProfilePhoto(null);
         } catch (err) {
             alert('Failed to remove photo');
@@ -256,6 +261,7 @@ const StaffDocumentView = () => {
                         <div>
                             <h2 style={{ fontSize: '22px', fontWeight: 700, color: '#111827', marginBottom: '4px' }}>Staff Profile</h2>
                             <p style={{ color: '#D4AF37', fontSize: '13px', fontWeight: 500 }}>Personal Information & Contact Details</p>
+                            <p style={{ color: '#9ca3af', fontSize: '11px', marginTop: '4px', maxWidth: '220px' }}>Photo is saved in the database (works on cloud hosting). Use JPEG/PNG under ~350KB if upload fails.</p>
                             {profilePhoto && (
                                 <button onClick={handlePhotoDelete} style={{ marginTop: '6px', background: 'none', border: 'none', color: '#ef4444', fontSize: '12px', cursor: 'pointer', padding: 0 }}>Remove photo</button>
                             )}
