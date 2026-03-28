@@ -49,6 +49,9 @@ const Dashboard = () => {
   // Check if user is Kripa
   const isKripa = user?.name?.includes('Kripa') || user?.name?.includes('KRIPA') || user?.email === 'kripa@toniosenora.com';
 
+  // Assignable admin who also works leads (matches server ASSIGNABLE_LEAD_ADMIN_EMAILS)
+  const isSreelakshmi = (user?.email || '').toLowerCase() === 'sreelakshmi@toniosenora.com';
+
   // Check if user is Emy
   const isEmy = user?.name === 'Emy' || user?.name === 'EMY' || user?.email === 'emy@toniosenora.com';
 
@@ -1284,10 +1287,17 @@ const Dashboard = () => {
       );
     }
 
+    const viewingOwnStaffDash =
+      user?.id != null && staffId != null && Number(staffId) === Number(user.id);
+    const backLabel =
+      user?.role === 'ADMIN' && viewingOwnStaffDash
+        ? 'Back to company dashboard'
+        : 'Back to Dashboard';
+
     return (
       <div className="dashboard">
         <button className="dashboard-back" onClick={() => navigate('/')}>
-          <FiArrowLeft /> Back to Dashboard
+          <FiArrowLeft /> {backLabel}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
           <h1 className="dashboard-title">
@@ -1572,6 +1582,41 @@ const Dashboard = () => {
   // ADMIN Dashboard
   return (
     <div className="dashboard">
+      {isSreelakshmi && user?.id && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '20px',
+            padding: '14px 18px',
+            background: 'linear-gradient(135deg, #fefce8 0%, #fff7ed 100%)',
+            border: '1px solid #fcd34d',
+            borderRadius: '12px',
+          }}
+        >
+          <span style={{ fontWeight: 600, color: '#92400e' }}>Staff workspace</span>
+          <button
+            type="button"
+            onClick={() => navigate(`/dashboard/staff/${user.id}`)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 600,
+              background: 'linear-gradient(180deg, #D4AF37, #B8860B)',
+              color: '#fff',
+            }}
+          >
+            Open my work dashboard
+          </button>
+          <span style={{ fontSize: '13px', color: '#78716c' }}>
+            Assigned leads, follow-ups, and clients — same view admins use to monitor you
+          </span>
+        </div>
+      )}
       <div className="dashboard-header">
         <h1 className="dashboard-title">
           {data.role === 'ADMIN' ? 'Company Dashboard' : 'Team Dashboard'}

@@ -4,7 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import GoldenLinesBackground from './GoldenLinesBackground';
 import Notifications from './Notifications';
 import './Layout.css';
-import { FiHome, FiUsers, FiClock, FiPlus, FiLogOut, FiSettings, FiUpload, FiMail, FiFileText } from 'react-icons/fi';
+import { FiHome, FiUsers, FiClock, FiPlus, FiLogOut, FiSettings, FiUpload, FiMail, FiFileText, FiBriefcase } from 'react-icons/fi';
+
+const MY_WORK_DASHBOARD_EMAILS = ['sreelakshmi@toniosenora.com'];
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
@@ -50,6 +52,15 @@ const Layout = ({ children }) => {
                 <FiHome className="nav-icon" />
                 <span>Dashboard</span>
               </Link>
+              {user?.id && MY_WORK_DASHBOARD_EMAILS.includes((user.email || '').toLowerCase()) && (
+                <Link
+                  to={`/dashboard/staff/${user.id}`}
+                  className={`nav-item ${location.pathname.startsWith('/dashboard/staff') ? 'active' : ''}`}
+                >
+                  <FiBriefcase className="nav-icon" />
+                  <span>My work</span>
+                </Link>
+              )}
               <Link to="/leads" className={`nav-item ${isActive('/leads') ? 'active' : ''}`}>
                 <FiUsers className="nav-icon" />
                 <span>Leads</span>

@@ -4,6 +4,9 @@ const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
 
+/** ADMIN users who also work as assignable staff — allow /dashboard/staff/:id like other staff (not Sneha/Kripa processing). */
+const ASSIGNABLE_LEAD_ADMIN_EMAILS = ['sreelakshmi@toniosenora.com'];
+
 function getDateOnly(value) {
   if (!value) return null;
   if (value instanceof Date) {
@@ -92,20 +95,22 @@ router.get('/staff/:id', authenticate, async (req, res) => {
 
     console.log('🔍 Fetching dashboard for staff ID:', staffId);
     const staffUsers = await db.getUsers({ id: staffId });
-    const staffUser = staffUsers[0];
 
-    // Check if this is Sneha or Kripa (they can be ADMIN but are also processing team)
-    const isSneha = staffUser && (staffUser.name === 'Sneha' || staffUser.name === 'SNEHA' || staffUser.email === 'sneha@toniosenora.com');
-    const isKripa = staffUser && (staffUser.name === 'Kripa' || staffUser.name === 'KRIPA' || staffUser.email === 'kripa@toniosenora.com');
-    const isProcessingTeam = isSneha || isKripa;
-
-    if (!staffUser) {
+    if (!staffUsers[0]) {
       console.error('❌ Staff member not found:', { staffId });
       return res.status(404).json({ error: 'Staff member not found' });
     }
 
-    // Allow Sneha and Kripa even if they're ADMIN (they're processing team members)
-    if (staffUser.role === 'ADMIN' && !isProcessingTeam) {
+    const staffUser = staffUsers[0];
+
+    // Check if this is Sneha or Kripa (they can be ADMIN but are also processing team)
+    const isSneha = staffUser.name === 'Sneha' || staffUser.name === 'SNEHA' || staffUser.email === 'sneha@toniosenora.com';
+    const isKripa = staffUser.name === 'Kripa' || staffUser.name === 'KRIPA' || staffUser.email === 'kripa@toniosenora.com';
+    const isProcessingTeam = isSneha || isKripa;
+    const isAssignableLeadAdmin = ASSIGNABLE_LEAD_ADMIN_EMAILS.includes(String(staffUser.email || '').toLowerCase());
+
+    // Allow Sneha and Kripa (processing ADMINS) and assignable-lead ADMINS (e.g. Sreelakshmi); reject other pure ADMINS
+    if (staffUser.role === 'ADMIN' && !isProcessingTeam && !isAssignableLeadAdmin) {
       console.error('❌ Staff member is admin (not processing team):', { staffId, name: staffUser.name, role: staffUser.role });
       return res.status(404).json({ error: 'Staff member not found' });
     }
@@ -280,8 +285,8 @@ router.get('/staff/:id', authenticate, async (req, res) => {
       // Regular Staff Dashboard - Show lead metrics AND clients they converted
       const metrics = await db.getLeadsMetrics({ assigned_staff_id: staffId });
 
-      // Get leads list (top 200 for dashboard view is sufficient)
-      const staffLeads = await db.getLeads({ assigned_staff_id: staffId });
+      // Get leads list (dashboard needs more than default page size)
+      const staffLeads = await db.getLeads({ assigned_staff_id: staffId, limit: 200 });
 
       // Get clients converted by this staff member (assigned_staff_id = staffId)
       const staffClients = await db.getClients({ assigned_staff_id: staffId });
