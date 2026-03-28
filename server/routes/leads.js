@@ -13,6 +13,9 @@ const router = express.Router();
 // Staff who hold ADMIN role but are also assignable processing/sales members
 const PROCESSING_ADMIN_EMAILS = ['sneha@toniosenora.com', 'kripa@toniosenora.com'];
 
+/** ADMIN emails that still appear in assign/transfer lists and may receive lead assignments (in addition to assignable_for_leads and Sneha/Kripa rules). */
+const ASSIGNABLE_LEAD_ADMIN_EMAILS = ['sreelakshmi@toniosenora.com'];
+
 // Returns true if user is Sneha or Kripa (processing staff who may hold ADMIN role)
 function isProcessingAdmin(u) {
   if (!u) return false;
@@ -27,6 +30,8 @@ function isProcessingAdmin(u) {
 function isAssignableLeadTarget(u) {
   if (!u) return false;
   if (u.assignable_for_leads === true) return true;
+  const email = (u.email || '').toLowerCase();
+  if (ASSIGNABLE_LEAD_ADMIN_EMAILS.includes(email)) return true;
   return isProcessingAdmin(u);
 }
 
@@ -1410,7 +1415,16 @@ router.put('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Lead not found' });
     }
 
-    res.json(updatedLead);
+    let assignedStaffName = null;
+    if (updatedLead.assigned_staff_id) {
+      try {
+        assignedStaffName = await db.getUserName(updatedLead.assigned_staff_id);
+      } catch (e) {
+        console.error('Error resolving assigned staff name on update:', e);
+      }
+    }
+
+    res.json({ ...updatedLead, assigned_staff_name: assignedStaffName });
   } catch (error) {
     console.error('Update lead error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });

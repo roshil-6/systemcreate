@@ -1251,7 +1251,7 @@ const database = {
   },
 
   getStaffPerformance: async (accessibleIds = null) => {
-    let whereClause = `WHERE (role != 'ADMIN' OR assignable_for_leads = TRUE OR email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com')) AND email LIKE '%@toniosenora.com'`; // Real staff + assignable admins
+    let whereClause = `WHERE (role != 'ADMIN' OR assignable_for_leads = TRUE OR email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com', 'sreelakshmi@toniosenora.com')) AND email LIKE '%@toniosenora.com'`; // Real staff + assignable admins
 
     const params = [];
     if (accessibleIds) {

@@ -90,8 +90,34 @@ const LeadDetail = () => {
   const fetchLead = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/leads/${id}`, authConfig());
-      setLead(response.data);
-      setFormData(response.data);
+      const data = response.data;
+      setLead(data);
+      setFormData(data);
+
+      // Keep leads list cache in sync so the table shows the same assignee as detail after back navigation
+      try {
+        const leadIdNum = parseInt(id, 10);
+        if (!Number.isNaN(leadIdNum)) {
+          const cached = sessionStorage.getItem('leadsPageState');
+          if (cached) {
+            const state = JSON.parse(cached);
+            const idx = state.leads?.findIndex((l) => l.id === leadIdNum);
+            if (idx !== -1 && state.leads[idx]) {
+              state.leads[idx] = {
+                ...state.leads[idx],
+                ...data,
+                assigned_staff_id: data.assigned_staff_id,
+                assigned_staff_name: data.assigned_staff_name ?? state.leads[idx].assigned_staff_name,
+                status: data.status,
+                updated_at: data.updated_at,
+              };
+              sessionStorage.setItem('leadsPageState', JSON.stringify(state));
+            }
+          }
+        }
+      } catch (e) {
+        /* ignore cache errors */
+      }
     } catch (error) {
       if (error.response?.status === 404) {
         handleBack();
@@ -137,19 +163,6 @@ const LeadDetail = () => {
         handleBack();
       } else {
         await axios.put(`${API_BASE_URL}/api/leads/${id}`, cleanedData, authConfig());
-
-        // Soft update the specific lead in the cache so it doesn't force a page refresh when navigating back
-        try {
-          const cachedState = sessionStorage.getItem('leadsPageState');
-          if (cachedState) {
-            const state = JSON.parse(cachedState);
-            const leadIndex = state.leads.findIndex(l => l.id === parseInt(id));
-            if (leadIndex !== -1) {
-              state.leads[leadIndex] = { ...state.leads[leadIndex], ...cleanedData, updated_at: new Date().toISOString() };
-              sessionStorage.setItem('leadsPageState', JSON.stringify(state));
-            }
-          }
-        } catch (e) { }
 
         await fetchLead();
         setEditing(false);

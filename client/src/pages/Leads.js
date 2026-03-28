@@ -445,7 +445,7 @@ const Leads = () => {
       await axios.put(`${API_BASE_URL}/api/leads/${leadId}`, {
         follow_up_status: 'Completed',
       });
-      await fetchLeads();
+      await fetchLeads(true);
     } catch (error) {
       alert(error.response?.data?.error || 'Error marking follow-up as completed');
     }
@@ -665,7 +665,7 @@ const Leads = () => {
       });
       setSelectedLeadIds([]);
       setBulkAssignStaffId('');
-      fetchLeads();
+      fetchLeads(true);
     } catch (error) {
       alert(error.response?.data?.error || 'Error assigning leads');
     } finally {
@@ -738,7 +738,7 @@ const Leads = () => {
         follow_up_status: '',
       });
       setShowBulkEditModal(false);
-      fetchLeads();
+      fetchLeads(true);
       alert(`Successfully updated ${updatedCount} lead(s)`);
     } catch (error) {
       console.error('Bulk edit error:', error);
@@ -786,7 +786,7 @@ const Leads = () => {
       });
       setAssigningLeadId(null);
       setAssignStaffId('');
-      fetchLeads();
+      fetchLeads(true);
       alert('Lead transferred successfully!');
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message || 'Error transferring lead';
@@ -893,7 +893,7 @@ const Leads = () => {
       });
       alert(`✅ ${selectedTrashIds.length} lead(s) restored successfully!`);
       fetchTrashLeads();
-      fetchLeads();
+      fetchLeads(true);
     } catch (error) {
       alert(error.response?.data?.error || 'Error restoring leads');
     } finally {
@@ -987,6 +987,11 @@ const Leads = () => {
   const isHr = user?.role === 'HR';
   const canManageLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR';
   const allSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
+  // Avoid duplicate <option value> for admins: "My leads only" uses same id as their staff row
+  const staffFilterListExcludingSelf =
+    isAdmin && user?.id != null
+      ? staffList.filter((s) => Number(s.id) !== Number(user.id))
+      : staffList;
 
   return (
     <div className="leads-page">
@@ -1259,9 +1264,13 @@ const Leads = () => {
                   className="leads-filter-select staff-filter-select leads-filter-select--compact"
                   value={assignedStaffFilter}
                   onChange={(e) => handleStaffFilter(e.target.value)}
+                  title={isAdmin ? 'All leads, only leads assigned to you, or filter by assignee' : 'Filter by assigned staff'}
                 >
-                  <option value="">All Staff</option>
-                  {staffList.map((staff) => (
+                  <option value="">{isAdmin ? 'All leads' : 'All Staff'}</option>
+                  {isAdmin && user?.id != null && (
+                    <option value={String(user.id)}>My leads only</option>
+                  )}
+                  {staffFilterListExcludingSelf.map((staff) => (
                     <option key={staff.id} value={staff.id}>
                       {staff.name}
                     </option>
@@ -1886,7 +1895,7 @@ const Leads = () => {
                                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                               })
                                 .then(() => {
-                                  fetchLeads();
+                                  fetchLeads(true);
                                   alert('Lead moved to Recycle Bin successfully');
                                 })
                                 .catch(error => {
