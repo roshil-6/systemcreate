@@ -183,7 +183,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, created_month, created_on, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type } = req.query;
+    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, created_month, created_on, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type, name_starts } = req.query;
 
     const filter = {
       limit: limit ? parseInt(limit) : undefined,
@@ -237,6 +237,9 @@ router.get('/', authenticate, async (req, res) => {
 
     if (phone) {
       filter.phone = phone;
+    }
+    if (name_starts && String(name_starts).trim()) {
+      filter.name_starts = String(name_starts).trim();
     }
     if (created_on) filter.created_on = created_on;
     else if (created_month) filter.created_month = created_month;

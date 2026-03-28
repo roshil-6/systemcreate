@@ -6,6 +6,8 @@ import API_BASE_URL from '../config/api';
 import './Leads.css';
 import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock, FiGrid, FiX } from 'react-icons/fi';
 
+const NAME_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
 const Leads = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -30,6 +32,7 @@ const Leads = () => {
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'created_desc');
   const [createdTodayFilter, setCreatedTodayFilter] = useState(searchParams.get('created_today') === 'true');
   const [leadSourceTypeFilter, setLeadSourceTypeFilter] = useState(searchParams.get('lead_source_type') || '');
+  const [nameStarts, setNameStarts] = useState(searchParams.get('name_starts') || '');
   const [excelModal, setExcelModal] = useState({ open: false, data: null, loading: false, leadName: '' });
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
@@ -69,6 +72,7 @@ const Leads = () => {
     const urlSort = searchParams.get('sort') || 'created_desc';
     const urlCreatedToday = searchParams.get('created_today') === 'true';
     const urlLeadSourceType = searchParams.get('lead_source_type') || '';
+    const urlNameStarts = searchParams.get('name_starts') || '';
     const showHistory = searchParams.get('showHistory') === 'true';
 
     setSearch(urlSearch);
@@ -84,6 +88,7 @@ const Leads = () => {
     setSortBy(urlSort);
     setCreatedTodayFilter(urlCreatedToday);
     setLeadSourceTypeFilter(urlLeadSourceType);
+    setNameStarts(urlNameStarts);
 
     if (showHistory) {
       setShowHistoryModal(true);
@@ -115,6 +120,7 @@ const Leads = () => {
           state.viewType === viewType && state.dateFrom === dateFrom && state.dateTo === dateTo &&
           (state.createdMonth || '') === (createdMonth || '') &&
           (state.selectedCreatedOn || '') === (selectedCreatedOn || '') &&
+          (state.nameStarts || '') === (nameStarts || '') &&
           (state.sortBy || 'created_desc') === (sortBy || 'created_desc')) {
 
           setLeads(state.leads);
@@ -138,7 +144,7 @@ const Leads = () => {
       setOffset(0);
       fetchLeads(true);
     }
-  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType, createdMonth, selectedCreatedOn, searchParams]);
+  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType, createdMonth, selectedCreatedOn, nameStarts, searchParams]);
 
   // Bulletproof scroll restoration via element ID
   React.useLayoutEffect(() => {
@@ -209,6 +215,7 @@ const Leads = () => {
           dateTo,
           createdMonth,
           selectedCreatedOn,
+          nameStarts,
           sortBy: sortBy || 'created_desc',
           scrollPosition: scrollPos,
           timestamp: Date.now()
@@ -220,7 +227,7 @@ const Leads = () => {
     return () => {
       saveState();
     };
-  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo, createdMonth, selectedCreatedOn, sortBy]);
+  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo, createdMonth, selectedCreatedOn, nameStarts, sortBy]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR') {
@@ -274,10 +281,12 @@ const Leads = () => {
       const followUpOverdue = searchParams.get('follow_up_overdue');
       const createdToday = searchParams.get('created_today');
       const leadSourceType = searchParams.get('lead_source_type');
+      const nameStartsVal = searchParams.get('name_starts');
 
       const params = new URLSearchParams();
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
+      if (nameStartsVal) params.append('name_starts', nameStartsVal);
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
@@ -351,9 +360,11 @@ const Leads = () => {
       const followUpOverdue = searchParams.get('follow_up_overdue');
       const createdToday = searchParams.get('created_today');
       const leadSourceType = searchParams.get('lead_source_type');
+      const nameStartsVal = searchParams.get('name_starts');
 
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
+      if (nameStartsVal) params.append('name_starts', nameStartsVal);
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
@@ -408,6 +419,9 @@ const Leads = () => {
         viewType,
         dateFrom,
         dateTo,
+        createdMonth,
+        selectedCreatedOn,
+        nameStarts,
         sortBy: sortBy || 'created_desc',
         clickedLeadId: leadId,
         scrollPosition: container ? container.scrollTop : 0,
@@ -460,10 +474,12 @@ const Leads = () => {
     const dt = overrides.dateTo !== undefined ? overrides.dateTo : dateTo;
     const cm = overrides.createdMonth !== undefined ? overrides.createdMonth : createdMonth;
     const co = overrides.selectedCreatedOn !== undefined ? overrides.selectedCreatedOn : selectedCreatedOn;
+    const ns = overrides.nameStarts !== undefined ? overrides.nameStarts : nameStarts;
 
     const params = new URLSearchParams();
     if (s.trim()) params.set('search', s.trim());
     if (ph.trim()) params.set('phone', ph.trim());
+    if (ns) params.set('name_starts', ns);
     if (st) params.set('status', st);
     if (asf) params.set('assigned_staff_id', asf);
     if (vt && vt !== 'all') params.set('viewType', vt);
@@ -555,6 +571,11 @@ const Leads = () => {
     setCreatedMonth('');
     setSelectedCreatedOn('');
     navigate(`/leads?${buildLeadsParamsWith({ dateFrom: '', dateTo: '', createdMonth: '', selectedCreatedOn: '' }).toString()}`);
+  };
+
+  const handleNameStartsChange = (letter) => {
+    setNameStarts(letter);
+    navigate(`/leads?${buildLeadsParamsWith({ nameStarts: letter }).toString()}`);
   };
 
   const handleSortChange = (value) => {
@@ -1042,168 +1063,221 @@ const Leads = () => {
         </div>
       )}
 
-      {/* Controls Section */}
+      {/* Controls Section — single consolidated filter panel */}
       <div className="leads-controls-section">
-        {/* Unified Filter Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px', flexWrap: 'wrap' }}>
-          <label style={{ fontSize: '14px', fontWeight: 500, color: '#374151' }}>Filter:</label>
-          <select
-            value={getUnifiedFilterValue()}
-            onChange={(e) => handleUnifiedFilterChange(e.target.value)}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb',
-              backgroundColor: 'white',
-              color: '#374151',
-              fontSize: '14px',
-              fontWeight: 500,
-              minWidth: '180px',
-              cursor: 'pointer',
-            }}
-          >
-            <option value="all">All Leads</option>
-            <option value="today">Today's Leads</option>
-            {user?.role !== 'SALES_TEAM' && (
-              <>
-                <option value="new">New (No Comments)</option>
-                <option value="follow_up">Follow Up (Active)</option>
-              </>
-            )}
-            <option value="manual">Manual</option>
-            <option value="bulk_import">Bulk Import</option>
-          </select>
-        </div>
-
-        {/* Status Filter Boxes */}
-        <div className="status-filters" style={{ marginBottom: '16px' }}>
-          <button
-            className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
-            onClick={() => handleStatusFilter('')}
-          >
-            All
-          </button>
-          {statusOptions.map((status) => (
-            <button
-              key={status}
-              className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
-              onClick={() => handleStatusFilter(status)}
-              style={{
-                borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
-                backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
-                color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
-              }}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
-
-        <div className="leads-controls">
-          <form onSubmit={handleSearch} className="leads-search">
-            <FiSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search lead by name..."
-              value={searchInput}
-              onChange={handleSearchInputChange}
-            />
-            <input
-              type="text"
-              placeholder="Search by phone..."
-              value={phoneSearchInput}
-              onChange={handlePhoneSearchInputChange}
-            />
-            <button type="submit" style={{ display: 'none' }}></button>
-          </form>
-
-          <div className="date-filter-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginRight: '10px' }}>
-            <FiCalendar style={{ color: '#6b7280', flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Range</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => handleDateFilter(e.target.value, dateTo)}
-              title="Created from"
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
-            />
-            <span style={{ color: '#9ca3af' }}>to</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
-              title="Created to"
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
-            />
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Month</span>
-            <input
-              type="month"
-              value={createdMonth}
-              onChange={(e) => handleCreatedMonthChange(e.target.value)}
-              title="Filter by calendar month"
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
-            />
-            <span style={{ fontSize: '12px', color: '#6b7280' }}>Day</span>
-            <input
-              type="date"
-              value={selectedCreatedOn}
-              onChange={(e) => handleSingleCreatedOnChange(e.target.value)}
-              title="Leads created on this date only"
-              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
-            />
-            {(dateFrom || dateTo || createdMonth || selectedCreatedOn) && (
-              <button
-                type="button"
-                onClick={clearDateFilters}
-                style={{ padding: '4px 8px', fontSize: '12px', color: '#6b7280', background: 'transparent', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer' }}
-              >
-                Clear
-              </button>
-            )}
+        <div className="leads-filter-panel">
+          <div className="leads-filter-panel__header">
+            <FiFilter className="leads-filter-panel__header-icon" aria-hidden />
+            <h2 className="leads-filter-panel__title">Search &amp; filters</h2>
           </div>
 
-          <select
-            value={sortBy}
-            onChange={(e) => handleSortChange(e.target.value)}
-            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', backgroundColor: 'white', color: '#374151', fontSize: '13px', marginRight: '10px' }}
-            title="Sort leads"
-          >
-            <option value="created_desc">Newest first</option>
-            <option value="created_asc">Oldest first</option>
-            <option value="updated_desc">Latest updated</option>
-            <option value="updated_asc">Oldest updated</option>
-          </select>
+          <div className="leads-filter-panel__grid">
+            <div className="leads-filter-field leads-filter-field--grow">
+              <label className="leads-filter-label" htmlFor="leads-quick-filter">Quick filter</label>
+              <select
+                id="leads-quick-filter"
+                className="leads-filter-select"
+                value={getUnifiedFilterValue()}
+                onChange={(e) => handleUnifiedFilterChange(e.target.value)}
+              >
+                <option value="all">All Leads</option>
+                <option value="today">Today's Leads</option>
+                {user?.role !== 'SALES_TEAM' && (
+                  <>
+                    <option value="new">New (No Comments)</option>
+                    <option value="follow_up">Follow Up (Active)</option>
+                  </>
+                )}
+                <option value="manual">Manual</option>
+                <option value="bulk_import">Bulk Import</option>
+              </select>
+            </div>
+          </div>
 
-          {canManageLeads && !isHr && (
-            <select
-              className="staff-filter-select"
-              value={assignedStaffFilter}
-              onChange={(e) => handleStaffFilter(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb',
-                backgroundColor: 'white',
-                color: '#374151',
-                fontSize: '14px',
-                marginRight: '10px'
-              }}
-            >
-              <option value="">All Staff</option>
-              {staffList.map(staff => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name}
-                </option>
+          <div className="leads-filter-panel__block">
+            <span className="leads-filter-label">Status</span>
+            <div className="status-filters">
+              <button
+                type="button"
+                className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
+                onClick={() => handleStatusFilter('')}
+              >
+                All
+              </button>
+              {statusOptions.map((status) => (
+                <button
+                  type="button"
+                  key={status}
+                  className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
+                  onClick={() => handleStatusFilter(status)}
+                  style={{
+                    borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
+                    backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
+                    color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
+                  }}
+                >
+                  {status}
+                </button>
               ))}
-            </select>
-          )}
-          <button
-            className="export-btn"
-            onClick={handleExportToGoogleSheets}
-            title="Export to CSV (can be imported to Google Sheets)"
-          >
-            <FiDownload /> Export to Google Sheets
-          </button>
+            </div>
+          </div>
+
+          <div className="leads-filter-panel__block">
+            <span className="leads-filter-label">Name starts with</span>
+            <div className="leads-alphabet-strip" role="group" aria-label="Filter by first letter of name">
+              <button
+                type="button"
+                className={`leads-alphabet-btn ${nameStarts === '' ? 'active' : ''}`}
+                onClick={() => handleNameStartsChange('')}
+              >
+                All
+              </button>
+              {NAME_ALPHABET.map((L) => (
+                <button
+                  type="button"
+                  key={L}
+                  className={`leads-alphabet-btn ${nameStarts === L ? 'active' : ''}`}
+                  onClick={() => handleNameStartsChange(L)}
+                >
+                  {L}
+                </button>
+              ))}
+              <button
+                type="button"
+                className={`leads-alphabet-btn leads-alphabet-btn--wide ${nameStarts === '0' ? 'active' : ''}`}
+                onClick={() => handleNameStartsChange('0')}
+                title="Names starting with a digit"
+              >
+                0–9
+              </button>
+              <button
+                type="button"
+                className={`leads-alphabet-btn ${nameStarts === '#' ? 'active' : ''}`}
+                onClick={() => handleNameStartsChange('#')}
+                title="Names starting with symbol or other non-letter"
+              >
+                #
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleSearch} className="leads-filter-panel__search">
+            <div className="leads-filter-search-field">
+              <FiSearch className="leads-filter-search-field__icon" aria-hidden />
+              <input
+                type="text"
+                placeholder="Search by name (contains)..."
+                value={searchInput}
+                onChange={handleSearchInputChange}
+                aria-label="Search lead by name"
+              />
+            </div>
+            <div className="leads-filter-search-field">
+              <FiSearch className="leads-filter-search-field__icon" aria-hidden />
+              <input
+                type="text"
+                placeholder="Search by phone..."
+                value={phoneSearchInput}
+                onChange={handlePhoneSearchInputChange}
+                aria-label="Search by phone"
+              />
+            </div>
+            <button type="submit" className="leads-filter-apply-btn">
+              Apply
+            </button>
+          </form>
+
+          <div className="leads-filter-panel__block leads-filter-panel__block--dates">
+            <span className="leads-filter-label">
+              <FiCalendar style={{ verticalAlign: 'middle', marginRight: 6 }} aria-hidden />
+              Created date
+            </span>
+            <div className="leads-filter-dates">
+              <div className="leads-filter-date-group">
+                <span className="leads-filter-date-hint">Range</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => handleDateFilter(e.target.value, dateTo)}
+                  title="Created from"
+                />
+                <span className="leads-filter-date-sep">to</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
+                  title="Created to"
+                />
+              </div>
+              <div className="leads-filter-date-group">
+                <span className="leads-filter-date-hint">Month</span>
+                <input
+                  type="month"
+                  value={createdMonth}
+                  onChange={(e) => handleCreatedMonthChange(e.target.value)}
+                  title="Filter by calendar month"
+                />
+              </div>
+              <div className="leads-filter-date-group">
+                <span className="leads-filter-date-hint">Day</span>
+                <input
+                  type="date"
+                  value={selectedCreatedOn}
+                  onChange={(e) => handleSingleCreatedOnChange(e.target.value)}
+                  title="Leads created on this date only"
+                />
+              </div>
+              {(dateFrom || dateTo || createdMonth || selectedCreatedOn) && (
+                <button type="button" className="leads-filter-clear-dates" onClick={clearDateFilters}>
+                  Clear dates
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="leads-filter-panel__footer">
+            <div className="leads-filter-field">
+              <label className="leads-filter-label" htmlFor="leads-sort">Sort</label>
+              <select
+                id="leads-sort"
+                className="leads-filter-select leads-filter-select--compact"
+                value={sortBy}
+                onChange={(e) => handleSortChange(e.target.value)}
+                title="Sort leads"
+              >
+                <option value="created_desc">Newest first</option>
+                <option value="created_asc">Oldest first</option>
+                <option value="updated_desc">Latest updated</option>
+                <option value="updated_asc">Oldest updated</option>
+              </select>
+            </div>
+            {canManageLeads && !isHr && (
+              <div className="leads-filter-field">
+                <label className="leads-filter-label" htmlFor="leads-staff">Staff</label>
+                <select
+                  id="leads-staff"
+                  className="leads-filter-select staff-filter-select leads-filter-select--compact"
+                  value={assignedStaffFilter}
+                  onChange={(e) => handleStaffFilter(e.target.value)}
+                >
+                  <option value="">All Staff</option>
+                  {staffList.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <button
+              type="button"
+              className="export-btn leads-filter-export"
+              onClick={handleExportToGoogleSheets}
+              title="Export to CSV (can be imported to Google Sheets)"
+            >
+              <FiDownload /> Export
+            </button>
+          </div>
         </div>
       </div>
 

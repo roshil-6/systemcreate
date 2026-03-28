@@ -312,6 +312,17 @@ const database = {
       params.push(`%${filter.search}%`);
       paramIndex += 1;
     }
+    if (filter.name_starts) {
+      const ns = String(filter.name_starts).trim();
+      if (/^[A-Za-z]$/.test(ns)) {
+        whereConditions += ` AND UPPER(SUBSTRING(TRIM(name) FROM 1 FOR 1)) = $${paramIndex++}`;
+        params.push(ns.toUpperCase());
+      } else if (ns === '0') {
+        whereConditions += ` AND SUBSTRING(TRIM(name) FROM 1 FOR 1) ~ '^[0-9]$'`;
+      } else if (ns === '#') {
+        whereConditions += ` AND LENGTH(TRIM(COALESCE(name, ''))) > 0 AND SUBSTRING(TRIM(name) FROM 1 FOR 1) !~ '^[A-Za-z0-9]$'`;
+      }
+    }
     if (filter.phone) {
       whereConditions += ` AND (phone_number ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
       params.push(`%${filter.phone}%`);
