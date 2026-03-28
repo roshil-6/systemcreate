@@ -25,6 +25,8 @@ const Leads = () => {
   const [viewType, setViewType] = useState(searchParams.get('viewType') || 'all');
   const [dateFrom, setDateFrom] = useState(searchParams.get('created_from') || '');
   const [dateTo, setDateTo] = useState(searchParams.get('created_to') || '');
+  const [createdMonth, setCreatedMonth] = useState(searchParams.get('created_month') || '');
+  const [selectedCreatedOn, setSelectedCreatedOn] = useState(searchParams.get('created_on') || '');
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'created_desc');
   const [createdTodayFilter, setCreatedTodayFilter] = useState(searchParams.get('created_today') === 'true');
   const [leadSourceTypeFilter, setLeadSourceTypeFilter] = useState(searchParams.get('lead_source_type') || '');
@@ -62,6 +64,8 @@ const Leads = () => {
     const urlViewType = searchParams.get('viewType') || 'all';
     const urlDateFrom = searchParams.get('created_from') || '';
     const urlDateTo = searchParams.get('created_to') || '';
+    const urlCreatedMonth = searchParams.get('created_month') || '';
+    const urlCreatedOn = searchParams.get('created_on') || '';
     const urlSort = searchParams.get('sort') || 'created_desc';
     const urlCreatedToday = searchParams.get('created_today') === 'true';
     const urlLeadSourceType = searchParams.get('lead_source_type') || '';
@@ -75,6 +79,8 @@ const Leads = () => {
     setViewType(urlViewType);
     setDateFrom(urlDateFrom);
     setDateTo(urlDateTo);
+    setCreatedMonth(urlCreatedMonth);
+    setSelectedCreatedOn(urlCreatedOn);
     setSortBy(urlSort);
     setCreatedTodayFilter(urlCreatedToday);
     setLeadSourceTypeFilter(urlLeadSourceType);
@@ -107,6 +113,8 @@ const Leads = () => {
         if (!hasFollowUpFilter && isRecent && state.search === search && state.statusFilter === statusFilter &&
           state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter &&
           state.viewType === viewType && state.dateFrom === dateFrom && state.dateTo === dateTo &&
+          (state.createdMonth || '') === (createdMonth || '') &&
+          (state.selectedCreatedOn || '') === (selectedCreatedOn || '') &&
           (state.sortBy || 'created_desc') === (sortBy || 'created_desc')) {
 
           setLeads(state.leads);
@@ -130,7 +138,7 @@ const Leads = () => {
       setOffset(0);
       fetchLeads(true);
     }
-  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType, searchParams]);
+  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType, createdMonth, selectedCreatedOn, searchParams]);
 
   // Bulletproof scroll restoration via element ID
   React.useLayoutEffect(() => {
@@ -199,6 +207,8 @@ const Leads = () => {
           viewType,
           dateFrom,
           dateTo,
+          createdMonth,
+          selectedCreatedOn,
           sortBy: sortBy || 'created_desc',
           scrollPosition: scrollPos,
           timestamp: Date.now()
@@ -210,7 +220,7 @@ const Leads = () => {
     return () => {
       saveState();
     };
-  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo, sortBy]);
+  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo, createdMonth, selectedCreatedOn, sortBy]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR') {
@@ -257,6 +267,8 @@ const Leads = () => {
       const viewTypeVal = searchParams.get('viewType');
       const createdFrom = searchParams.get('created_from');
       const createdTo = searchParams.get('created_to');
+      const createdMonthVal = searchParams.get('created_month');
+      const createdOnVal = searchParams.get('created_on');
       const sortVal = searchParams.get('sort') || 'created_desc';
       const followUpDate = searchParams.get('follow_up_date');
       const followUpOverdue = searchParams.get('follow_up_overdue');
@@ -269,8 +281,12 @@ const Leads = () => {
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
-      if (createdFrom) params.append('created_from', createdFrom);
-      if (createdTo) params.append('created_to', createdTo);
+      if (createdOnVal) params.append('created_on', createdOnVal);
+      else if (createdMonthVal) params.append('created_month', createdMonthVal);
+      else {
+        if (createdFrom) params.append('created_from', createdFrom);
+        if (createdTo) params.append('created_to', createdTo);
+      }
       if (sortVal) params.append('sort', sortVal);
       if (followUpDate) params.append('follow_up_date', followUpDate);
       if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
@@ -328,6 +344,8 @@ const Leads = () => {
       const viewTypeVal = searchParams.get('viewType');
       const createdFrom = searchParams.get('created_from');
       const createdTo = searchParams.get('created_to');
+      const createdMonthVal = searchParams.get('created_month');
+      const createdOnVal = searchParams.get('created_on');
       const sortVal = searchParams.get('sort') || 'created_desc';
       const followUpDate = searchParams.get('follow_up_date');
       const followUpOverdue = searchParams.get('follow_up_overdue');
@@ -339,8 +357,12 @@ const Leads = () => {
       if (statusVal) params.append('status', statusVal);
       if (assigned_staff_id) params.append('assigned_staff_id', assigned_staff_id);
       if (viewTypeVal && viewTypeVal !== 'all') params.append('viewType', viewTypeVal);
-      if (createdFrom) params.append('created_from', createdFrom);
-      if (createdTo) params.append('created_to', createdTo);
+      if (createdOnVal) params.append('created_on', createdOnVal);
+      else if (createdMonthVal) params.append('created_month', createdMonthVal);
+      else {
+        if (createdFrom) params.append('created_from', createdFrom);
+        if (createdTo) params.append('created_to', createdTo);
+      }
       if (sortVal) params.append('sort', sortVal);
       if (followUpDate) params.append('follow_up_date', followUpDate);
       if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
@@ -425,20 +447,41 @@ const Leads = () => {
     }
   };
 
-  const buildLeadsParams = () => {
+  const buildLeadsParamsWith = (overrides = {}) => {
+    const s = overrides.searchInput !== undefined ? overrides.searchInput : searchInput;
+    const ph = overrides.phoneSearchInput !== undefined ? overrides.phoneSearchInput : phoneSearchInput;
+    const st = overrides.statusFilter !== undefined ? overrides.statusFilter : statusFilter;
+    const asf = overrides.assignedStaffFilter !== undefined ? overrides.assignedStaffFilter : assignedStaffFilter;
+    const vt = overrides.viewType !== undefined ? overrides.viewType : viewType;
+    const sb = overrides.sortBy !== undefined ? overrides.sortBy : sortBy;
+    const ctf = overrides.createdTodayFilter !== undefined ? overrides.createdTodayFilter : createdTodayFilter;
+    const lst = overrides.leadSourceTypeFilter !== undefined ? overrides.leadSourceTypeFilter : leadSourceTypeFilter;
+    const df = overrides.dateFrom !== undefined ? overrides.dateFrom : dateFrom;
+    const dt = overrides.dateTo !== undefined ? overrides.dateTo : dateTo;
+    const cm = overrides.createdMonth !== undefined ? overrides.createdMonth : createdMonth;
+    const co = overrides.selectedCreatedOn !== undefined ? overrides.selectedCreatedOn : selectedCreatedOn;
+
     const params = new URLSearchParams();
-    if (searchInput.trim()) params.set('search', searchInput.trim());
-    if (phoneSearchInput.trim()) params.set('phone', phoneSearchInput.trim());
-    if (statusFilter) params.set('status', statusFilter);
-    if (assignedStaffFilter) params.set('assigned_staff_id', assignedStaffFilter);
-    if (viewType && viewType !== 'all') params.set('viewType', viewType);
-    if (dateFrom) params.set('created_from', dateFrom);
-    if (dateTo) params.set('created_to', dateTo);
-    if (sortBy && sortBy !== 'created_desc') params.set('sort', sortBy);
-    if (createdTodayFilter) params.set('created_today', 'true');
-    if (leadSourceTypeFilter) params.set('lead_source_type', leadSourceTypeFilter);
+    if (s.trim()) params.set('search', s.trim());
+    if (ph.trim()) params.set('phone', ph.trim());
+    if (st) params.set('status', st);
+    if (asf) params.set('assigned_staff_id', asf);
+    if (vt && vt !== 'all') params.set('viewType', vt);
+    if (sb && sb !== 'created_desc') params.set('sort', sb);
+    if (ctf) params.set('created_today', 'true');
+    if (lst) params.set('lead_source_type', lst);
+    if (co) {
+      params.set('created_on', co);
+    } else if (cm) {
+      params.set('created_month', cm);
+    } else {
+      if (df) params.set('created_from', df);
+      if (dt) params.set('created_to', dt);
+    }
     return params;
   };
+
+  const buildLeadsParams = () => buildLeadsParamsWith();
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -485,20 +528,38 @@ const Leads = () => {
   const handleDateFilter = (from, to) => {
     setDateFrom(from);
     setDateTo(to);
-    const params = buildLeadsParams();
-    if (from) params.set('created_from', from);
-    else params.delete('created_from');
-    if (to) params.set('created_to', to);
-    else params.delete('created_to');
-    navigate(`/leads?${params.toString()}`);
+    setCreatedMonth('');
+    setSelectedCreatedOn('');
+    navigate(`/leads?${buildLeadsParamsWith({ dateFrom: from, dateTo: to, createdMonth: '', selectedCreatedOn: '' }).toString()}`);
+  };
+
+  const handleCreatedMonthChange = (month) => {
+    setCreatedMonth(month);
+    setSelectedCreatedOn('');
+    setDateFrom('');
+    setDateTo('');
+    navigate(`/leads?${buildLeadsParamsWith({ createdMonth: month, selectedCreatedOn: '', dateFrom: '', dateTo: '' }).toString()}`);
+  };
+
+  const handleSingleCreatedOnChange = (day) => {
+    setSelectedCreatedOn(day);
+    setCreatedMonth('');
+    setDateFrom('');
+    setDateTo('');
+    navigate(`/leads?${buildLeadsParamsWith({ selectedCreatedOn: day, createdMonth: '', dateFrom: '', dateTo: '' }).toString()}`);
+  };
+
+  const clearDateFilters = () => {
+    setDateFrom('');
+    setDateTo('');
+    setCreatedMonth('');
+    setSelectedCreatedOn('');
+    navigate(`/leads?${buildLeadsParamsWith({ dateFrom: '', dateTo: '', createdMonth: '', selectedCreatedOn: '' }).toString()}`);
   };
 
   const handleSortChange = (value) => {
     setSortBy(value);
-    const params = buildLeadsParams();
-    if (value && value !== 'created_desc') params.set('sort', value);
-    else params.delete('sort');
-    navigate(`/leads?${params.toString()}`);
+    navigate(`/leads?${buildLeadsParamsWith({ sortBy: value }).toString()}`);
   };
 
   const handleViewTypeChange = (type) => {
@@ -545,9 +606,17 @@ const Leads = () => {
     params.delete('created_today');
     params.delete('viewType');
     params.delete('lead_source_type');
+    params.delete('created_month');
+    params.delete('created_on');
+    params.delete('created_from');
+    params.delete('created_to');
     if (value === 'today') params.set('created_today', 'true');
     if (value === 'new' || value === 'follow_up') params.set('viewType', value);
     if (value === 'manual' || value === 'bulk_import') params.set('lead_source_type', value);
+    setCreatedMonth('');
+    setSelectedCreatedOn('');
+    setDateFrom('');
+    setDateTo('');
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -1048,13 +1117,14 @@ const Leads = () => {
             <button type="submit" style={{ display: 'none' }}></button>
           </form>
 
-          <div className="date-filter-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginRight: '10px' }}>
+          <div className="date-filter-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginRight: '10px' }}>
             <FiCalendar style={{ color: '#6b7280', flexShrink: 0 }} />
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Range</span>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => handleDateFilter(e.target.value, dateTo)}
-              placeholder="From"
+              title="Created from"
               style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
             />
             <span style={{ color: '#9ca3af' }}>to</span>
@@ -1062,13 +1132,29 @@ const Leads = () => {
               type="date"
               value={dateTo}
               onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
-              placeholder="To"
+              title="Created to"
               style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
             />
-            {(dateFrom || dateTo) && (
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Month</span>
+            <input
+              type="month"
+              value={createdMonth}
+              onChange={(e) => handleCreatedMonthChange(e.target.value)}
+              title="Filter by calendar month"
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+            />
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>Day</span>
+            <input
+              type="date"
+              value={selectedCreatedOn}
+              onChange={(e) => handleSingleCreatedOnChange(e.target.value)}
+              title="Leads created on this date only"
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '13px' }}
+            />
+            {(dateFrom || dateTo || createdMonth || selectedCreatedOn) && (
               <button
                 type="button"
-                onClick={() => handleDateFilter('', '')}
+                onClick={clearDateFilters}
                 style={{ padding: '4px 8px', fontSize: '12px', color: '#6b7280', background: 'transparent', border: '1px solid #e5e7eb', borderRadius: '6px', cursor: 'pointer' }}
               >
                 Clear

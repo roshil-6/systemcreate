@@ -188,6 +188,8 @@ async function initializeDatabase() {
       // Run schema fix for completed_actions
       await fixCompletedActionsType();
 
+      await db.ensureSchema();
+
       // Check connectivity using the resilient query function
       // Force a query to ensure the pool can actually talk to the DB
       await db.getUsers({}, { retries: 5 });

@@ -229,6 +229,10 @@ const database = {
       updatesList.push(`profile_photo = $${paramIndex++}`);
       params.push(updates.profile_photo);
     }
+    if (updates.assignable_for_leads !== undefined) {
+      updatesList.push(`assignable_for_leads = $${paramIndex++}`);
+      params.push(!!updates.assignable_for_leads);
+    }
 
     updatesList.push(`updated_at = $${paramIndex++}`);
     params.push(new Date().toISOString());
@@ -313,13 +317,25 @@ const database = {
       params.push(`%${filter.phone}%`);
       paramIndex += 1;
     }
-    if (filter.created_from) {
-      whereConditions += ` AND created_at::date >= $${paramIndex++}`;
-      params.push(filter.created_from);
-    }
-    if (filter.created_to) {
-      whereConditions += ` AND created_at::date <= $${paramIndex++}`;
-      params.push(filter.created_to);
+    if (filter.created_on) {
+      whereConditions += ` AND created_at::date = $${paramIndex++}`;
+      params.push(filter.created_on);
+    } else if (filter.created_month) {
+      const m = String(filter.created_month).trim();
+      if (/^\d{4}-\d{2}$/.test(m)) {
+        whereConditions += ` AND created_at >= $${paramIndex}::date AND created_at < ($${paramIndex}::date + INTERVAL '1 month')`;
+        params.push(`${m}-01`);
+        paramIndex += 1;
+      }
+    } else {
+      if (filter.created_from) {
+        whereConditions += ` AND created_at::date >= $${paramIndex++}`;
+        params.push(filter.created_from);
+      }
+      if (filter.created_to) {
+        whereConditions += ` AND created_at::date <= $${paramIndex++}`;
+        params.push(filter.created_to);
+      }
     }
     if (filter.updated_from) {
       whereConditions += ` AND updated_at::date >= $${paramIndex++}`;
@@ -368,6 +384,8 @@ const database = {
     else if (sortBy === 'created_asc') orderClause = 'ORDER BY created_at ASC, id ASC';
     else if (sortBy === 'updated_desc') orderClause = 'ORDER BY updated_at DESC, id DESC';
     else if (sortBy === 'updated_asc') orderClause = 'ORDER BY updated_at ASC, id ASC';
+    else if (sortBy === 'name_asc') orderClause = 'ORDER BY LOWER(TRIM(name)) ASC, id ASC';
+    else if (sortBy === 'name_desc') orderClause = 'ORDER BY LOWER(TRIM(name)) DESC, id DESC';
     let queryText = `SELECT ${SELECT_COLS} FROM leads WHERE ${whereConditions} ${orderClause}`;
 
     // Pagination: default 50 per page to keep the initial load smooth and responsive
@@ -1144,8 +1162,26 @@ const database = {
 
   // Fast lookup: only phone_number + email for duplicate checking during bulk import
   getLeadPhones: async () => {
-    const result = await query('SELECT LOWER(phone_number) as phone_number, LOWER(email) as email FROM leads WHERE deleted_at IS NULL');
+    const result = await query(`
+      SELECT DISTINCT regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g') AS phone_number
+      FROM leads
+      WHERE deleted_at IS NULL AND length(regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g')) >= 7
+      UNION
+      SELECT DISTINCT regexp_replace(COALESCE(whatsapp_number, ''), '\\D', '', 'g') AS phone_number
+      FROM leads
+      WHERE deleted_at IS NULL AND length(regexp_replace(COALESCE(whatsapp_number, ''), '\\D', '', 'g')) >= 7
+      UNION
+      SELECT DISTINCT regexp_replace(COALESCE(secondary_phone_number, ''), '\\D', '', 'g') AS phone_number
+      FROM leads
+      WHERE deleted_at IS NULL AND length(regexp_replace(COALESCE(secondary_phone_number, ''), '\\D', '', 'g')) >= 7
+    `);
     return result.rows;
+  },
+
+  ensureSchema: async () => {
+    await query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS assignable_for_leads BOOLEAN DEFAULT FALSE;
+    `);
   },
 
   // Cleanup
@@ -1204,7 +1240,7 @@ const database = {
   },
 
   getStaffPerformance: async (accessibleIds = null) => {
-    let whereClause = `WHERE (role != 'ADMIN' OR email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com')) AND email LIKE '%@toniosenora.com'`; // Only real staff; exclude test/dummy accounts
+    let whereClause = `WHERE (role != 'ADMIN' OR assignable_for_leads = TRUE OR email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com')) AND email LIKE '%@toniosenora.com'`; // Real staff + assignable admins
 
     const params = [];
     if (accessibleIds) {

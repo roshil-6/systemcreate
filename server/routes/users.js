@@ -17,6 +17,7 @@ router.get('/', authenticate, requireAdmin, async (req, res) => {
       email: u.email,
       role: u.role,
       created_at: u.created_at,
+      assignable_for_leads: u.assignable_for_leads === true,
     }));
     res.json(userList);
   } catch (error) {
@@ -118,7 +119,7 @@ router.put('/:id', authenticate, requireHrOrAdmin, async (req, res) => {
   try {
     const userId = parseInt(req.params.id);
     const callerRole = req.user.role;
-    const { name, email, password, role, phone_number, office_number, dob } = req.body;
+    const { name, email, password, role, phone_number, office_number, dob, assignable_for_leads } = req.body;
 
     if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
@@ -148,6 +149,13 @@ router.put('/:id', authenticate, requireHrOrAdmin, async (req, res) => {
     }
     if (role !== undefined && !isHrCaller) {
       updates.role = role;
+      const staffLike = ['STAFF', 'SALES_TEAM', 'SALES_TEAM_HEAD', 'PROCESSING', 'HR'];
+      if (role === 'ADMIN' && staffLike.includes(existingUser.role)) {
+        updates.assignable_for_leads = true;
+      }
+    }
+    if (assignable_for_leads !== undefined && callerRole === 'ADMIN' && !isHrCaller) {
+      updates.assignable_for_leads = !!assignable_for_leads;
     }
     if (phone_number !== undefined) {
       updates.phone_number = phone_number;

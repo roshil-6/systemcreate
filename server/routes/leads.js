@@ -23,6 +23,36 @@ function isProcessingAdmin(u) {
          name.includes('kripa');
 }
 
+/** Admins who can still appear in assign lists and receive lead assignments (promoted staff, etc.) */
+function isAssignableLeadTarget(u) {
+  if (!u) return false;
+  if (u.assignable_for_leads === true) return true;
+  return isProcessingAdmin(u);
+}
+
+/** Another lead (not excludeLeadId) with same digits on phone, WhatsApp, or secondary (min 7 digits). */
+async function findOtherLeadWithPhoneDigits(excludeLeadId, digits) {
+  if (!digits || String(digits).length < 7) return null;
+  const r = await db.query(
+    `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND id != $1 AND (
+      regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g') = $2
+      OR regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g') = $2
+      OR regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g') = $2
+    ) LIMIT 1`,
+    [excludeLeadId, String(digits)]
+  );
+  return r.rows[0] || null;
+}
+
+async function findOtherLeadWithEmail(excludeLeadId, emailLowerTrimmed) {
+  if (!emailLowerTrimmed || !String(emailLowerTrimmed).trim()) return null;
+  const r = await db.query(
+    `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND id != $1 AND LOWER(TRIM(email)) = $2 LIMIT 1`,
+    [excludeLeadId, String(emailLowerTrimmed).trim().toLowerCase()]
+  );
+  return r.rows[0] || null;
+}
+
 /**
  * Robust permission check for single lead access.
  * Returns the lead object if access is granted, null otherwise.
@@ -153,7 +183,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type } = req.query;
+    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, created_month, created_on, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type } = req.query;
 
     const filter = {
       limit: limit ? parseInt(limit) : undefined,
@@ -208,8 +238,12 @@ router.get('/', authenticate, async (req, res) => {
     if (phone) {
       filter.phone = phone;
     }
-    if (created_from) filter.created_from = created_from;
-    if (created_to) filter.created_to = created_to;
+    if (created_on) filter.created_on = created_on;
+    else if (created_month) filter.created_month = created_month;
+    else {
+      if (created_from) filter.created_from = created_from;
+      if (created_to) filter.created_to = created_to;
+    }
     if (updated_from) filter.updated_from = updated_from;
     if (updated_to) filter.updated_to = updated_to;
     if (sort) filter.sort = sort;
@@ -261,11 +295,10 @@ router.get('/staff/list', authenticate, async (req, res) => {
     const userId = req.user.id;
     let users = [];
 
-    // Only real company staff — exclude pure admins and test/dummy accounts.
-    // Exception: Sneha & Kripa hold ADMIN role but are assignable processing staff.
+    // Only real company staff — exclude pure admins unless flagged assignable (or Sneha/Kripa).
     const isRealStaff = (u) =>
       u.email && u.email.endsWith('@toniosenora.com') &&
-      (u.role !== 'ADMIN' || isProcessingAdmin(u));
+      (u.role !== 'ADMIN' || isAssignableLeadTarget(u));
 
     // Admin and HR can assign to any real staff
     if (role === 'ADMIN' || role === 'HR') {
@@ -324,7 +357,7 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
 
     const staffUsers = await db.getUsers({ id: staffId });
     const staffUser = staffUsers[0];
-    if (!staffUser || (staffUser.role === 'ADMIN' && !isProcessingAdmin(staffUser))) {
+    if (!staffUser || (staffUser.role === 'ADMIN' && !isAssignableLeadTarget(staffUser))) {
       return res.status(400).json({ error: 'Invalid staff member' });
     }
 
@@ -337,10 +370,9 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
           return res.status(403).json({ error: 'Can only assign to yourself or your team members' });
         }
       } else {
-        // Other staff can transfer their leads to any non-admin staff member
         const targetStaffUsers = await db.getUsers({ id: staffId });
         const targetStaff = targetStaffUsers[0];
-        if (!targetStaff || targetStaff.role === 'ADMIN') {
+        if (!targetStaff || (targetStaff.role === 'ADMIN' && !isAssignableLeadTarget(targetStaff))) {
           return res.status(403).json({ error: 'Can only transfer to staff members' });
         }
       }
@@ -601,18 +633,21 @@ router.get('/check-duplicate', authenticate, async (req, res) => {
     const { phone, email } = req.query;
 
     if (phone && phone.trim().length >= 5) {
-      const cleanPhone = phone.trim().replace(/[\s\-().+]/g, '');
-      const result = await db.query(
-        `SELECT id, name, status, phone_number, whatsapp_number FROM leads
-         WHERE deleted_at IS NULL AND (
-           REGEXP_REPLACE(phone_number, '[\\s\\-().]', '', 'g') = $1
-           OR REGEXP_REPLACE(whatsapp_number, '[\\s\\-().]', '', 'g') = $1
-         ) LIMIT 1`,
-        [cleanPhone]
-      );
-      if (result.rows.length > 0) {
-        const match = result.rows[0];
-        return res.json({ exists: true, field: 'phone', lead: { id: match.id, name: match.name, status: match.status } });
+      const cleanPhone = phone.trim().replace(/\D/g, '');
+      if (cleanPhone.length >= 7) {
+        const result = await db.query(
+          `SELECT id, name, status, phone_number, whatsapp_number FROM leads
+           WHERE deleted_at IS NULL AND (
+             regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g') = $1
+             OR regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g') = $1
+             OR regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g') = $1
+           ) LIMIT 1`,
+          [cleanPhone]
+        );
+        if (result.rows.length > 0) {
+          const match = result.rows[0];
+          return res.json({ exists: true, field: 'phone', lead: { id: match.id, name: match.name, status: match.status } });
+        }
       }
     }
 
@@ -1073,10 +1108,10 @@ router.post(
       } else if (role === 'SALES_TEAM_HEAD' || role === 'PROCESSING') {
         // Now allowed to assign based on the regular flow or leave as is.
       } else if (role === 'ADMIN') {
-        // ADMIN can assign to any staff or leave null
         if (assigned_staff_id) {
           const staffUsers = await db.getUsers({ id: assigned_staff_id });
-          if (staffUsers.length === 0) {
+          const assignee = staffUsers[0];
+          if (!assignee || (assignee.role === 'ADMIN' && !isAssignableLeadTarget(assignee))) {
             return res.status(400).json({ error: 'Invalid staff member' });
           }
         }
@@ -1084,8 +1119,9 @@ router.post(
 
       // Check for duplicate phone/email using dedicated indexes (not paginated getLeads)
       const normalizedPhone = phone_number ? String(phone_number).replace(/\D/g, '') : '';
+      const normalizedWhatsapp = whatsapp_number ? String(whatsapp_number).replace(/\D/g, '') : '';
       const [phoneRows, emailRows] = await Promise.all([
-        normalizedPhone ? db.getLeadPhones() : Promise.resolve([]),
+        (normalizedPhone || normalizedWhatsapp) ? db.getLeadPhones() : Promise.resolve([]),
         email ? db.getLeadEmails() : Promise.resolve([]),
       ]);
       const existingPhones = new Set(phoneRows.map(r => String(r.phone_number || '').replace(/\D/g, '')));
@@ -1093,6 +1129,9 @@ router.post(
 
       if (normalizedPhone && existingPhones.has(normalizedPhone)) {
         return res.status(400).json({ error: 'Lead with this phone number already exists' });
+      }
+      if (normalizedWhatsapp && existingPhones.has(normalizedWhatsapp)) {
+        return res.status(400).json({ error: 'Lead with this WhatsApp number already exists' });
       }
       if (email && existingEmails.has(email.toLowerCase().trim())) {
         return res.status(400).json({ error: 'Lead with this email already exists' });
@@ -1240,7 +1279,7 @@ router.put('/:id', authenticate, async (req, res) => {
       } else {
         const targetUsers = await db.getUsers({ id: normalizedStaffId });
         const targetUser = targetUsers[0];
-        if (!targetUser || (targetUser.role === 'ADMIN' && !isProcessingAdmin(targetUser))) {
+        if (!targetUser || (targetUser.role === 'ADMIN' && !isAssignableLeadTarget(targetUser))) {
           return res.status(400).json({ error: 'Invalid staff member' });
         }
 
@@ -1331,6 +1370,36 @@ router.put('/:id', authenticate, async (req, res) => {
     // CRITICAL: If status is being changed to "Registration Completed", we need registration form data
     // This should come from a separate endpoint, so we just update the status here
     // The actual client creation happens via POST /api/leads/:id/complete-registration
+
+    if (phone_number !== undefined || whatsapp_number !== undefined || email !== undefined) {
+      const nextPhone = phone_number !== undefined ? phone_number : existingLead.phone_number;
+      const nextWhatsapp = whatsapp_number !== undefined ? whatsapp_number : existingLead.whatsapp_number;
+      const nextEmail = email !== undefined ? email : existingLead.email;
+
+      const np = nextPhone ? String(nextPhone).replace(/\D/g, '') : '';
+      const nw = nextWhatsapp ? String(nextWhatsapp).replace(/\D/g, '') : '';
+      const checked = new Set();
+      for (const d of [np, nw]) {
+        if (d.length < 7 || checked.has(d)) continue;
+        checked.add(d);
+        const dupPhone = await findOtherLeadWithPhoneDigits(leadId, d);
+        if (dupPhone) {
+          const whatsappMsg = d === nw && d !== np;
+          return res.status(400).json({
+            error: whatsappMsg
+              ? 'Lead with this WhatsApp number already exists'
+              : 'Lead with this phone number already exists',
+          });
+        }
+      }
+
+      if (nextEmail && String(nextEmail).trim()) {
+        const dupEmail = await findOtherLeadWithEmail(leadId, String(nextEmail).trim().toLowerCase());
+        if (dupEmail) {
+          return res.status(400).json({ error: 'Lead with this email already exists' });
+        }
+      }
+    }
 
     const updatedLead = await db.updateLead(leadId, updates);
 
@@ -1527,22 +1596,6 @@ router.post('/:id/comments', authenticate, async (req, res) => {
     res.status(201).json(commentWithAuthor);
   } catch (error) {
     console.error('Add comment error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
-  }
-});
-
-// Get all staff members (for assigning leads)
-router.get('/staff/list', authenticate, async (req, res) => {
-  try {
-    // Get real company staff only (non-pure-admin, @toniosenora.com email)
-    const allUsers = await db.getUsers();
-    const staffList = allUsers
-      .filter(u => u.email && u.email.endsWith('@toniosenora.com') && (u.role !== 'ADMIN' || isProcessingAdmin(u)))
-      .map(s => ({ id: s.id, name: s.name, email: s.email }));
-
-    res.json(staffList);
-  } catch (error) {
-    console.error('Get staff list error:', error);
     res.status(500).json({ error: 'Server error', details: error.message });
   }
 });
