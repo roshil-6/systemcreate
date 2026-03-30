@@ -70,7 +70,122 @@
 .leads-filter-panel {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
+}
+
+/* Top row: dropdowns + export — easy to scan */
+.leads-filter-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px 16px;
+  align-items: end;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.leads-filter-field--export {
+  min-width: 140px;
+}
+
+.leads-filter-label--spacer {
+  visibility: hidden;
+  min-height: 1em;
+}
+
+.leads-filter-export-btn {
+  width: 100%;
+  min-height: 42px;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* White cards for non-status filters */
+.leads-filter-card {
+  background: #fff;
+  border: 1px solid #e8e0c8;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.leads-filter-card--dates {
+  background: #fffef8;
+}
+
+.leads-filter-card__heading {
+  margin: 0 0 6px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leads-filter-card__heading-icon {
+  flex-shrink: 0;
+  color: #B8860B;
+}
+
+.leads-filter-card__hint {
+  margin: 0 0 14px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.leads-filter-select--full {
+  width: 100%;
+  max-width: 420px;
+}
+
+.leads-filter-date-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.leads-filter-date-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.leads-filter-date-row:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.leads-filter-date-row__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.leads-filter-date-row__inputs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.leads-filter-card--dates .leads-filter-date-row__inputs input[type="date"],
+.leads-filter-card--dates .leads-filter-date-row input[type="month"] {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  font-size: 14px;
+  color: #374151;
+  background: #fff;
+}
+
+.leads-filter-date-rows .leads-filter-clear-dates {
+  align-self: flex-start;
+  margin-top: 4px;
 }
 
 .leads-filter-panel__header {
@@ -207,6 +322,19 @@
   }
 }
 
+/* Stacked search layout overrides the grid above */
+.leads-filter-panel__search.leads-filter-panel__search--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.leads-filter-panel__search.leads-filter-panel__search--stacked .leads-filter-apply-btn {
+  width: 100%;
+  max-width: 280px;
+}
+
 .leads-filter-search-field {
   position: relative;
   display: flex;
@@ -299,7 +427,7 @@
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   cursor: pointer;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .leads-filter-clear-dates:hover {

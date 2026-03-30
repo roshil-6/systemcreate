@@ -1076,8 +1076,8 @@ const Leads = () => {
             <h2 className="leads-filter-panel__title">Search &amp; filters</h2>
           </div>
 
-          <div className="leads-filter-panel__grid">
-            <div className="leads-filter-field leads-filter-field--grow">
+          <div className="leads-filter-toolbar" aria-label="Quick views and sorting">
+            <div className="leads-filter-field">
               <label className="leads-filter-label" htmlFor="leads-quick-filter">Quick filter</label>
               <select
                 id="leads-quick-filter"
@@ -1097,150 +1097,6 @@ const Leads = () => {
                 <option value="bulk_import">Bulk Import</option>
               </select>
             </div>
-          </div>
-
-          <div className="leads-filter-panel__block">
-            <span className="leads-filter-label">Status</span>
-            <div className="status-filters">
-              <button
-                type="button"
-                className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
-                onClick={() => handleStatusFilter('')}
-              >
-                All
-              </button>
-              {statusOptions.map((status) => (
-                <button
-                  type="button"
-                  key={status}
-                  className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
-                  onClick={() => handleStatusFilter(status)}
-                  style={{
-                    borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
-                    backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
-                    color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
-                  }}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="leads-filter-panel__block">
-            <span className="leads-filter-label">Name starts with</span>
-            <div className="leads-alphabet-strip" role="group" aria-label="Filter by first letter of name">
-              <button
-                type="button"
-                className={`leads-alphabet-btn ${nameStarts === '' ? 'active' : ''}`}
-                onClick={() => handleNameStartsChange('')}
-              >
-                All
-              </button>
-              {NAME_ALPHABET.map((L) => (
-                <button
-                  type="button"
-                  key={L}
-                  className={`leads-alphabet-btn ${nameStarts === L ? 'active' : ''}`}
-                  onClick={() => handleNameStartsChange(L)}
-                >
-                  {L}
-                </button>
-              ))}
-              <button
-                type="button"
-                className={`leads-alphabet-btn leads-alphabet-btn--wide ${nameStarts === '0' ? 'active' : ''}`}
-                onClick={() => handleNameStartsChange('0')}
-                title="Names starting with a digit"
-              >
-                0–9
-              </button>
-              <button
-                type="button"
-                className={`leads-alphabet-btn ${nameStarts === '#' ? 'active' : ''}`}
-                onClick={() => handleNameStartsChange('#')}
-                title="Names starting with symbol or other non-letter"
-              >
-                #
-              </button>
-            </div>
-          </div>
-
-          <form onSubmit={handleSearch} className="leads-filter-panel__search">
-            <div className="leads-filter-search-field">
-              <FiSearch className="leads-filter-search-field__icon" aria-hidden />
-              <input
-                type="text"
-                placeholder="Search by name (contains)..."
-                value={searchInput}
-                onChange={handleSearchInputChange}
-                aria-label="Search lead by name"
-              />
-            </div>
-            <div className="leads-filter-search-field">
-              <FiSearch className="leads-filter-search-field__icon" aria-hidden />
-              <input
-                type="text"
-                placeholder="Search by phone..."
-                value={phoneSearchInput}
-                onChange={handlePhoneSearchInputChange}
-                aria-label="Search by phone"
-              />
-            </div>
-            <button type="submit" className="leads-filter-apply-btn">
-              Apply
-            </button>
-          </form>
-
-          <div className="leads-filter-panel__block leads-filter-panel__block--dates">
-            <span className="leads-filter-label">
-              <FiCalendar style={{ verticalAlign: 'middle', marginRight: 6 }} aria-hidden />
-              Created date
-            </span>
-            <div className="leads-filter-dates">
-              <div className="leads-filter-date-group">
-                <span className="leads-filter-date-hint">Range</span>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => handleDateFilter(e.target.value, dateTo)}
-                  title="Created from"
-                />
-                <span className="leads-filter-date-sep">to</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
-                  title="Created to"
-                />
-              </div>
-              <div className="leads-filter-date-group">
-                <span className="leads-filter-date-hint">Month</span>
-                <input
-                  type="month"
-                  value={createdMonth}
-                  onChange={(e) => handleCreatedMonthChange(e.target.value)}
-                  title="Filter by calendar month"
-                />
-              </div>
-              <div className="leads-filter-date-group">
-                <span className="leads-filter-date-hint">Day</span>
-                <input
-                  type="date"
-                  value={selectedCreatedOn}
-                  onChange={(e) => handleSingleCreatedOnChange(e.target.value)}
-                  title="Leads created on this date only"
-                />
-              </div>
-              {(dateFrom || dateTo || createdMonth || selectedCreatedOn) && (
-                <button type="button" className="leads-filter-clear-dates" onClick={clearDateFilters}>
-                  Clear dates
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="leads-filter-panel__footer">
             <div className="leads-filter-field">
               <label className="leads-filter-label" htmlFor="leads-sort">Sort</label>
               <select
@@ -1278,14 +1134,151 @@ const Leads = () => {
                 </select>
               </div>
             )}
-            <button
-              type="button"
-              className="export-btn leads-filter-export"
-              onClick={handleExportToGoogleSheets}
-              title="Export to CSV (can be imported to Google Sheets)"
+            <div className="leads-filter-field leads-filter-field--export">
+              <label className="leads-filter-label leads-filter-label--spacer" aria-hidden="true">&nbsp;</label>
+              <button
+                type="button"
+                className="export-btn leads-filter-export-btn"
+                onClick={handleExportToGoogleSheets}
+                title="Export to CSV (can be imported to Google Sheets)"
+              >
+                <FiDownload /> Export
+              </button>
+            </div>
+          </div>
+
+          <div className="leads-filter-panel__block">
+            <span className="leads-filter-label">Status</span>
+            <div className="status-filters">
+              <button
+                type="button"
+                className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
+                onClick={() => handleStatusFilter('')}
+              >
+                All
+              </button>
+              {statusOptions.map((status) => (
+                <button
+                  type="button"
+                  key={status}
+                  className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
+                  onClick={() => handleStatusFilter(status)}
+                  style={{
+                    borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
+                    backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
+                    color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
+                  }}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="leads-filter-card">
+            <h3 className="leads-filter-card__heading">Search</h3>
+            <p className="leads-filter-card__hint">Find leads by part of a name or phone number, then press Apply.</p>
+            <form onSubmit={handleSearch} className="leads-filter-panel__search leads-filter-panel__search--stacked">
+              <div className="leads-filter-search-field">
+                <FiSearch className="leads-filter-search-field__icon" aria-hidden />
+                <input
+                  type="text"
+                  placeholder="Name contains…"
+                  value={searchInput}
+                  onChange={handleSearchInputChange}
+                  aria-label="Search lead by name"
+                />
+              </div>
+              <div className="leads-filter-search-field">
+                <FiSearch className="leads-filter-search-field__icon" aria-hidden />
+                <input
+                  type="text"
+                  placeholder="Phone contains…"
+                  value={phoneSearchInput}
+                  onChange={handlePhoneSearchInputChange}
+                  aria-label="Search by phone"
+                />
+              </div>
+              <button type="submit" className="leads-filter-apply-btn">
+                Apply search
+              </button>
+            </form>
+          </div>
+
+          <div className="leads-filter-card">
+            <h3 className="leads-filter-card__heading">First letter of name</h3>
+            <p className="leads-filter-card__hint">Optional. Narrow the list by the first character of the lead name.</p>
+            <select
+              id="leads-name-letter"
+              className="leads-filter-select leads-filter-select--full"
+              value={nameStarts || ''}
+              onChange={(e) => handleNameStartsChange(e.target.value)}
+              aria-label="Filter by first letter of lead name"
             >
-              <FiDownload /> Export
-            </button>
+              <option value="">Any — no letter filter</option>
+              {NAME_ALPHABET.map((L) => (
+                <option key={L} value={L}>
+                  Starts with {L}
+                </option>
+              ))}
+              <option value="0">Starts with a number (0–9)</option>
+              <option value="#">Starts with symbol or other (#)</option>
+            </select>
+          </div>
+
+          <div className="leads-filter-card leads-filter-card--dates">
+            <h3 className="leads-filter-card__heading">
+              <FiCalendar className="leads-filter-card__heading-icon" aria-hidden />
+              Created date
+            </h3>
+            <p className="leads-filter-card__hint">Use one approach below (range, month, or single day). They replace each other.</p>
+            <div className="leads-filter-date-rows">
+              <div className="leads-filter-date-row">
+                <span className="leads-filter-date-row__label">Between two dates</span>
+                <div className="leads-filter-date-row__inputs">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => handleDateFilter(e.target.value, dateTo)}
+                    title="Created from"
+                    aria-label="Created from date"
+                  />
+                  <span className="leads-filter-date-sep">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
+                    title="Created to"
+                    aria-label="Created to date"
+                  />
+                </div>
+              </div>
+              <div className="leads-filter-date-row">
+                <span className="leads-filter-date-row__label">Whole calendar month</span>
+                <input
+                  type="month"
+                  value={createdMonth}
+                  onChange={(e) => handleCreatedMonthChange(e.target.value)}
+                  title="Filter by calendar month"
+                  aria-label="Filter by created month"
+                />
+              </div>
+              <div className="leads-filter-date-row">
+                <span className="leads-filter-date-row__label">Single calendar day</span>
+                <input
+                  type="date"
+                  value={selectedCreatedOn}
+                  onChange={(e) => handleSingleCreatedOnChange(e.target.value)}
+                  title="Leads created on this date only"
+                  aria-label="Filter by single created date"
+                />
+              </div>
+              {(dateFrom || dateTo || createdMonth || selectedCreatedOn) && (
+                <button type="button" className="leads-filter-clear-dates" onClick={clearDateFilters}>
+                  Clear date filters
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
