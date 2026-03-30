@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Leads.css';
-import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock, FiGrid, FiX } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock, FiGrid, FiX, FiChevronDown } from 'react-icons/fi';
 
 const NAME_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -59,6 +59,29 @@ const Leads = () => {
   const [offset, setOffset] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const LEADS_PER_PAGE = 50;
+
+  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
+  const filtersAutoOpenedRef = useRef(false);
+
+  useEffect(() => {
+    if (filtersAutoOpenedRef.current) return;
+    filtersAutoOpenedRef.current = true;
+    const p = searchParams;
+    const unified =
+      p.get('created_today') === 'true' ||
+      ['new', 'follow_up'].includes(p.get('viewType') || '') ||
+      ['manual', 'bulk_import'].includes(p.get('lead_source_type') || '');
+    const has =
+      !!(p.get('search') || '').trim() ||
+      !!(p.get('phone') || '').trim() ||
+      !!(p.get('status') || '') ||
+      !!(p.get('assigned_staff_id') || '') ||
+      unified ||
+      !!(p.get('created_from') || p.get('created_to') || p.get('created_month') || p.get('created_on')) ||
+      !!(p.get('name_starts') || '') ||
+      (!!p.get('sort') && p.get('sort') !== 'created_desc');
+    if (has) setFiltersPanelOpen(true);
+  }, [searchParams]);
 
   useEffect(() => {
       const urlSearch = searchParams.get('search') || '';
@@ -619,6 +642,31 @@ const Leads = () => {
     return 'all';
   };
 
+  const hasActiveFilters = useMemo(() => {
+    if (getUnifiedFilterValue() !== 'all') return true;
+    if (sortBy !== 'created_desc') return true;
+    if (search.trim() || phoneSearch.trim()) return true;
+    if (statusFilter) return true;
+    if (assignedStaffFilter) return true;
+    if (nameStarts) return true;
+    if (dateFrom || dateTo || createdMonth || selectedCreatedOn) return true;
+    return false;
+  }, [
+    search,
+    phoneSearch,
+    statusFilter,
+    assignedStaffFilter,
+    sortBy,
+    nameStarts,
+    dateFrom,
+    dateTo,
+    createdMonth,
+    selectedCreatedOn,
+    createdTodayFilter,
+    viewType,
+    leadSourceTypeFilter,
+  ]);
+
   const handleUnifiedFilterChange = (value) => {
     setCreatedTodayFilter(value === 'today');
     setViewType(value === 'new' ? 'new' : value === 'follow_up' ? 'follow_up' : 'all');
@@ -1068,14 +1116,37 @@ const Leads = () => {
         </div>
       )}
 
-      {/* Controls Section — single consolidated filter panel */}
+      {/* Controls — collapsible filter & sort */}
       <div className="leads-controls-section">
-        <div className="leads-filter-panel">
-          <div className="leads-filter-panel__header">
-            <FiFilter className="leads-filter-panel__header-icon" aria-hidden />
-            <h2 className="leads-filter-panel__title">Search &amp; filters</h2>
-          </div>
-
+        <div className="leads-filter-disclosure">
+          <button
+            type="button"
+            className="leads-filter-disclosure__toggle"
+            id="leads-filter-disclosure-btn"
+            aria-expanded={filtersPanelOpen}
+            aria-controls="leads-filters-expandable"
+            onClick={() => setFiltersPanelOpen((o) => !o)}
+          >
+            <span className="leads-filter-disclosure__toggle-main">
+              <FiFilter className="leads-filter-disclosure__toggle-icon" aria-hidden />
+              <span className="leads-filter-disclosure__title">Filter and sort leads</span>
+              {hasActiveFilters && (
+                <span className="leads-filter-disclosure__badge">Filters on</span>
+              )}
+            </span>
+            <FiChevronDown
+              className={`leads-filter-disclosure__chevron ${filtersPanelOpen ? 'leads-filter-disclosure__chevron--open' : ''}`}
+              aria-hidden
+            />
+          </button>
+          <div
+            id="leads-filters-expandable"
+            role="region"
+            aria-labelledby="leads-filter-disclosure-btn"
+            className="leads-filter-disclosure__panel"
+            hidden={!filtersPanelOpen}
+          >
+            <div className="leads-filter-panel">
           <div className="leads-filter-toolbar" aria-label="Quick views and sorting">
             <div className="leads-filter-field">
               <label className="leads-filter-label" htmlFor="leads-quick-filter">Quick filter</label>
@@ -1278,6 +1349,8 @@ const Leads = () => {
                   Clear date filters
                 </button>
               )}
+            </div>
+          </div>
             </div>
           </div>
         </div>
