@@ -638,7 +638,7 @@ router.get('/last-imported-file', authenticate, async (req, res) => {
 // IMPORTANT: This must be defined BEFORE the /:id wildcard route
 router.get('/check-duplicate', authenticate, async (req, res) => {
   try {
-    const { phone, email } = req.query;
+    const { phone, email, name: nameQuery } = req.query;
 
     if (phone && phone.trim().length >= 5) {
       const cleanPhone = phone.trim().replace(/\D/g, '');
@@ -649,6 +649,18 @@ router.get('/check-duplicate', authenticate, async (req, res) => {
              regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g') = $1
              OR regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g') = $1
              OR regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g') = $1
+             OR (
+               length($1) >= 10 AND length(regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g')) >= 10
+               AND right(regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g'), 10) = right($1, 10)
+             )
+             OR (
+               length($1) >= 10 AND length(regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g')) >= 10
+               AND right(regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g'), 10) = right($1, 10)
+             )
+             OR (
+               length($1) >= 10 AND length(regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g')) >= 10
+               AND right(regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g'), 10) = right($1, 10)
+             )
            ) LIMIT 1`,
           [cleanPhone]
         );
@@ -661,12 +673,23 @@ router.get('/check-duplicate', authenticate, async (req, res) => {
 
     if (email && email.trim().length >= 3) {
       const result = await db.query(
-        `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(email) = $1 LIMIT 1`,
+        `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(email)) = $1 LIMIT 1`,
         [email.trim().toLowerCase()]
       );
       if (result.rows.length > 0) {
         const match = result.rows[0];
         return res.json({ exists: true, field: 'email', lead: { id: match.id, name: match.name, status: match.status } });
+      }
+    }
+
+    if (nameQuery && String(nameQuery).trim().length >= 3) {
+      const result = await db.query(
+        `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`,
+        [String(nameQuery).trim()]
+      );
+      if (result.rows.length > 0) {
+        const match = result.rows[0];
+        return res.json({ exists: true, field: 'name', lead: { id: match.id, name: match.name, status: match.status } });
       }
     }
 

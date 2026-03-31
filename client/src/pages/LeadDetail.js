@@ -202,40 +202,73 @@ const LeadDetail = () => {
   };
 
   // Real-time duplicate check — debounced 600ms, only on new lead form
-  const checkDuplicate = (phoneValue, emailValue) => {
+  const duplicateCheckGen = useRef(0);
+
+  const checkDuplicate = (snapshot) => {
     if (!isNew) return;
     if (duplicateCheckTimer.current) clearTimeout(duplicateCheckTimer.current);
     setDuplicateWarning(null);
 
-    const cleanedPhone = (phoneValue || '').replace(/[\s\-().+]/g, '');
-    const cleanedEmail = (emailValue || '').trim();
-    if (cleanedPhone.length < 5 && cleanedEmail.length < 3) {
+    const phoneDigits = String(snapshot.phone_number || '').replace(/\D/g, '');
+    const ccDigits = String(snapshot.phone_country_code || '').replace(/\D/g, '');
+    const waDigits = String(snapshot.whatsapp_number || '').replace(/\D/g, '');
+    const waCcDigits = String(snapshot.whatsapp_country_code || '').replace(/\D/g, '');
+    const combinedPhone = ccDigits + phoneDigits;
+    const combinedWa = waCcDigits + waDigits;
+
+    let phoneForApi = '';
+    if (phoneDigits.length >= 7) phoneForApi = phoneDigits;
+    else if (combinedPhone.length >= 7) phoneForApi = combinedPhone;
+    else if (waDigits.length >= 7) phoneForApi = waDigits;
+    else if (combinedWa.length >= 7) phoneForApi = combinedWa;
+
+    const cleanedEmail = String(snapshot.email || '').trim();
+    const trimmedName = String(snapshot.name || '').trim();
+
+    if (phoneForApi.length < 7 && cleanedEmail.length < 3 && trimmedName.length < 3) {
       setCheckingDuplicate(false);
       return;
     }
 
+    const gen = ++duplicateCheckGen.current;
     setCheckingDuplicate(true);
     duplicateCheckTimer.current = setTimeout(async () => {
       try {
         const params = new URLSearchParams();
-        if (cleanedPhone.length >= 5) params.set('phone', cleanedPhone);
+        if (phoneForApi.length >= 7) params.set('phone', phoneForApi);
         if (cleanedEmail.length >= 3) params.set('email', cleanedEmail);
+        if (trimmedName.length >= 3) params.set('name', trimmedName);
         const response = await axios.get(
           `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`,
           authConfig()
         );
-        if (response.data.exists) {
-          setDuplicateWarning(response.data.lead);
+        if (gen !== duplicateCheckGen.current) return;
+        if (response.data.exists && response.data.lead) {
+          setDuplicateWarning({
+            ...response.data.lead,
+            field: response.data.field || 'phone',
+          });
         } else {
           setDuplicateWarning(null);
         }
       } catch (err) {
         console.error('Duplicate check error:', err);
       } finally {
-        setCheckingDuplicate(false);
+        if (gen === duplicateCheckGen.current) {
+          setCheckingDuplicate(false);
+        }
       }
     }, 600);
   };
+
+  const DUPLICATE_CHECK_FIELDS = new Set([
+    'name',
+    'phone_number',
+    'phone_country_code',
+    'whatsapp_number',
+    'whatsapp_country_code',
+    'email',
+  ]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -246,16 +279,16 @@ const LeadDetail = () => {
       return; // Don't update status yet, wait for modal submission
     }
 
-    setFormData({
+    const normalizedValue = name === 'assigned_staff_id' ? (value === '' ? null : Number(value)) : value;
+    const nextForm = {
       ...formData,
-      [name]: name === 'assigned_staff_id' ? (value === '' ? null : Number(value)) : value,
-    });
+      [name]: normalizedValue,
+    };
 
-    if (isNew && (name === 'phone_number' || name === 'whatsapp_number')) {
-      checkDuplicate(value, formData.email);
-    }
-    if (isNew && name === 'email') {
-      checkDuplicate(formData.phone_number, value);
+    setFormData(nextForm);
+
+    if (isNew && DUPLICATE_CHECK_FIELDS.has(name)) {
+      checkDuplicate(nextForm);
     }
   };
 
@@ -637,9 +670,20 @@ const LeadDetail = () => {
                       <div className="duplicate-warning__body">
                         <div className="duplicate-warning__title">Lead Already Exists in the System!</div>
                         <div className="duplicate-warning__detail">
-                          This {duplicateWarning.field === 'email' ? 'email' : 'phone number'} is already registered under{' '}
-                          <strong>{duplicateWarning.name}</strong>
-                          <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
+                          {duplicateWarning.field === 'name' ? (
+                            <>
+                              A lead with this name already exists:{' '}
+                              <strong>{duplicateWarning.name}</strong>
+                              <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
+                            </>
+                          ) : (
+                            <>
+                              This{' '}
+                              {duplicateWarning.field === 'email' ? 'email' : 'phone number'} is already registered under{' '}
+                              <strong>{duplicateWarning.name}</strong>
+                              <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
+                            </>
+                          )}
                         </div>
                         <div className="duplicate-warning__message">
                           Please check the existing lead before creating a new one to avoid duplicates.
