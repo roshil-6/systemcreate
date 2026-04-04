@@ -215,8 +215,14 @@ async function initializeDatabase() {
   }
 }
 
-// Start server if run directly (Render / Local)
-if (require.main === module || process.env.RENDER || process.env.NODE_ENV === 'production') {
+// Vercel serverless: no listen(); warm DB in the background so /api routes can pass the gatekeeper.
+if (process.env.VERCEL) {
+  console.log('🔄 Vercel serverless: starting database initialization...');
+  void initializeDatabase();
+}
+
+// Start server if run directly (Render / Local). Vercel uses serverless export — no listen.
+if (!process.env.VERCEL && (require.main === module || process.env.RENDER || process.env.NODE_ENV === 'production')) {
   console.log(`📡 Attempting to listen on port ${PORT}...`);
 
   // Bind to port IMMEDIATELY. Render requires this to consider the app "Live".
