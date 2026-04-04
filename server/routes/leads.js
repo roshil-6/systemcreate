@@ -188,7 +188,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, created_month, created_on, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type, name_starts } = req.query;
+    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, created_month, created_on, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type, name_starts, priority } = req.query;
 
     const filter = {
       limit: limit ? parseInt(limit) : undefined,
@@ -259,6 +259,7 @@ router.get('/', authenticate, async (req, res) => {
     if (follow_up_overdue === 'true' || follow_up_overdue === true) filter.follow_up_overdue = true;
     if (created_today === 'true' || created_today === true) filter.created_today = true;
     if (lead_source_type) filter.lead_source_type = lead_source_type;
+    if (priority && String(priority).trim()) filter.priority = String(priority).trim();
 
     // Performance: Only filter out Registration Completed at database level when not explicitly requested
     if (!status) {

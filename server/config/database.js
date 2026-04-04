@@ -328,6 +328,10 @@ const database = {
       params.push(`%${filter.phone}%`);
       paramIndex += 1;
     }
+    if (filter.priority) {
+      whereConditions += ` AND LOWER(TRIM(priority)) = LOWER(TRIM($${paramIndex++}))`;
+      params.push(String(filter.priority).trim());
+    }
     if (filter.created_on) {
       whereConditions += ` AND created_at::date = $${paramIndex++}`;
       params.push(filter.created_on);

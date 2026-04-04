@@ -1,12 +1,20 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Leads.css';
-import { FiSearch, FiFilter, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock, FiGrid, FiX, FiChevronDown } from 'react-icons/fi';
+import { FiSearch, FiEdit2, FiCalendar, FiMessageSquare, FiCheck, FiArrowLeft, FiDownload, FiUser, FiEdit, FiTrash2, FiClock, FiGrid, FiX, FiChevronDown, FiChevronUp, FiArrowUp, FiArrowDown, FiBookmark } from 'react-icons/fi';
 
 const NAME_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+const SortIconNeutral = () => (
+  <span className="leads-th-interactive__sort-both" aria-hidden>
+    <FiChevronUp size={10} />
+    <FiChevronDown size={10} />
+  </span>
+);
 
 const Leads = () => {
   const { user, logout } = useAuth();
@@ -33,6 +41,7 @@ const Leads = () => {
   const [createdTodayFilter, setCreatedTodayFilter] = useState(searchParams.get('created_today') === 'true');
   const [leadSourceTypeFilter, setLeadSourceTypeFilter] = useState(searchParams.get('lead_source_type') || '');
   const [nameStarts, setNameStarts] = useState(searchParams.get('name_starts') || '');
+  const [priorityFilter, setPriorityFilter] = useState(searchParams.get('priority') || '');
   const [excelModal, setExcelModal] = useState({ open: false, data: null, loading: false, leadName: '' });
   const [assigningLeadId, setAssigningLeadId] = useState(null);
   const [assignStaffId, setAssignStaffId] = useState('');
@@ -60,28 +69,10 @@ const Leads = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const LEADS_PER_PAGE = 50;
 
-  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
-  const filtersAutoOpenedRef = useRef(false);
-
-  useEffect(() => {
-    if (filtersAutoOpenedRef.current) return;
-    filtersAutoOpenedRef.current = true;
-    const p = searchParams;
-    const unified =
-      p.get('created_today') === 'true' ||
-      ['new', 'follow_up'].includes(p.get('viewType') || '') ||
-      ['manual', 'bulk_import'].includes(p.get('lead_source_type') || '');
-    const has =
-      !!(p.get('search') || '').trim() ||
-      !!(p.get('phone') || '').trim() ||
-      !!(p.get('status') || '') ||
-      !!(p.get('assigned_staff_id') || '') ||
-      unified ||
-      !!(p.get('created_from') || p.get('created_to') || p.get('created_month') || p.get('created_on')) ||
-      !!(p.get('name_starts') || '') ||
-      (!!p.get('sort') && p.get('sort') !== 'created_desc');
-    if (has) setFiltersPanelOpen(true);
-  }, [searchParams]);
+  const [topbarPopover, setTopbarPopover] = useState(null);
+  const topbarBtnRefs = useRef(new Map());
+  const [columnMenu, setColumnMenu] = useState({ open: null, rect: null });
+  const columnThRefs = useRef(new Map());
 
   useEffect(() => {
       const urlSearch = searchParams.get('search') || '';
@@ -96,6 +87,7 @@ const Leads = () => {
     const urlCreatedToday = searchParams.get('created_today') === 'true';
     const urlLeadSourceType = searchParams.get('lead_source_type') || '';
     const urlNameStarts = searchParams.get('name_starts') || '';
+    const urlPriority = searchParams.get('priority') || '';
     const showHistory = searchParams.get('showHistory') === 'true';
 
     setSearch(urlSearch);
@@ -112,6 +104,7 @@ const Leads = () => {
     setCreatedTodayFilter(urlCreatedToday);
     setLeadSourceTypeFilter(urlLeadSourceType);
     setNameStarts(urlNameStarts);
+    setPriorityFilter(urlPriority);
 
     if (showHistory) {
       setShowHistoryModal(true);
@@ -144,6 +137,7 @@ const Leads = () => {
           (state.createdMonth || '') === (createdMonth || '') &&
           (state.selectedCreatedOn || '') === (selectedCreatedOn || '') &&
           (state.nameStarts || '') === (nameStarts || '') &&
+          (state.priorityFilter || '') === (priorityFilter || '') &&
           (state.sortBy || 'created_desc') === (sortBy || 'created_desc')) {
 
           setLeads(state.leads);
@@ -167,7 +161,7 @@ const Leads = () => {
       setOffset(0);
       fetchLeads(true);
     }
-  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType, createdMonth, selectedCreatedOn, nameStarts, searchParams]);
+  }, [statusFilter, search, phoneSearch, assignedStaffFilter, viewType, createdMonth, selectedCreatedOn, nameStarts, priorityFilter, searchParams]);
 
   // Bulletproof scroll restoration via element ID
   React.useLayoutEffect(() => {
@@ -239,6 +233,7 @@ const Leads = () => {
           createdMonth,
           selectedCreatedOn,
           nameStarts,
+          priorityFilter,
           sortBy: sortBy || 'created_desc',
           scrollPosition: scrollPos,
           timestamp: Date.now()
@@ -250,7 +245,7 @@ const Leads = () => {
     return () => {
       saveState();
     };
-  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo, createdMonth, selectedCreatedOn, nameStarts, sortBy]);
+  }, [leads, offset, totalCount, search, statusFilter, phoneSearch, assignedStaffFilter, viewType, dateFrom, dateTo, createdMonth, selectedCreatedOn, nameStarts, priorityFilter, sortBy]);
 
   useEffect(() => {
     if (user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR') {
@@ -305,6 +300,7 @@ const Leads = () => {
       const createdToday = searchParams.get('created_today');
       const leadSourceType = searchParams.get('lead_source_type');
       const nameStartsVal = searchParams.get('name_starts');
+      const priorityVal = searchParams.get('priority');
 
       const params = new URLSearchParams();
       if (searchVal) params.append('search', searchVal);
@@ -324,6 +320,7 @@ const Leads = () => {
       if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
       if (createdToday === 'true') params.append('created_today', 'true');
       if (leadSourceType) params.append('lead_source_type', leadSourceType);
+      if (priorityVal) params.append('priority', priorityVal);
 
       const currentOffset = reset ? 0 : offset;
       params.append('limit', LEADS_PER_PAGE.toString());
@@ -384,6 +381,7 @@ const Leads = () => {
       const createdToday = searchParams.get('created_today');
       const leadSourceType = searchParams.get('lead_source_type');
       const nameStartsVal = searchParams.get('name_starts');
+      const priorityVal = searchParams.get('priority');
 
       if (searchVal) params.append('search', searchVal);
       if (phoneVal) params.append('phone', phoneVal);
@@ -402,6 +400,7 @@ const Leads = () => {
       if (followUpOverdue) params.append('follow_up_overdue', followUpOverdue);
       if (createdToday === 'true') params.append('created_today', 'true');
       if (leadSourceType) params.append('lead_source_type', leadSourceType);
+      if (priorityVal) params.append('priority', priorityVal);
 
       params.append('limit', LEADS_PER_PAGE.toString());
       params.append('offset', newOffset.toString());
@@ -445,6 +444,7 @@ const Leads = () => {
         createdMonth,
         selectedCreatedOn,
         nameStarts,
+        priorityFilter,
         sortBy: sortBy || 'created_desc',
         clickedLeadId: leadId,
         scrollPosition: container ? container.scrollTop : 0,
@@ -498,6 +498,7 @@ const Leads = () => {
     const cm = overrides.createdMonth !== undefined ? overrides.createdMonth : createdMonth;
     const co = overrides.selectedCreatedOn !== undefined ? overrides.selectedCreatedOn : selectedCreatedOn;
     const ns = overrides.nameStarts !== undefined ? overrides.nameStarts : nameStarts;
+    const pr = overrides.priorityFilter !== undefined ? overrides.priorityFilter : priorityFilter;
 
     const params = new URLSearchParams();
     if (s.trim()) params.set('search', s.trim());
@@ -509,6 +510,7 @@ const Leads = () => {
     if (sb && sb !== 'created_desc') params.set('sort', sb);
     if (ctf) params.set('created_today', 'true');
     if (lst) params.set('lead_source_type', lst);
+    if (pr) params.set('priority', pr);
     if (co) {
       params.set('created_on', co);
     } else if (cm) {
@@ -517,6 +519,12 @@ const Leads = () => {
       if (df) params.set('created_from', df);
       if (dt) params.set('created_to', dt);
     }
+
+    const followUpDate = overrides.followUpDate !== undefined ? overrides.followUpDate : searchParams.get('follow_up_date') || '';
+    const followUpOverdue = overrides.followUpOverdue !== undefined ? overrides.followUpOverdue : searchParams.get('follow_up_overdue') === 'true';
+    if (followUpDate) params.set('follow_up_date', followUpDate);
+    if (followUpOverdue) params.set('follow_up_overdue', 'true');
+
     return params;
   };
 
@@ -527,6 +535,7 @@ const Leads = () => {
     setSearch(searchInput.trim());
     setPhoneSearch(phoneSearchInput.trim());
     navigate(`/leads?${buildLeadsParams().toString()}`);
+    setTopbarPopover(null);
   };
 
   const handleSearchInputChange = (e) => {
@@ -562,6 +571,7 @@ const Leads = () => {
     if (staffId) params.set('assigned_staff_id', staffId);
     else params.delete('assigned_staff_id');
     navigate(`/leads?${params.toString()}`);
+    setTopbarPopover(null);
   };
 
   const handleDateFilter = (from, to) => {
@@ -578,6 +588,7 @@ const Leads = () => {
     setDateFrom('');
     setDateTo('');
     navigate(`/leads?${buildLeadsParamsWith({ createdMonth: month, selectedCreatedOn: '', dateFrom: '', dateTo: '' }).toString()}`);
+    setTopbarPopover(null);
   };
 
   const handleSingleCreatedOnChange = (day) => {
@@ -586,6 +597,7 @@ const Leads = () => {
     setDateFrom('');
     setDateTo('');
     navigate(`/leads?${buildLeadsParamsWith({ selectedCreatedOn: day, createdMonth: '', dateFrom: '', dateTo: '' }).toString()}`);
+    setTopbarPopover(null);
   };
 
   const clearDateFilters = () => {
@@ -594,17 +606,97 @@ const Leads = () => {
     setCreatedMonth('');
     setSelectedCreatedOn('');
     navigate(`/leads?${buildLeadsParamsWith({ dateFrom: '', dateTo: '', createdMonth: '', selectedCreatedOn: '' }).toString()}`);
+    setTopbarPopover(null);
   };
 
   const handleNameStartsChange = (letter) => {
     setNameStarts(letter);
     navigate(`/leads?${buildLeadsParamsWith({ nameStarts: letter }).toString()}`);
+    setTopbarPopover(null);
   };
 
   const handleSortChange = (value) => {
     setSortBy(value);
     navigate(`/leads?${buildLeadsParamsWith({ sortBy: value }).toString()}`);
   };
+
+  const cycleSortName = () => {
+    const next = sortBy === 'name_asc' ? 'name_desc' : sortBy === 'name_desc' ? 'created_desc' : 'name_asc';
+    navigate(`/leads?${buildLeadsParamsWith({ sortBy: next }).toString()}`);
+  };
+
+  const cycleSortDateAdded = () => {
+    const next = sortBy === 'created_desc' ? 'created_asc' : 'created_desc';
+    navigate(`/leads?${buildLeadsParamsWith({ sortBy: next }).toString()}`);
+  };
+
+  const closeColumnMenu = () => setColumnMenu({ open: null, rect: null });
+
+  const openColumnMenu = (key) => {
+    const el = columnThRefs.current.get(key);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - 288);
+    const top = r.bottom + 4;
+    setColumnMenu({ open: key, rect: { top, left, width: Math.max(220, r.width) } });
+  };
+
+  const setColumnThRef = (key) => (el) => {
+    if (el) columnThRefs.current.set(key, el);
+    else columnThRefs.current.delete(key);
+  };
+
+  useEffect(() => {
+    if (!columnMenu.open) return undefined;
+    const onDown = (e) => {
+      if (e.target.closest('.leads-col-menu') || e.target.closest('.leads-col-menu-trigger')) return;
+      closeColumnMenu();
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [columnMenu.open]);
+
+  useEffect(() => {
+    if (!columnMenu.open) return undefined;
+    const el = document.querySelector('.leads-table-container');
+    const onScroll = () => closeColumnMenu();
+    el?.addEventListener('scroll', onScroll, { passive: true });
+    return () => el?.removeEventListener('scroll', onScroll);
+  }, [columnMenu.open]);
+
+  const closeTopbarPopover = () => setTopbarPopover(null);
+
+  const setTopbarBtnRef = (key) => (el) => {
+    if (el) topbarBtnRefs.current.set(key, el);
+    else topbarBtnRefs.current.delete(key);
+  };
+
+  const toggleTopbarPopover = (key) => {
+    setTopbarPopover((prev) => {
+      if (prev?.open === key) return null;
+      const el = topbarBtnRefs.current.get(key);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const left = Math.min(Math.max(8, r.left), window.innerWidth - 312);
+      const top = r.bottom + 6;
+      return { open: key, rect: { top, left, width: Math.max(240, r.width) } };
+    });
+  };
+
+  useEffect(() => {
+    if (!topbarPopover?.open) return undefined;
+    const onDown = (e) => {
+      if (e.target.closest('.leads-topbar-popover') || e.target.closest('.leads-topbar-trigger')) return;
+      closeTopbarPopover();
+    };
+    const onScroll = () => closeTopbarPopover();
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [topbarPopover?.open]);
 
   const handleViewTypeChange = (type) => {
     setViewType(type);
@@ -649,7 +741,9 @@ const Leads = () => {
     if (statusFilter) return true;
     if (assignedStaffFilter) return true;
     if (nameStarts) return true;
+    if (priorityFilter) return true;
     if (dateFrom || dateTo || createdMonth || selectedCreatedOn) return true;
+    if (searchParams.get('follow_up_date') || searchParams.get('follow_up_overdue') === 'true') return true;
     return false;
   }, [
     search,
@@ -658,6 +752,7 @@ const Leads = () => {
     assignedStaffFilter,
     sortBy,
     nameStarts,
+    priorityFilter,
     dateFrom,
     dateTo,
     createdMonth,
@@ -665,6 +760,7 @@ const Leads = () => {
     createdTodayFilter,
     viewType,
     leadSourceTypeFilter,
+    searchParams,
   ]);
 
   const handleUnifiedFilterChange = (value) => {
@@ -1041,6 +1137,21 @@ const Leads = () => {
       ? staffList.filter((s) => Number(s.id) !== Number(user.id))
       : staffList;
 
+  const columnFilterActive = {
+    name: !!nameStarts,
+    phone: !!phoneSearch.trim(),
+    email: !!search.trim(),
+    status: !!statusFilter,
+    dateAdded: !!(dateFrom || dateTo || createdMonth || selectedCreatedOn),
+    followUp: !!(searchParams.get('follow_up_date') || searchParams.get('follow_up_overdue') === 'true'),
+    source: !!leadSourceTypeFilter,
+    priority: !!priorityFilter,
+    assigned: !!assignedStaffFilter,
+  };
+
+  const nameSortActive = sortBy === 'name_asc' || sortBy === 'name_desc';
+  const dateSortActive = sortBy === 'created_asc' || sortBy === 'created_desc';
+
   return (
     <div className="leads-page">
       <div className="leads-header">
@@ -1116,63 +1227,38 @@ const Leads = () => {
         </div>
       )}
 
-      {/* Controls — collapsible filter & sort */}
+      {/* Controls — top bar + status */}
       <div className="leads-controls-section">
-        <div className="leads-filter-disclosure">
-          <button
-            type="button"
-            className="leads-filter-disclosure__toggle"
-            id="leads-filter-disclosure-btn"
-            aria-expanded={filtersPanelOpen}
-            aria-controls="leads-filters-expandable"
-            onClick={() => setFiltersPanelOpen((o) => !o)}
-          >
-            <span className="leads-filter-disclosure__toggle-main">
-              <FiFilter className="leads-filter-disclosure__toggle-icon" aria-hidden />
-              <span className="leads-filter-disclosure__title">Filter and sort leads</span>
-              {hasActiveFilters && (
-                <span className="leads-filter-disclosure__badge">Filters on</span>
-              )}
-            </span>
-            <FiChevronDown
-              className={`leads-filter-disclosure__chevron ${filtersPanelOpen ? 'leads-filter-disclosure__chevron--open' : ''}`}
-              aria-hidden
-            />
-          </button>
-          <div
-            id="leads-filters-expandable"
-            role="region"
-            aria-labelledby="leads-filter-disclosure-btn"
-            className="leads-filter-disclosure__panel"
-            hidden={!filtersPanelOpen}
-          >
-            <div className="leads-filter-panel">
-          <div className="leads-filter-toolbar" aria-label="Quick views and sorting">
-            <div className="leads-filter-field">
-              <label className="leads-filter-label" htmlFor="leads-quick-filter">Quick filter</label>
+        <div className="leads-topbar">
+          <div className="leads-topbar__primary" aria-label="Quick views and sorting">
+            {hasActiveFilters && (
+              <span className="leads-topbar__badge" title="Some filters are active">Filters on</span>
+            )}
+            <div className="leads-topbar__field">
+              <label className="leads-topbar__field-label" htmlFor="leads-quick-filter">Quick</label>
               <select
                 id="leads-quick-filter"
-                className="leads-filter-select"
+                className="leads-topbar__select"
                 value={getUnifiedFilterValue()}
                 onChange={(e) => handleUnifiedFilterChange(e.target.value)}
               >
                 <option value="all">All Leads</option>
-                <option value="today">Today's Leads</option>
+                <option value="today">Today</option>
                 {user?.role !== 'SALES_TEAM' && (
                   <>
-                    <option value="new">New (No Comments)</option>
-                    <option value="follow_up">Follow Up (Active)</option>
+                    <option value="new">New (no comments)</option>
+                    <option value="follow_up">Follow up</option>
                   </>
                 )}
                 <option value="manual">Manual</option>
-                <option value="bulk_import">Bulk Import</option>
+                <option value="bulk_import">Bulk import</option>
               </select>
             </div>
-            <div className="leads-filter-field">
-              <label className="leads-filter-label" htmlFor="leads-sort">Sort</label>
+            <div className="leads-topbar__field">
+              <label className="leads-topbar__field-label" htmlFor="leads-sort">Sort</label>
               <select
                 id="leads-sort"
-                className="leads-filter-select leads-filter-select--compact"
+                className="leads-topbar__select"
                 value={sortBy}
                 onChange={(e) => handleSortChange(e.target.value)}
                 title="Sort leads"
@@ -1183,175 +1269,86 @@ const Leads = () => {
                 <option value="updated_asc">Oldest updated</option>
               </select>
             </div>
-            {canManageLeads && !isHr && (
-              <div className="leads-filter-field">
-                <label className="leads-filter-label" htmlFor="leads-staff">Staff</label>
-                <select
-                  id="leads-staff"
-                  className="leads-filter-select staff-filter-select leads-filter-select--compact"
-                  value={assignedStaffFilter}
-                  onChange={(e) => handleStaffFilter(e.target.value)}
-                  title={isAdmin ? 'All leads, only leads assigned to you, or filter by assignee' : 'Filter by assigned staff'}
-                >
-                  <option value="">{isAdmin ? 'All leads' : 'All Staff'}</option>
-                  {isAdmin && user?.id != null && (
-                    <option value={String(user.id)}>My leads only</option>
-                  )}
-                  {staffFilterListExcludingSelf.map((staff) => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="leads-filter-field leads-filter-field--export">
-              <label className="leads-filter-label leads-filter-label--spacer" aria-hidden="true">&nbsp;</label>
-              <button
-                type="button"
-                className="export-btn leads-filter-export-btn"
-                onClick={handleExportToGoogleSheets}
-                title="Export to CSV (can be imported to Google Sheets)"
-              >
-                <FiDownload /> Export
-              </button>
-            </div>
-          </div>
-
-          <div className="leads-filter-panel__block">
-            <span className="leads-filter-label">Status</span>
-            <div className="status-filters">
-              <button
-                type="button"
-                className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
-                onClick={() => handleStatusFilter('')}
-              >
-                All
-              </button>
-              {statusOptions.map((status) => (
-                <button
-                  type="button"
-                  key={status}
-                  className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
-                  onClick={() => handleStatusFilter(status)}
-                  style={{
-                    borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
-                    backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
-                    color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
-                  }}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="leads-filter-card">
-            <h3 className="leads-filter-card__heading">Search</h3>
-            <p className="leads-filter-card__hint">Find leads by part of a name or phone number, then press Apply.</p>
-            <form onSubmit={handleSearch} className="leads-filter-panel__search leads-filter-panel__search--stacked">
-              <div className="leads-filter-search-field">
-                <FiSearch className="leads-filter-search-field__icon" aria-hidden />
-                <input
-                  type="text"
-                  placeholder="Name contains…"
-                  value={searchInput}
-                  onChange={handleSearchInputChange}
-                  aria-label="Search lead by name"
-                />
-              </div>
-              <div className="leads-filter-search-field">
-                <FiSearch className="leads-filter-search-field__icon" aria-hidden />
-                <input
-                  type="text"
-                  placeholder="Phone contains…"
-                  value={phoneSearchInput}
-                  onChange={handlePhoneSearchInputChange}
-                  aria-label="Search by phone"
-                />
-              </div>
-              <button type="submit" className="leads-filter-apply-btn">
-                Apply search
-              </button>
-            </form>
-          </div>
-
-          <div className="leads-filter-card">
-            <h3 className="leads-filter-card__heading">First letter of name</h3>
-            <p className="leads-filter-card__hint">Optional. Narrow the list by the first character of the lead name.</p>
-            <select
-              id="leads-name-letter"
-              className="leads-filter-select leads-filter-select--full"
-              value={nameStarts || ''}
-              onChange={(e) => handleNameStartsChange(e.target.value)}
-              aria-label="Filter by first letter of lead name"
+            <button
+              type="button"
+              className="leads-topbar__export"
+              onClick={handleExportToGoogleSheets}
+              title="Export to CSV (can be imported to Google Sheets)"
             >
-              <option value="">Any — no letter filter</option>
-              {NAME_ALPHABET.map((L) => (
-                <option key={L} value={L}>
-                  Starts with {L}
-                </option>
-              ))}
-              <option value="0">Starts with a number (0–9)</option>
-              <option value="#">Starts with symbol or other (#)</option>
-            </select>
+              <FiDownload /> Export
+            </button>
           </div>
+          <div className="leads-topbar__pills" role="toolbar" aria-label="Search and filters">
+            <button
+              ref={setTopbarBtnRef('search')}
+              type="button"
+              className={`leads-topbar__pill leads-topbar-trigger ${topbarPopover?.open === 'search' ? 'leads-topbar__pill--open' : ''} ${(search.trim() || phoneSearch.trim()) ? 'leads-topbar__pill--hasFilter' : ''}`}
+              onClick={() => toggleTopbarPopover('search')}
+              aria-expanded={topbarPopover?.open === 'search'}
+              aria-controls="leads-topbar-popover"
+            >
+              <FiSearch size={14} aria-hidden /> Search
+            </button>
+            {canManageLeads && !isHr && (
+              <button
+                ref={setTopbarBtnRef('staff')}
+                type="button"
+                className={`leads-topbar__pill leads-topbar-trigger ${topbarPopover?.open === 'staff' ? 'leads-topbar__pill--open' : ''} ${assignedStaffFilter ? 'leads-topbar__pill--hasFilter' : ''}`}
+                onClick={() => toggleTopbarPopover('staff')}
+                aria-expanded={topbarPopover?.open === 'staff'}
+                aria-controls="leads-topbar-popover"
+              >
+                <FiUser size={14} aria-hidden /> Staff
+              </button>
+            )}
+            <button
+              ref={setTopbarBtnRef('letter')}
+              type="button"
+              className={`leads-topbar__pill leads-topbar-trigger ${topbarPopover?.open === 'letter' ? 'leads-topbar__pill--open' : ''} ${nameStarts ? 'leads-topbar__pill--hasFilter' : ''}`}
+              onClick={() => toggleTopbarPopover('letter')}
+              aria-expanded={topbarPopover?.open === 'letter'}
+              aria-controls="leads-topbar-popover"
+            >
+              <FiBookmark size={14} aria-hidden /> First letter
+            </button>
+            <button
+              ref={setTopbarBtnRef('dates')}
+              type="button"
+              className={`leads-topbar__pill leads-topbar-trigger ${topbarPopover?.open === 'dates' ? 'leads-topbar__pill--open' : ''} ${(dateFrom || dateTo || createdMonth || selectedCreatedOn) ? 'leads-topbar__pill--hasFilter' : ''}`}
+              onClick={() => toggleTopbarPopover('dates')}
+              aria-expanded={topbarPopover?.open === 'dates'}
+              aria-controls="leads-topbar-popover"
+            >
+              <FiCalendar size={14} aria-hidden /> Dates
+            </button>
+          </div>
+        </div>
 
-          <div className="leads-filter-card leads-filter-card--dates">
-            <h3 className="leads-filter-card__heading">
-              <FiCalendar className="leads-filter-card__heading-icon" aria-hidden />
-              Created date
-            </h3>
-            <p className="leads-filter-card__hint">Use one approach below (range, month, or single day). They replace each other.</p>
-            <div className="leads-filter-date-rows">
-              <div className="leads-filter-date-row">
-                <span className="leads-filter-date-row__label">Between two dates</span>
-                <div className="leads-filter-date-row__inputs">
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => handleDateFilter(e.target.value, dateTo)}
-                    title="Created from"
-                    aria-label="Created from date"
-                  />
-                  <span className="leads-filter-date-sep">to</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
-                    title="Created to"
-                    aria-label="Created to date"
-                  />
-                </div>
-              </div>
-              <div className="leads-filter-date-row">
-                <span className="leads-filter-date-row__label">Whole calendar month</span>
-                <input
-                  type="month"
-                  value={createdMonth}
-                  onChange={(e) => handleCreatedMonthChange(e.target.value)}
-                  title="Filter by calendar month"
-                  aria-label="Filter by created month"
-                />
-              </div>
-              <div className="leads-filter-date-row">
-                <span className="leads-filter-date-row__label">Single calendar day</span>
-                <input
-                  type="date"
-                  value={selectedCreatedOn}
-                  onChange={(e) => handleSingleCreatedOnChange(e.target.value)}
-                  title="Leads created on this date only"
-                  aria-label="Filter by single created date"
-                />
-              </div>
-              {(dateFrom || dateTo || createdMonth || selectedCreatedOn) && (
-                <button type="button" className="leads-filter-clear-dates" onClick={clearDateFilters}>
-                  Clear date filters
-                </button>
-              )}
-            </div>
-          </div>
-            </div>
+        <div className="leads-status-row">
+          <span className="leads-filter-label">Status</span>
+          <div className="status-filters">
+            <button
+              type="button"
+              className={`filter-btn ${statusFilter === '' ? 'active' : ''}`}
+              onClick={() => handleStatusFilter('')}
+            >
+              All
+            </button>
+            {statusOptions.map((status) => (
+              <button
+                type="button"
+                key={status}
+                className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
+                onClick={() => handleStatusFilter(status)}
+                style={{
+                  borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
+                  backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
+                  color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
+                }}
+              >
+                {status}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -1775,15 +1772,95 @@ const Leads = () => {
                     />
                   </th>
                 )}
-                <th className="sticky-name" style={{ minWidth: '150px' }}>Name</th>
-                <th style={{ minWidth: '130px' }}>Phone</th>
-                <th style={{ minWidth: '180px' }}>Email</th>
-                <th style={{ width: '100px' }}>Lead Status</th>
-                <th style={{ width: '110px' }}>Date Added</th>
-                <th style={{ width: '110px' }}>Follow-up Date</th>
-                <th style={{ minWidth: '200px' }}>Source</th>
-                <th style={{ width: '80px' }}>Priority</th>
-                <th style={{ width: '120px', fontWeight: 600, color: '#8B6914' }}>Assigned To</th>
+                <th ref={setColumnThRef('name')} className="sticky-name leads-th-interactive" style={{ minWidth: '150px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <button type="button" className={`leads-th-interactive__label leads-col-menu-trigger ${nameSortActive ? 'leads-th-interactive__label--active' : ''}`} onClick={cycleSortName} title="Sort by name">
+                      <span>Name</span>
+                      <span className="leads-th-interactive__sort" aria-hidden>
+                        {nameSortActive ? (sortBy === 'name_asc' ? <FiArrowUp size={14} /> : <FiArrowDown size={14} />) : <SortIconNeutral />}
+                      </span>
+                    </button>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.name ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('name')} aria-label="Name filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('phone')} className="leads-th-interactive" style={{ minWidth: '130px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <span className="leads-th-interactive__text">Phone</span>
+                    <span className="leads-th-interactive__sort leads-th-interactive__sort--muted" aria-hidden><SortIconNeutral /></span>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.phone ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('phone')} aria-label="Phone filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('email')} className="leads-th-interactive" style={{ minWidth: '180px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <span className="leads-th-interactive__text">Email</span>
+                    <span className="leads-th-interactive__sort leads-th-interactive__sort--muted" aria-hidden><SortIconNeutral /></span>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.email ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('email')} aria-label="Email filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('status')} className="leads-th-interactive" style={{ width: '100px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <span className="leads-th-interactive__text">Lead Status</span>
+                    <span className="leads-th-interactive__sort leads-th-interactive__sort--muted" aria-hidden><SortIconNeutral /></span>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.status ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('status')} aria-label="Status filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('dateAdded')} className="leads-th-interactive" style={{ width: '110px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <button type="button" className={`leads-th-interactive__label leads-col-menu-trigger ${dateSortActive ? 'leads-th-interactive__label--active' : ''}`} onClick={cycleSortDateAdded} title="Sort by date added">
+                      <span>Date Added</span>
+                      <span className="leads-th-interactive__sort" aria-hidden>
+                        {dateSortActive ? (sortBy === 'created_asc' ? <FiArrowUp size={14} /> : <FiArrowDown size={14} />) : <SortIconNeutral />}
+                      </span>
+                    </button>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.dateAdded ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('dateAdded')} aria-label="Date added filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('followUp')} className="leads-th-interactive" style={{ width: '110px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <span className="leads-th-interactive__text">Follow-up Date</span>
+                    <span className="leads-th-interactive__sort leads-th-interactive__sort--muted" aria-hidden><SortIconNeutral /></span>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.followUp ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('followUp')} aria-label="Follow-up filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('source')} className="leads-th-interactive" style={{ minWidth: '200px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <span className="leads-th-interactive__text">Source</span>
+                    <span className="leads-th-interactive__sort leads-th-interactive__sort--muted" aria-hidden><SortIconNeutral /></span>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.source ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('source')} aria-label="Source filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('priority')} className="leads-th-interactive" style={{ width: '80px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <span className="leads-th-interactive__text">Priority</span>
+                    <span className="leads-th-interactive__sort leads-th-interactive__sort--muted" aria-hidden><SortIconNeutral /></span>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.priority ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('priority')} aria-label="Priority filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
+                <th ref={setColumnThRef('assigned')} className="leads-th-interactive leads-th-interactive--assigned" style={{ width: '120px' }}>
+                  <div className="leads-th-interactive__inner">
+                    <span className="leads-th-interactive__text">Assigned To</span>
+                    <span className="leads-th-interactive__sort leads-th-interactive__sort--muted" aria-hidden><SortIconNeutral /></span>
+                    <button type="button" className={`leads-th-interactive__caret leads-col-menu-trigger ${columnFilterActive.assigned ? 'leads-th-interactive__caret--active' : ''}`} onClick={() => openColumnMenu('assigned')} aria-label="Assigned to filters">
+                      <FiChevronDown size={14} />
+                    </button>
+                  </div>
+                </th>
                 <th style={{ width: '110px' }}>Actions</th>
               </tr>
             </thead>
@@ -2116,6 +2193,380 @@ const Leads = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {topbarPopover?.open && topbarPopover.rect && createPortal(
+        <div
+          id="leads-topbar-popover"
+          className="leads-topbar-popover"
+          style={{
+            position: 'fixed',
+            top: topbarPopover.rect.top,
+            left: topbarPopover.rect.left,
+            minWidth: Math.min(360, Math.max(260, topbarPopover.rect.width)),
+            zIndex: 10045,
+          }}
+          role="dialog"
+          aria-label="Filter options"
+        >
+          {topbarPopover.open === 'search' && (
+            <div className="leads-topbar-popover__body">
+              <span className="leads-topbar-popover__title">Search</span>
+              <p className="leads-topbar-popover__hint">Name, email, or phone (Apply runs both fields).</p>
+              <form onSubmit={handleSearch} className="leads-topbar-popover__form">
+                <div className="leads-filter-search-field leads-topbar-popover__field">
+                  <FiSearch className="leads-filter-search-field__icon" aria-hidden />
+                  <input
+                    type="text"
+                    placeholder="Name / email contains…"
+                    value={searchInput}
+                    onChange={handleSearchInputChange}
+                    aria-label="Search by name or email"
+                  />
+                </div>
+                <div className="leads-filter-search-field leads-topbar-popover__field">
+                  <FiSearch className="leads-filter-search-field__icon" aria-hidden />
+                  <input
+                    type="text"
+                    placeholder="Phone contains…"
+                    value={phoneSearchInput}
+                    onChange={handlePhoneSearchInputChange}
+                    aria-label="Search by phone"
+                  />
+                </div>
+                <button type="submit" className="leads-filter-apply-btn leads-topbar-popover__apply">
+                  Apply search
+                </button>
+              </form>
+            </div>
+          )}
+          {topbarPopover.open === 'staff' && canManageLeads && !isHr && (
+            <div className="leads-topbar-popover__body">
+              <span className="leads-topbar-popover__title">Assigned staff</span>
+              <p className="leads-topbar-popover__hint">Filter leads by who they are assigned to.</p>
+              <select
+                id="leads-staff-topbar"
+                className="leads-topbar-popover__select"
+                value={assignedStaffFilter}
+                onChange={(e) => handleStaffFilter(e.target.value)}
+                title={isAdmin ? 'All leads, my leads, or assignee' : 'Filter by assigned staff'}
+              >
+                <option value="">{isAdmin ? 'All leads' : 'All Staff'}</option>
+                {isAdmin && user?.id != null && (
+                  <option value={String(user.id)}>My leads only</option>
+                )}
+                {staffFilterListExcludingSelf.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {topbarPopover.open === 'letter' && (
+            <div className="leads-topbar-popover__body">
+              <span className="leads-topbar-popover__title">First letter of name</span>
+              <p className="leads-topbar-popover__hint">Narrow by the first character of the lead name.</p>
+              <select
+                id="leads-name-letter-topbar"
+                className="leads-topbar-popover__select"
+                value={nameStarts || ''}
+                onChange={(e) => handleNameStartsChange(e.target.value)}
+                aria-label="Filter by first letter of lead name"
+              >
+                <option value="">Any — no letter filter</option>
+                {NAME_ALPHABET.map((L) => (
+                  <option key={L} value={L}>
+                    Starts with {L}
+                  </option>
+                ))}
+                <option value="0">Starts with a number (0–9)</option>
+                <option value="#">Starts with symbol or other (#)</option>
+              </select>
+            </div>
+          )}
+          {topbarPopover.open === 'dates' && (
+            <div className="leads-topbar-popover__body leads-topbar-popover__body--dates">
+              <div className="leads-filter-dates-compact__head">
+                <h3 className="leads-filter-dates-compact__title">
+                  <FiCalendar className="leads-filter-dates-compact__title-icon" aria-hidden />
+                  Created date
+                </h3>
+                <p className="leads-filter-dates-compact__hint">Pick one — range, month, or day (only one applies).</p>
+              </div>
+              <div className="leads-filter-dates-compact__grid">
+                <div className="leads-filter-dates-compact__cell leads-filter-dates-compact__cell--range">
+                  <span className="leads-filter-dates-compact__lbl">Range</span>
+                  <div className="leads-filter-dates-compact__range">
+                    <input
+                      type="date"
+                      className="leads-filter-dates-compact__input"
+                      value={dateFrom}
+                      onChange={(e) => handleDateFilter(e.target.value, dateTo)}
+                      title="From"
+                      aria-label="Created from date"
+                    />
+                    <span className="leads-filter-dates-compact__sep">to</span>
+                    <input
+                      type="date"
+                      className="leads-filter-dates-compact__input"
+                      value={dateTo}
+                      onChange={(e) => handleDateFilter(dateFrom, e.target.value)}
+                      title="To"
+                      aria-label="Created to date"
+                    />
+                  </div>
+                </div>
+                <div className="leads-filter-dates-compact__cell">
+                  <span className="leads-filter-dates-compact__lbl">Month</span>
+                  <input
+                    type="month"
+                    className="leads-filter-dates-compact__input leads-filter-dates-compact__input--month"
+                    value={createdMonth}
+                    onChange={(e) => handleCreatedMonthChange(e.target.value)}
+                    title="Calendar month"
+                    aria-label="Filter by created month"
+                  />
+                </div>
+                <div className="leads-filter-dates-compact__cell">
+                  <span className="leads-filter-dates-compact__lbl">One day</span>
+                  <input
+                    type="date"
+                    className="leads-filter-dates-compact__input"
+                    value={selectedCreatedOn}
+                    onChange={(e) => handleSingleCreatedOnChange(e.target.value)}
+                    title="Single calendar day"
+                    aria-label="Filter by single created date"
+                  />
+                </div>
+              </div>
+              {(dateFrom || dateTo || createdMonth || selectedCreatedOn) && (
+                <button type="button" className="leads-filter-dates-compact__clear" onClick={clearDateFilters}>
+                  Clear dates
+                </button>
+              )}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {columnMenu.open && columnMenu.rect && createPortal(
+        <div
+          className="leads-col-menu"
+          style={{
+            position: 'fixed',
+            top: columnMenu.rect.top,
+            left: columnMenu.rect.left,
+            minWidth: Math.max(220, columnMenu.rect.width),
+            zIndex: 10050,
+          }}
+          role="dialog"
+          aria-label="Column filter"
+        >
+          {columnMenu.open === 'name' && (
+            <div className="leads-col-menu__body">
+              <span className="leads-col-menu__title">First letter of name</span>
+              <select
+                className="leads-col-menu__select"
+                value={nameStarts}
+                onChange={(e) => {
+                  handleNameStartsChange(e.target.value);
+                  closeColumnMenu();
+                }}
+              >
+                <option value="">Any — no letter filter</option>
+                {NAME_ALPHABET.map((L) => (
+                  <option key={L} value={L}>{L}</option>
+                ))}
+                <option value="0">0–9</option>
+                <option value="#">Other</option>
+              </select>
+            </div>
+          )}
+          {columnMenu.open === 'phone' && (
+            <div className="leads-col-menu__body">
+              <span className="leads-col-menu__title">Phone contains</span>
+              <input
+                type="text"
+                className="leads-col-menu__input"
+                value={phoneSearchInput}
+                onChange={handlePhoneSearchInputChange}
+                placeholder="Digits or part of number"
+              />
+              <button
+                type="button"
+                className="leads-col-menu__apply"
+                onClick={() => {
+                  setPhoneSearch(phoneSearchInput.trim());
+                  navigate(`/leads?${buildLeadsParamsWith().toString()}`);
+                  closeColumnMenu();
+                }}
+              >
+                Apply
+              </button>
+            </div>
+          )}
+          {columnMenu.open === 'email' && (
+            <div className="leads-col-menu__body">
+              <span className="leads-col-menu__title">Search (name, email, phone)</span>
+              <input
+                type="text"
+                className="leads-col-menu__input"
+                value={searchInput}
+                onChange={handleSearchInputChange}
+                placeholder="Text to find"
+              />
+              <button
+                type="button"
+                className="leads-col-menu__apply"
+                onClick={() => {
+                  setSearch(searchInput.trim());
+                  navigate(`/leads?${buildLeadsParamsWith().toString()}`);
+                  closeColumnMenu();
+                }}
+              >
+                Apply
+              </button>
+            </div>
+          )}
+          {columnMenu.open === 'status' && (
+            <div className="leads-col-menu__body leads-col-menu__body--scroll">
+              <span className="leads-col-menu__title">Lead status</span>
+              <div className="leads-col-menu__chips">
+                <button type="button" className={`leads-col-menu__chip ${statusFilter === '' ? 'leads-col-menu__chip--on' : ''}`} onClick={() => { handleStatusFilter(''); closeColumnMenu(); }}>All</button>
+                {statusOptions.map((st) => (
+                  <button
+                    type="button"
+                    key={st}
+                    className={`leads-col-menu__chip ${statusFilter === st ? 'leads-col-menu__chip--on' : ''}`}
+                    onClick={() => { handleStatusFilter(st); closeColumnMenu(); }}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {columnMenu.open === 'dateAdded' && (
+            <div className="leads-col-menu__body leads-col-menu__body--wide leads-col-menu__body--dates">
+              <div className="leads-filter-dates-compact__head">
+                <span className="leads-col-menu__title">Created date</span>
+                <p className="leads-filter-dates-compact__hint">Pick one — range, month, or day.</p>
+              </div>
+              <div className="leads-filter-dates-compact__grid">
+                <div className="leads-filter-dates-compact__cell leads-filter-dates-compact__cell--range">
+                  <span className="leads-filter-dates-compact__lbl">Range</span>
+                  <div className="leads-filter-dates-compact__range">
+                    <input type="date" className="leads-filter-dates-compact__input" value={dateFrom} onChange={(e) => handleDateFilter(e.target.value, dateTo)} title="From" aria-label="Created from date" />
+                    <span className="leads-filter-dates-compact__sep">to</span>
+                    <input type="date" className="leads-filter-dates-compact__input" value={dateTo} onChange={(e) => handleDateFilter(dateFrom, e.target.value)} title="To" aria-label="Created to date" />
+                  </div>
+                </div>
+                <div className="leads-filter-dates-compact__cell">
+                  <span className="leads-filter-dates-compact__lbl">Month</span>
+                  <input type="month" className="leads-filter-dates-compact__input leads-filter-dates-compact__input--month" value={createdMonth} onChange={(e) => { handleCreatedMonthChange(e.target.value); closeColumnMenu(); }} aria-label="Filter by month" />
+                </div>
+                <div className="leads-filter-dates-compact__cell">
+                  <span className="leads-filter-dates-compact__lbl">One day</span>
+                  <input type="date" className="leads-filter-dates-compact__input" value={selectedCreatedOn} onChange={(e) => { handleSingleCreatedOnChange(e.target.value); closeColumnMenu(); }} aria-label="Single day" />
+                </div>
+              </div>
+              <button type="button" className="leads-filter-dates-compact__clear" onClick={() => { clearDateFilters(); closeColumnMenu(); }}>Clear dates</button>
+            </div>
+          )}
+          {columnMenu.open === 'followUp' && (
+            <div className="leads-col-menu__body">
+              <span className="leads-col-menu__title">Follow-up</span>
+              <button
+                type="button"
+                className="leads-col-menu__opt"
+                onClick={() => {
+                  navigate(`/leads?${buildLeadsParamsWith({ followUpDate: 'today', followUpOverdue: false }).toString()}`);
+                  closeColumnMenu();
+                }}
+              >
+                Due today
+              </button>
+              <button
+                type="button"
+                className="leads-col-menu__opt"
+                onClick={() => {
+                  navigate(`/leads?${buildLeadsParamsWith({ followUpDate: '', followUpOverdue: true }).toString()}`);
+                  closeColumnMenu();
+                }}
+              >
+                Overdue
+              </button>
+              <button
+                type="button"
+                className="leads-col-menu__link"
+                onClick={() => {
+                  navigate(`/leads?${buildLeadsParamsWith({ followUpDate: '', followUpOverdue: false }).toString()}`);
+                  closeColumnMenu();
+                }}
+              >
+                Clear follow-up filter
+              </button>
+            </div>
+          )}
+          {columnMenu.open === 'source' && (
+            <div className="leads-col-menu__body">
+              <span className="leads-col-menu__title">How the lead was added</span>
+              <button type="button" className={`leads-col-menu__opt ${leadSourceTypeFilter === '' ? 'leads-col-menu__opt--on' : ''}`} onClick={() => { handleLeadSourceTypeFilter(''); closeColumnMenu(); }}>All sources</button>
+              <button type="button" className={`leads-col-menu__opt ${leadSourceTypeFilter === 'manual' ? 'leads-col-menu__opt--on' : ''}`} onClick={() => { handleLeadSourceTypeFilter('manual'); closeColumnMenu(); }}>Manual</button>
+              <button type="button" className={`leads-col-menu__opt ${leadSourceTypeFilter === 'bulk_import' ? 'leads-col-menu__opt--on' : ''}`} onClick={() => { handleLeadSourceTypeFilter('bulk_import'); closeColumnMenu(); }}>Bulk import</button>
+            </div>
+          )}
+          {columnMenu.open === 'priority' && (
+            <div className="leads-col-menu__body">
+              <span className="leads-col-menu__title">Priority</span>
+              <select
+                className="leads-col-menu__select"
+                value={priorityFilter}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPriorityFilter(v);
+                  navigate(`/leads?${buildLeadsParamsWith({ priorityFilter: v }).toString()}`);
+                  closeColumnMenu();
+                }}
+              >
+                <option value="">Any priority</option>
+                <option value="hot">Hot</option>
+                <option value="warm">Warm</option>
+                <option value="cold">Cold</option>
+                <option value="not interested">Not interested</option>
+                <option value="not eligible">Not eligible</option>
+              </select>
+            </div>
+          )}
+          {columnMenu.open === 'assigned' && (
+            <div className="leads-col-menu__body">
+              <span className="leads-col-menu__title">Assigned staff</span>
+              {canManageLeads && !isHr ? (
+                <select
+                  className="leads-col-menu__select"
+                  value={assignedStaffFilter}
+                  onChange={(e) => {
+                    handleStaffFilter(e.target.value);
+                    closeColumnMenu();
+                  }}
+                >
+                  <option value="">{isAdmin ? 'All leads' : 'All Staff'}</option>
+                  {isAdmin && user?.id != null && (
+                    <option value={String(user.id)}>My leads only</option>
+                  )}
+                  {staffFilterListExcludingSelf.map((staff) => (
+                    <option key={staff.id} value={staff.id}>{staff.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="leads-col-menu__hint">Use the filter panel above for assignment options.</p>
+              )}
+            </div>
+          )}
+        </div>,
+        document.body
       )}
     </div>
   );
