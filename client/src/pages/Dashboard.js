@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './Dashboard.css';
-import { FiUsers, FiTrendingUp, FiClock, FiXCircle, FiActivity, FiArrowLeft, FiPhone, FiMail, FiEdit2, FiCheck, FiTrash2 } from 'react-icons/fi';
+import { FiUsers, FiTrendingUp, FiClock, FiXCircle, FiActivity, FiArrowLeft, FiPhone, FiMail, FiEdit2, FiCheck, FiTrash2, FiAlertTriangle, FiChevronDown, FiChevronRight } from 'react-icons/fi';
 import SnehaDashboard from './SnehaDashboard';
 import KripaDashboard from './KripaDashboard';
 
@@ -24,6 +24,10 @@ const Dashboard = () => {
   const [selectedStaffName, setSelectedStaffName] = useState('');
   const [selectedStaffLeads, setSelectedStaffLeads] = useState([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+  /** Admin/head staff dashboard: switch between full assigned list vs unattended only */
+  const [staffLeadListTab, setStaffLeadListTab] = useState('all');
+  /** Staff personal dash: unattended list hidden until expanded */
+  const [unattendedListExpanded, setUnattendedListExpanded] = useState(false);
 
   // Custom dashboard mode for dual-access users
   const [dashboardMode, setDashboardMode] = useState('processing');
@@ -162,7 +166,14 @@ const Dashboard = () => {
       if (response.data.metrics) {
         setData(prevData => {
           if (!prevData) return prevData;
-          return { ...prevData, metrics: response.data.metrics };
+          return {
+            ...prevData,
+            metrics: response.data.metrics,
+            ...(response.data.unattendedLeads !== undefined && {
+              unattendedLeads: response.data.unattendedLeads,
+              unattendedCount: response.data.unattendedCount,
+            }),
+          };
         });
         console.log('📈 Metrics auto-updated:', response.data.metrics);
       }
@@ -272,6 +283,11 @@ const Dashboard = () => {
       navigate(`/leads?phone=${phoneSearchInput.trim()}`);
     }
   };
+
+  useEffect(() => {
+    setStaffLeadListTab('all');
+    setUnattendedListExpanded(false);
+  }, [staffId]);
 
   useEffect(() => {
     if (staffId && user && user.role !== 'ADMIN' && user.role !== 'SALES_TEAM_HEAD' && !isEmy) {
@@ -540,6 +556,141 @@ const Dashboard = () => {
     );
   };
 
+  /** Overdue follow-ups not marked completed/skipped — same logic as dashboard API. List is collapsed until staff expands it. */
+  const renderUnattendedLeadsSection = () => {
+    const list = data?.unattendedLeads;
+    const count = data?.unattendedCount ?? list?.length ?? 0;
+    if (!count || !list?.length) return null;
+    if (isStaffDetailView && data.isProcessingTeam) return null;
+
+    return (
+      <div className="dashboard-unattended-section" style={{ marginBottom: '24px' }}>
+        <button
+          type="button"
+          onClick={() => setUnattendedListExpanded((o) => !o)}
+          aria-expanded={unattendedListExpanded}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            width: '100%',
+            textAlign: 'left',
+            padding: '14px 18px',
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fff7ed 100%)',
+            border: '1px solid #fecaca',
+            borderRadius: '12px',
+            boxShadow: '0 1px 3px rgba(185, 28, 28, 0.08)',
+            cursor: 'pointer',
+            font: 'inherit',
+          }}
+        >
+          {unattendedListExpanded ? (
+            <FiChevronDown size={22} style={{ color: '#b91c1c', flexShrink: 0, marginTop: '4px' }} aria-hidden />
+          ) : (
+            <FiChevronRight size={22} style={{ color: '#b91c1c', flexShrink: 0, marginTop: '4px' }} aria-hidden />
+          )}
+          <FiAlertTriangle size={24} style={{ color: '#b91c1c', flexShrink: 0, marginTop: '2px' }} aria-hidden />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '17px', fontWeight: 700, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              Unattended follow-ups
+              <span
+                style={{
+                  background: '#b91c1c',
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                }}
+              >
+                {count}
+              </span>
+            </div>
+            <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#7f1d1d', lineHeight: 1.45 }}>
+              {unattendedListExpanded
+                ? 'Past follow-up date — open a lead to update or complete the follow-up.'
+                : 'Click to view the full list. These leads are past their follow-up date and need attention.'}
+            </p>
+          </div>
+        </button>
+        {unattendedListExpanded && (
+          <div
+            className="leads-list-table"
+            style={{ marginTop: '12px', border: '1px solid #fecaca', borderRadius: '10px', overflow: 'hidden' }}
+          >
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Status</th>
+                  <th>Follow-up</th>
+                  <th>Days overdue</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((lead) => (
+                  <tr key={lead.id}>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/leads/${lead.id}`)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: '#1d4ed8',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          textDecoration: 'underline',
+                        }}
+                      >
+                        {lead.name}
+                      </button>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <FiPhone style={{ fontSize: '14px', opacity: 0.6 }} />
+                        {lead.phone_country_code ? `${lead.phone_country_code} ` : ''}
+                        {lead.phone_number || '—'}
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        className="status-badge"
+                        style={{
+                          backgroundColor: `${getStatusColor(lead.status)}20`,
+                          color: getStatusColor(lead.status),
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {lead.status}
+                      </span>
+                    </td>
+                    <td>
+                      {lead.follow_up_date ? new Date(lead.follow_up_date).toLocaleDateString() : '—'}
+                    </td>
+                    <td style={{ fontWeight: 600, color: '#b91c1c' }}>{lead.days_overdue ?? '—'}</td>
+                    <td>
+                      <button className="btn-view-lead" type="button" onClick={() => navigate(`/leads/${lead.id}`)}>
+                        <FiEdit2 /> Open
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const getStatusBoxColor = (status) => {
     const colors = {
       'New': {
@@ -566,6 +717,21 @@ const Dashboard = () => {
         backgroundColor: '#FEF3C7', // Light amber
         color: '#92400e', // Dark amber text
         borderColor: '#f59e0b' // Amber border
+      },
+      'Not Eligible': {
+        backgroundColor: '#FEE2E2',
+        color: '#991b1b',
+        borderColor: '#ef4444',
+      },
+      'Not Interested': {
+        backgroundColor: '#F3F4F6',
+        color: '#4b5563',
+        borderColor: '#9ca3af',
+      },
+      'Registration Completed': {
+        backgroundColor: '#DBEAFE',
+        color: '#1e40af',
+        borderColor: '#3b82f6',
       },
       'Closed / Rejected': {
         backgroundColor: '#E5E7EB', // Light gray
@@ -599,107 +765,43 @@ const Dashboard = () => {
     const notInterestedColor = getStatusBoxColor('Not Interested');
     const registrationCompletedColor = getStatusBoxColor('Registration Completed');
 
-    // Check if we have leadsByStatus (new format) or old metrics format
-    const hasLeadsByStatus = data.metrics?.leadsByStatus;
+    /** Always show these tiles (count 0 when none) so Follow-up … Registration Completed stay visible */
+    const STATUS_BOX_ORDER = [
+      'New',
+      'Follow-up',
+      'Prospect',
+      'Pending Lead',
+      'Not Responding',
+      'Not Eligible',
+      'Not Interested',
+      'Registration Completed',
+    ];
+
+    const lbs = data.metrics?.leadsByStatus;
 
     return (
       <div className="status-breakdown">
         <h2>Leads by Status</h2>
         <div className="status-grid">
-          {hasLeadsByStatus ? (
-            // New format with leadsByStatus
-            <>
-              {data.metrics.leadsByStatus['New'] !== undefined && (
+          {lbs && typeof lbs === 'object' ? (
+            STATUS_BOX_ORDER.map((status) => {
+              const color = getStatusBoxColor(status);
+              const count = lbs[status] ?? 0;
+              return (
                 <div
+                  key={status}
                   className="status-item"
-                  style={newColor}
-                  onClick={() => handleStatusClick('New')}
-                  title="View New Leads"
+                  style={color}
+                  onClick={() => handleStatusClick(status)}
+                  title={`View ${status} leads`}
                 >
-                  <span className="status-label" style={{ color: newColor.color }}>New</span>
-                  <span className="status-count" style={{ color: newColor.color }}>{data.metrics.leadsByStatus['New']}</span>
+                  <span className="status-label" style={{ color: color.color }}>{status}</span>
+                  <span className="status-count" style={{ color: color.color }}>{count}</span>
                 </div>
-              )}
-              {data.metrics.leadsByStatus['Follow-up'] !== undefined && (
-                <div
-                  className="status-item"
-                  style={followUpColor}
-                  onClick={() => handleStatusClick('Follow-up')}
-                  title="View Follow-up Leads"
-                >
-                  <span className="status-label" style={{ color: followUpColor.color }}>Follow-up</span>
-                  <span className="status-count" style={{ color: followUpColor.color }}>{data.metrics.leadsByStatus['Follow-up']}</span>
-                </div>
-              )}
-              {data.metrics.leadsByStatus['Prospect'] !== undefined && (
-                <div
-                  className="status-item"
-                  style={prospectColor}
-                  onClick={() => handleStatusClick('Prospect')}
-                  title="View Prospect Leads"
-                >
-                  <span className="status-label" style={{ color: prospectColor.color }}>Prospect</span>
-                  <span className="status-count" style={{ color: prospectColor.color }}>{data.metrics.leadsByStatus['Prospect']}</span>
-                </div>
-              )}
-              {data.metrics.leadsByStatus['Pending Lead'] !== undefined && (
-                <div
-                  className="status-item"
-                  style={pendingColor}
-                  onClick={() => handleStatusClick('Pending Lead')}
-                  title="View Pending Leads"
-                >
-                  <span className="status-label" style={{ color: pendingColor.color }}>Pending Lead</span>
-                  <span className="status-count" style={{ color: pendingColor.color }}>{data.metrics.leadsByStatus['Pending Lead']}</span>
-                </div>
-              )}
-              {data.metrics.leadsByStatus['Not Responding'] !== undefined && (
-                <div
-                  className="status-item"
-                  style={notRespondingColor}
-                  onClick={() => handleStatusClick('Not Responding')}
-                  title="View Not Responding Leads"
-                >
-                  <span className="status-label" style={{ color: notRespondingColor.color }}>Not Responding</span>
-                  <span className="status-count" style={{ color: notRespondingColor.color }}>{data.metrics.leadsByStatus['Not Responding']}</span>
-                </div>
-              )}
-              {data.metrics.leadsByStatus['Not Eligible'] !== undefined && (
-                <div
-                  className="status-item"
-                  style={notEligibleColor}
-                  onClick={() => handleStatusClick('Not Eligible')}
-                  title="View Not Eligible Leads"
-                >
-                  <span className="status-label" style={{ color: notEligibleColor.color }}>Not Eligible</span>
-                  <span className="status-count" style={{ color: notEligibleColor.color }}>{data.metrics.leadsByStatus['Not Eligible']}</span>
-                </div>
-              )}
-              {data.metrics.leadsByStatus['Not Interested'] !== undefined && (
-                <div
-                  className="status-item"
-                  style={notInterestedColor}
-                  onClick={() => handleStatusClick('Not Interested')}
-                  title="View Not Interested Leads"
-                >
-                  <span className="status-label" style={{ color: notInterestedColor.color }}>Not Interested</span>
-                  <span className="status-count" style={{ color: notInterestedColor.color }}>{data.metrics.leadsByStatus['Not Interested']}</span>
-                </div>
-              )}
-              {data.metrics.leadsByStatus['Registration Completed'] !== undefined && (
-                <div
-                  className="status-item"
-                  style={registrationCompletedColor}
-                  onClick={() => handleStatusClick('Registration Completed')}
-                  title="View Completed Registrations"
-                >
-                  <span className="status-label" style={{ color: registrationCompletedColor.color }}>Registration Completed</span>
-                  <span className="status-count" style={{ color: registrationCompletedColor.color }}>{data.metrics.leadsByStatus['Registration Completed']}</span>
-                </div>
-              )}
-            </>
+              );
+            })
           ) : (
-            // Old format with individual metrics
+            // Legacy metrics without leadsByStatus object
             <>
               <div
                 className="status-item"
@@ -736,6 +838,42 @@ const Dashboard = () => {
               >
                 <span className="status-label" style={{ color: pendingColor.color }}>Pending Lead</span>
                 <span className="status-count" style={{ color: pendingColor.color }}>{data.metrics.convertedLeads}</span>
+              </div>
+              <div
+                className="status-item"
+                style={notRespondingColor}
+                onClick={() => handleStatusClick('Not Responding')}
+                title="View Not Responding Leads"
+              >
+                <span className="status-label" style={{ color: notRespondingColor.color }}>Not Responding</span>
+                <span className="status-count" style={{ color: notRespondingColor.color }}>0</span>
+              </div>
+              <div
+                className="status-item"
+                style={notEligibleColor}
+                onClick={() => handleStatusClick('Not Eligible')}
+                title="View Not Eligible Leads"
+              >
+                <span className="status-label" style={{ color: notEligibleColor.color }}>Not Eligible</span>
+                <span className="status-count" style={{ color: notEligibleColor.color }}>0</span>
+              </div>
+              <div
+                className="status-item"
+                style={notInterestedColor}
+                onClick={() => handleStatusClick('Not Interested')}
+                title="View Not Interested Leads"
+              >
+                <span className="status-label" style={{ color: notInterestedColor.color }}>Not Interested</span>
+                <span className="status-count" style={{ color: notInterestedColor.color }}>0</span>
+              </div>
+              <div
+                className="status-item"
+                style={registrationCompletedColor}
+                onClick={() => handleStatusClick('Registration Completed')}
+                title="View Completed Registrations"
+              >
+                <span className="status-label" style={{ color: registrationCompletedColor.color }}>Registration Completed</span>
+                <span className="status-count" style={{ color: registrationCompletedColor.color }}>0</span>
               </div>
             </>
           )}
@@ -1033,6 +1171,7 @@ const Dashboard = () => {
               )}
             </div>
             {renderStaffMetrics()}
+            {renderUnattendedLeadsSection()}
             {renderStatusBreakdown()}
             {dashboardMode !== 'main' && renderAssignedByMe()}
             <div className="recent-activity">
@@ -1185,6 +1324,28 @@ const Dashboard = () => {
                           <div style={{ fontSize: '15px', fontWeight: '700', color: '#075985' }}>{staff.converted_leads || 0}</div>
                         </div>
                       </div>
+                      {(staff.unattended_leads || 0) > 0 && (
+                        <div
+                          style={{
+                            marginTop: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 10px',
+                            background: '#fef2f2',
+                            borderRadius: '8px',
+                            border: '1px solid #fecaca',
+                            color: '#991b1b',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                          }}
+                        >
+                          <FiAlertTriangle size={18} style={{ flexShrink: 0 }} aria-hidden />
+                          <span>
+                            {staff.unattended_leads} unattended follow-up{staff.unattended_leads !== 1 ? 's' : ''} — open dashboard to review
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ))}
               </div>
@@ -1470,108 +1631,299 @@ const Dashboard = () => {
             {renderStaffMetrics()}
             {renderStatusBreakdown()}
             <div className="recent-leads-section">
-              <h2>Assigned Leads</h2>
-              {data.leadsList && data.leadsList.length > 0 ? (
-                <div className="leads-list-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Phone</th>
-                        <th>Email</th>
-                        <th>Status</th>
-                        <th>Priority</th>
-                        <th>Comment</th>
-                        <th>Follow-up Date</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(data.leadsList || []).map((lead) => (
-                        <tr key={lead.id}>
-                          <td>{lead.name}</td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <FiPhone style={{ fontSize: '14px', opacity: 0.6 }} />
-                              {lead.phone_number}
-                            </div>
-                          </td>
-                          <td>
-                            {lead.email ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <FiMail style={{ fontSize: '14px', opacity: 0.6 }} />
-                                {lead.email}
-                              </div>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td>
-                            <span
-                              className="status-badge"
-                              style={{
-                                backgroundColor: `${getStatusColor(lead.status)}20`,
-                                color: getStatusColor(lead.status),
-                                padding: '4px 12px',
-                                borderRadius: '12px',
-                                fontSize: '12px',
-                                fontWeight: 500,
-                              }}
-                            >
-                              {lead.status}
-                            </span>
-                          </td>
-                          <td>
-                            {lead.priority ? (
-                              <span
-                                className="priority-badge"
-                                style={{
-                                  backgroundColor: `${getPriorityColor(lead.priority)}20`,
-                                  color: getPriorityColor(lead.priority),
-                                  padding: '4px 12px',
-                                  borderRadius: '12px',
-                                  fontSize: '12px',
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {formatPriority(lead.priority)}
-                              </span>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td>
-                            {lead.comment ? (
-                              <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.comment}>
-                                {lead.comment.length > 30 ? `${lead.comment.substring(0, 30)}...` : lead.comment}
-                              </div>
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td>
-                            {lead.follow_up_date ? (
-                              new Date(lead.follow_up_date).toLocaleDateString()
-                            ) : (
-                              '-'
-                            )}
-                          </td>
-                          <td>
-                            <button
-                              className="btn-view-lead"
-                              onClick={() => navigate(`/leads/${lead.id}`)}
-                            >
-                              <FiEdit2 /> View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p>No leads assigned to this staff member</p>
-              )}
+              {(() => {
+                const allCount = data.leadsList?.length ?? 0;
+                const unattendedList = data.unattendedLeads || [];
+                const unattendedCount = data.unattendedCount ?? unattendedList.length;
+                const showUnattendedTab = staffLeadListTab === 'unattended';
+
+                return (
+                  <>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                      <h2 style={{ margin: 0 }}>
+                        {showUnattendedTab ? 'Unattended follow-ups' : 'Assigned leads'}
+                      </h2>
+                      <div
+                        role="tablist"
+                        aria-label="Lead list scope"
+                        style={{
+                          display: 'inline-flex',
+                          flexWrap: 'wrap',
+                          gap: '8px',
+                          padding: '4px',
+                          background: '#f3f4f6',
+                          borderRadius: '10px',
+                          border: '1px solid #e5e7eb',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={staffLeadListTab === 'all'}
+                          onClick={() => setStaffLeadListTab('all')}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            background: staffLeadListTab === 'all' ? '#fff' : 'transparent',
+                            color: staffLeadListTab === 'all' ? '#111827' : '#6b7280',
+                            boxShadow: staffLeadListTab === 'all' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                          }}
+                        >
+                          All assigned
+                          <span style={{ marginLeft: '6px', opacity: 0.85 }}>({allCount})</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={staffLeadListTab === 'unattended'}
+                          onClick={() => setStaffLeadListTab('unattended')}
+                          style={{
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: staffLeadListTab === 'unattended' ? '#fef2f2' : 'transparent',
+                            color: staffLeadListTab === 'unattended' ? '#991b1b' : '#6b7280',
+                            boxShadow: staffLeadListTab === 'unattended' ? '0 1px 2px rgba(185,28,28,0.12)' : 'none',
+                            borderWidth: staffLeadListTab === 'unattended' ? '1px' : '0',
+                            borderStyle: 'solid',
+                            borderColor: '#fecaca',
+                          }}
+                        >
+                          <FiAlertTriangle size={16} aria-hidden />
+                          Unattended
+                          <span style={{ marginLeft: '2px', opacity: 0.9 }}>({unattendedCount})</span>
+                        </button>
+                      </div>
+                    </div>
+                    {showUnattendedTab && unattendedCount > 0 && (
+                      <p style={{ margin: '0 0 16px', fontSize: '13px', color: '#7f1d1d', maxWidth: '720px', lineHeight: 1.5 }}>
+                        Past follow-up date and not marked completed or skipped — open a lead to update.
+                      </p>
+                    )}
+
+                    {!showUnattendedTab && data.leadsList && data.leadsList.length > 0 ? (
+                      <div className="leads-list-table">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Phone</th>
+                              <th>Email</th>
+                              <th>Status</th>
+                              <th>Priority</th>
+                              <th>Comment</th>
+                              <th>Follow-up Date</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(data.leadsList || []).map((lead) => (
+                              <tr key={lead.id}>
+                                <td>{lead.name}</td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <FiPhone style={{ fontSize: '14px', opacity: 0.6 }} />
+                                    {lead.phone_country_code ? `${lead.phone_country_code} ` : ''}
+                                    {lead.phone_number}
+                                  </div>
+                                </td>
+                                <td>
+                                  {lead.email ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <FiMail style={{ fontSize: '14px', opacity: 0.6 }} />
+                                      {lead.email}
+                                    </div>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td>
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      backgroundColor: `${getStatusColor(lead.status)}20`,
+                                      color: getStatusColor(lead.status),
+                                      padding: '4px 12px',
+                                      borderRadius: '12px',
+                                      fontSize: '12px',
+                                      fontWeight: 500,
+                                    }}
+                                  >
+                                    {lead.status}
+                                  </span>
+                                </td>
+                                <td>
+                                  {lead.priority ? (
+                                    <span
+                                      className="priority-badge"
+                                      style={{
+                                        backgroundColor: `${getPriorityColor(lead.priority)}20`,
+                                        color: getPriorityColor(lead.priority),
+                                        padding: '4px 12px',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {formatPriority(lead.priority)}
+                                    </span>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td>
+                                  {lead.comment ? (
+                                    <div style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={lead.comment}>
+                                      {lead.comment.length > 30 ? `${lead.comment.substring(0, 30)}...` : lead.comment}
+                                    </div>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td>
+                                  {lead.follow_up_date ? (
+                                    new Date(lead.follow_up_date).toLocaleDateString()
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td>
+                                  <button
+                                    className="btn-view-lead"
+                                    onClick={() => navigate(`/leads/${lead.id}`)}
+                                  >
+                                    <FiEdit2 /> View
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : !showUnattendedTab ? (
+                      <p>No leads assigned to this staff member</p>
+                    ) : null}
+
+                    {showUnattendedTab && unattendedList.length > 0 ? (
+                      <div className="leads-list-table">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Name</th>
+                              <th>Phone</th>
+                              <th>Email</th>
+                              <th>Status</th>
+                              <th>Priority</th>
+                              <th>Follow-up</th>
+                              <th>Days overdue</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {unattendedList.map((lead) => (
+                              <tr key={lead.id}>
+                                <td>
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/leads/${lead.id}`)}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      padding: 0,
+                                      color: '#1d4ed8',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline',
+                                    }}
+                                  >
+                                    {lead.name}
+                                  </button>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <FiPhone style={{ fontSize: '14px', opacity: 0.6 }} />
+                                    {lead.phone_country_code ? `${lead.phone_country_code} ` : ''}
+                                    {lead.phone_number || '—'}
+                                  </div>
+                                </td>
+                                <td>
+                                  {lead.email ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <FiMail style={{ fontSize: '14px', opacity: 0.6 }} />
+                                      {lead.email}
+                                    </div>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td>
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      backgroundColor: `${getStatusColor(lead.status)}20`,
+                                      color: getStatusColor(lead.status),
+                                      padding: '4px 12px',
+                                      borderRadius: '12px',
+                                      fontSize: '12px',
+                                      fontWeight: 500,
+                                    }}
+                                  >
+                                    {lead.status}
+                                  </span>
+                                </td>
+                                <td>
+                                  {lead.priority ? (
+                                    <span
+                                      className="priority-badge"
+                                      style={{
+                                        backgroundColor: `${getPriorityColor(lead.priority)}20`,
+                                        color: getPriorityColor(lead.priority),
+                                        padding: '4px 12px',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      {formatPriority(lead.priority)}
+                                    </span>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td>
+                                  {lead.follow_up_date ? new Date(lead.follow_up_date).toLocaleDateString() : '—'}
+                                </td>
+                                <td style={{ fontWeight: 600, color: '#b91c1c' }}>{lead.days_overdue ?? '—'}</td>
+                                <td>
+                                  <button
+                                    className="btn-view-lead"
+                                    type="button"
+                                    onClick={() => navigate(`/leads/${lead.id}`)}
+                                  >
+                                    <FiEdit2 /> View
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : showUnattendedTab ? (
+                      <p style={{ color: '#6b7280' }}>No unattended follow-ups for this staff member.</p>
+                    ) : null}
+                  </>
+                );
+              })()}
             </div>
           </>
         )}
@@ -2040,6 +2392,7 @@ const Dashboard = () => {
                       <th>Total Leads</th>
                       <th>Converted Clients</th>
                       <th>In Processing</th>
+                      <th>Unattended</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2127,6 +2480,16 @@ const Dashboard = () => {
                           <td>{staff.total_leads}</td>
                           <td>{staff.converted_leads || 0}</td>
                           <td>{staff.clients_in_processing || 0}</td>
+                          <td>
+                            {(staff.unattended_leads || 0) > 0 ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#b91c1c', fontWeight: 600 }}>
+                                <FiAlertTriangle size={16} aria-hidden />
+                                {staff.unattended_leads}
+                              </span>
+                            ) : (
+                              <span style={{ color: '#9ca3af' }}>0</span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -2171,6 +2534,10 @@ const getStatusColor = (status) => {
     'Follow-up': '#C9A961',
     'Prospect': '#B8860B',
     'Pending Lead': '#8B6914',
+    'Not Responding': '#b45309',
+    'Not Eligible': '#b91c1c',
+    'Not Interested': '#4b5563',
+    'Registration Completed': '#1d4ed8',
     'Closed / Rejected': '#A0826D',
   };
   return colors[status] || '#8B6914';

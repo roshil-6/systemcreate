@@ -15,6 +15,43 @@ function getDateOnly(value) {
   return String(value).split('T')[0];
 }
 
+/** Leads assigned to staff with follow-up date in the past and not completed/skipped (same idea as overdue follow-ups). */
+function getUnattendedLeadsFromList(leads) {
+  const today = new Date().toISOString().split('T')[0];
+  const isActiveStatus = (status) => status !== 'Pending Lead' && status !== 'Closed / Rejected';
+
+  return (leads || []).filter((l) => {
+    if (!isActiveStatus(l.status)) return false;
+    const fd = getDateOnly(l.follow_up_date);
+    if (!fd || fd >= today) return false;
+    const fus = String(l.follow_up_status || '').toLowerCase();
+    if (fus === 'completed' || fus === 'skipped') return false;
+    return true;
+  });
+}
+
+function mapUnattendedLeadForApi(lead) {
+  const fd = getDateOnly(lead.follow_up_date);
+  let daysOverdue = 0;
+  if (fd) {
+    const t = new Date(`${fd}T12:00:00`);
+    const now = new Date();
+    daysOverdue = Math.max(0, Math.floor((now - t) / 86400000));
+  }
+  return {
+    id: lead.id,
+    name: lead.name,
+    phone_number: lead.phone_number,
+    phone_country_code: lead.phone_country_code,
+    email: lead.email,
+    status: lead.status,
+    priority: lead.priority,
+    follow_up_date: lead.follow_up_date,
+    follow_up_status: lead.follow_up_status,
+    days_overdue: daysOverdue,
+  };
+}
+
 function buildLeadMetrics(leads) {
   const today = new Date().toISOString().split('T')[0];
   const isActiveStatus = (status) => status !== 'Pending Lead' && status !== 'Closed / Rejected';
@@ -285,8 +322,8 @@ router.get('/staff/:id', authenticate, async (req, res) => {
       // Regular Staff Dashboard - Show lead metrics AND clients they converted
       const metrics = await db.getLeadsMetrics({ assigned_staff_id: staffId });
 
-      // Get leads list (dashboard needs more than default page size)
-      const staffLeads = await db.getLeads({ assigned_staff_id: staffId, limit: 200 });
+      // Get leads list (dashboard needs more than default page size; match unattended scan breadth)
+      const staffLeads = await db.getLeads({ assigned_staff_id: staffId, limit: 500 });
 
       // Get clients converted by this staff member (assigned_staff_id = staffId)
       const staffClients = await db.getClients({ assigned_staff_id: staffId });
@@ -295,6 +332,9 @@ router.get('/staff/:id', authenticate, async (req, res) => {
       metrics.totalClients = staffClients.length;
 
       // Get leads with details for this staff member (paginated)
+      const unattendedRaw = getUnattendedLeadsFromList(staffLeads);
+      const unattendedLeads = unattendedRaw.map(mapUnattendedLeadForApi);
+
       const leadsList = staffLeads.map(lead => ({
         id: lead.id,
         name: lead.name,
@@ -305,6 +345,7 @@ router.get('/staff/:id', authenticate, async (req, res) => {
         priority: lead.priority,
         comment: lead.comment,
         follow_up_date: lead.follow_up_date,
+        follow_up_status: lead.follow_up_status,
         created_at: lead.created_at,
         updated_at: lead.updated_at,
       }));
@@ -344,7 +385,11 @@ router.get('/staff/:id', authenticate, async (req, res) => {
       });
 
       if (req.query.metricsOnly === 'true') {
-        return res.json({ metrics });
+        return res.json({
+          metrics,
+          unattendedLeads,
+          unattendedCount: unattendedLeads.length,
+        });
       }
 
       res.json({
@@ -358,6 +403,8 @@ router.get('/staff/:id', authenticate, async (req, res) => {
         },
         metrics,
         leadsList,
+        unattendedLeads,
+        unattendedCount: unattendedLeads.length,
         clientsList, // Clients converted by this staff member
       });
     }
@@ -548,6 +595,13 @@ router.get('/', authenticate, async (req, res) => {
         limit: 10
       });
 
+      const staffLeadsUnattended = await db.getLeads({
+        assigned_staff_id: userId,
+        limit: 500,
+      });
+      const unattendedRaw = getUnattendedLeadsFromList(staffLeadsUnattended);
+      const unattendedLeads = unattendedRaw.map(mapUnattendedLeadForApi);
+
       // Augment metrics with old-style fields for frontend compatibility
       metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
       metrics.followupLeads = metrics.leadsByStatus?.['Follow-up'] || 0;
@@ -555,7 +609,11 @@ router.get('/', authenticate, async (req, res) => {
       metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
 
       if (req.query.metricsOnly === 'true') {
-        return res.json({ metrics });
+        return res.json({
+          metrics,
+          unattendedLeads,
+          unattendedCount: unattendedLeads.length,
+        });
       }
 
       // Compute "Assigned By Me" for this staff member too
@@ -585,6 +643,8 @@ router.get('/', authenticate, async (req, res) => {
         isRestricted: true,
         assignedByMe: staffAssignedByMe,
         staffPerformance: [], // Privacy: Don't show other staff in personal view
+        unattendedLeads,
+        unattendedCount: unattendedLeads.length,
       };
       res.json(response);
     } else {

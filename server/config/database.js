@@ -1272,7 +1272,13 @@ const database = {
         (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Prospect' AND l.deleted_at IS NULL) as prospect_leads,
         (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Pending Lead' AND l.deleted_at IS NULL) as pending_leads,
         (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id) as converted_leads,
-        (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id AND c.processing_staff_id IS NOT NULL) as clients_in_processing
+        (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id AND c.processing_staff_id IS NOT NULL) as clients_in_processing,
+        (SELECT COUNT(*) FROM leads l2 WHERE l2.assigned_staff_id = u.id AND l2.deleted_at IS NULL
+          AND l2.follow_up_date IS NOT NULL
+          AND l2.follow_up_date::date < CURRENT_DATE
+          AND l2.status NOT IN ('Pending Lead', 'Closed / Rejected')
+          AND COALESCE(NULLIF(TRIM(LOWER(l2.follow_up_status)), ''), 'pending') NOT IN ('completed', 'skipped')
+        ) as unattended_leads
       FROM users u
       ${whereClause}
       ORDER BY total_leads DESC, u.name ASC
@@ -1286,7 +1292,8 @@ const database = {
       prospect_leads: parseInt(row.prospect_leads),
       pending_leads: parseInt(row.pending_leads),
       converted_leads: parseInt(row.converted_leads),
-      clients_in_processing: parseInt(row.clients_in_processing)
+      clients_in_processing: parseInt(row.clients_in_processing),
+      unattended_leads: parseInt(row.unattended_leads || 0)
     }));
   },
 
