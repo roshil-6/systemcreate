@@ -8,6 +8,25 @@ import { FiUsers, FiTrendingUp, FiClock, FiXCircle, FiActivity, FiArrowLeft, FiP
 import SnehaDashboard from './SnehaDashboard';
 import KripaDashboard from './KripaDashboard';
 
+/**
+ * Stage-1 processing Sneha (sneha@toniosenora.com / Sneha Rigin) — NOT Sneha Unnikrishnan (HR).
+ * Broad name matching (e.g. includes "Sneha") wrongly treated HR as processing and hid her assigned leads.
+ */
+function isProcessingTeamSnehaUser(u) {
+  if (!u) return false;
+  if (u.role === 'HR') return false;
+  const email = (u.email || '').toLowerCase();
+  if (email === 'hr@toniosenora.com') return false;
+  if (email === 'sneha@toniosenora.com') return true;
+  const n = String(u.name || '').trim();
+  return (
+    n === 'Sneha' ||
+    n === 'SNEHA' ||
+    /^Sneha\s+Rigin$/i.test(n) ||
+    /^SNEHA\s+RIGIN$/i.test(n)
+  );
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -47,8 +66,8 @@ const Dashboard = () => {
     }
   };
 
-  // Check if user is Sneha
-  const isSneha = user?.name?.includes('Sneha') || user?.name?.includes('SNEHA') || user?.email === 'sneha@toniosenora.com';
+  // Processing Sneha only (excludes HR Sneha Unnikrishnan)
+  const isSneha = isProcessingTeamSnehaUser(user);
 
   // Check if user is Kripa
   const isKripa = user?.name?.includes('Kripa') || user?.name?.includes('KRIPA') || user?.email === 'kripa@toniosenora.com';
@@ -2398,7 +2417,7 @@ const Dashboard = () => {
                   <tbody>
                     {(data.staffPerformance || []).map((staff) => {
                       // Check if staff is Sneha or Kripa (Processing Team)
-                      const isSneha = staff.name === 'Sneha' || staff.name === 'SNEHA' || staff.email === 'sneha@toniosenora.com';
+                      const isSneha = isProcessingTeamSnehaUser(staff);
                       const isKripa = staff.name === 'Kripa' || staff.name === 'KRIPA' || staff.email === 'kripa@toniosenora.com';
                       const isProcessingTeam = isSneha || isKripa;
                       // Check if this is the sales team head themselves
