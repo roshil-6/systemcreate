@@ -341,6 +341,15 @@ const database = {
         whereConditions += ` AND created_at >= $${paramIndex}::date AND created_at < ($${paramIndex}::date + INTERVAL '1 month')`;
         params.push(`${m}-01`);
         paramIndex += 1;
+      } else {
+        if (filter.created_from) {
+          whereConditions += ` AND created_at::date >= $${paramIndex++}`;
+          params.push(filter.created_from);
+        }
+        if (filter.created_to) {
+          whereConditions += ` AND created_at::date <= $${paramIndex++}`;
+          params.push(filter.created_to);
+        }
       }
     } else {
       if (filter.created_from) {

@@ -232,6 +232,15 @@ router.get('/', authenticate, async (req, res) => {
       filter.assigned_staff_id = accessibleUserIds[0];
     }
 
+    // Quick view "new" = New/Unassigned/Direct Lead only. After assignment, leads become status "Assigned",
+    // so HR/staff/sales see an empty list and think routing failed. Ignore "new" for single-bucket list users.
+    const singleBucketAssignee =
+      accessibleUserIds && accessibleUserIds.length === 1 &&
+      (role === 'HR' || role === 'STAFF' || role === 'PROCESSING' || role === 'SALES_TEAM' || isTargetedUser);
+    if (singleBucketAssignee && filter.viewType === 'new') {
+      delete filter.viewType;
+    }
+
     if (status) {
       filter.status = status;
     }
@@ -246,9 +255,11 @@ router.get('/', authenticate, async (req, res) => {
     if (name_starts && String(name_starts).trim()) {
       filter.name_starts = String(name_starts).trim();
     }
-    if (created_on) filter.created_on = created_on;
-    else if (created_month) filter.created_month = created_month;
-    else {
+    if (created_on) {
+      filter.created_on = created_on;
+    } else if (created_month && /^\d{4}-\d{2}$/.test(String(created_month).trim())) {
+      filter.created_month = String(created_month).trim();
+    } else {
       if (created_from) filter.created_from = created_from;
       if (created_to) filter.created_to = created_to;
     }

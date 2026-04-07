@@ -142,14 +142,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Upserts critical system accounts on every startup so they always exist with correct credentials.
-// Safe to run repeatedly — only updates if something is wrong or missing.
-async function ensureCriticalUsers() {
-  const criticalUsers = [
+// Upserts seed accounts on every startup (e.g. HR login) so deploys always have a known user.
+// Not a permission tier — same as normal HR in the app; only ensures the row exists with correct role.
+async function ensureSeedUsers() {
+  const seedUsers = [
     { name: 'Sneha Unnikrishnan', email: 'hr@toniosenora.com', password: 'hrmainsenora000', role: 'HR', team: 'hr' },
   ];
 
-  for (const u of criticalUsers) {
+  for (const u of seedUsers) {
     try {
       const existing = await db.getUsers({ email: u.email });
       const hashed = await bcrypt.hash(u.password, 10);
@@ -160,7 +160,7 @@ async function ensureCriticalUsers() {
           await db.updateUser(current.id, { role: u.role, name: u.name });
           console.log(`🔄 Fixed role for ${u.email}: was "${current.role}", now "${u.role}"`);
         } else {
-          console.log(`✅ Critical user verified: ${u.email} (${u.role})`);
+          console.log(`✅ Seed account OK: ${u.email} (${u.role})`);
         }
       } else {
         await db.createUser({
@@ -168,10 +168,10 @@ async function ensureCriticalUsers() {
           role: u.role, team: u.team,
           created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         });
-        console.log(`✅ Created critical user: ${u.email} (${u.role})`);
+        console.log(`✅ Created seed account: ${u.email} (${u.role})`);
       }
     } catch (err) {
-      console.error(`⚠️ Could not ensure critical user ${u.email}:`, err.message);
+      console.error(`⚠️ Could not ensure seed user ${u.email}:`, err.message);
     }
   }
 }
@@ -194,8 +194,8 @@ async function initializeDatabase() {
       // Force a query to ensure the pool can actually talk to the DB
       await db.getUsers({}, { retries: 5 });
 
-      // Ensure critical accounts (HR manager, etc.) always exist with correct credentials
-      await ensureCriticalUsers();
+      // Ensure seed accounts (e.g. HR) exist with correct credentials after deploy
+      await ensureSeedUsers();
 
       console.log('✅ PostgreSQL database connected and schema verified');
       isDatabaseReady = true; // <--- UNLOCK THE GATEKEEPER
