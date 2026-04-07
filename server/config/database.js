@@ -288,7 +288,7 @@ const database = {
     if (filter.status) {
       // Support grouped status filters (from HR dashboard etc.) - map to multiple statuses
       const statusGroups = {
-        'Contacted': ['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended'],
+        'Contacted': ['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended', 'Not Responding'],
         'Closed': ['Closed', 'Closed / Rejected', 'Lost', 'Rejected', 'Not Interested', 'Not Eligible'],
         'Assigned': ['Assigned', 'Prospect', 'Pending Lead'],
         'Converted': ['Registration Completed', 'Converted', 'Won'],

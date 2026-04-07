@@ -18,7 +18,8 @@ const HRDashboard = () => {
         assigned: 0,
         contacted: 0,
         converted: 0,
-        closed: 0
+        closed: 0,
+        other: 0
     });
     const [recentLeads, setRecentLeads] = useState([]);
     const [upcomingBirthdays, setUpcomingBirthdays] = useState([]);
@@ -28,8 +29,27 @@ const HRDashboard = () => {
         fetchDashboardData();
     }, []);
 
-    const sumStatuses = (statusMap, names) => {
-        return names.reduce((sum, name) => sum + (statusMap[name.toLowerCase()] || 0), 0);
+    /**
+     * Same buckets as server getLeads statusGroups (database.js). Counts must match what ?status=… returns.
+     */
+    const STATUS_TO_API_GROUP = (() => {
+        const m = {};
+        const add = (statuses, apiGroup) => {
+            statuses.forEach((s) => {
+                m[String(s).trim().toLowerCase()] = apiGroup;
+            });
+        };
+        add(['New', 'Unassigned', 'Direct Lead'], 'New');
+        add(['Assigned', 'Prospect', 'Pending Lead'], 'Assigned');
+        add(['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended', 'Not Responding'], 'Contacted');
+        add(['Registration Completed', 'Converted', 'Won'], 'Converted');
+        add(['Closed', 'Closed / Rejected', 'Lost', 'Rejected', 'Not Interested', 'Not Eligible'], 'Closed');
+        return m;
+    })();
+
+    const apiGroupForLeadStatus = (statusName) => {
+        const k = String(statusName || '').trim().toLowerCase();
+        return STATUS_TO_API_GROUP[k] || 'Other';
     };
 
     const fetchDashboardData = async () => {
@@ -52,27 +72,30 @@ const HRDashboard = () => {
 
             const metrics = dashboardRes.data?.metrics || {};
             const leadsByStatusRaw = metrics.leadsByStatus || {};
-            const leadsByStatus = {};
+
+            const tallies = { new: 0, assigned: 0, contacted: 0, converted: 0, closed: 0, other: 0 };
             Object.entries(leadsByStatusRaw).forEach(([status, count]) => {
-                leadsByStatus[String(status || '').toLowerCase()] = Number(count) || 0;
+                const g = apiGroupForLeadStatus(status);
+                const n = Number(count) || 0;
+                if (g === 'Other') tallies.other += n;
+                else tallies[g.toLowerCase()] += n;
             });
 
-            const grouped = {
-                new: sumStatuses(leadsByStatus, ['New', 'Unassigned', 'Direct Lead']),
-                assigned: sumStatuses(leadsByStatus, ['Assigned', 'Prospect', 'Pending Lead']),
-                contacted: sumStatuses(leadsByStatus, ['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended']),
-                converted: sumStatuses(leadsByStatus, ['Registration Completed', 'Converted', 'Won']),
-                closed: sumStatuses(leadsByStatus, ['Closed', 'Closed / Rejected', 'Lost', 'Rejected', 'Not Interested', 'Not Eligible'])
-            };
-
             const metricsTotal = Number(metrics.totalLeads || 0);
-            const groupedTotal = grouped.new + grouped.assigned + grouped.contacted + grouped.converted + grouped.closed;
-            if (metricsTotal > groupedTotal) {
-                // Keep totals consistent if any custom status is outside our groups.
-                grouped.assigned += (metricsTotal - groupedTotal);
+            const sumBuckets = tallies.new + tallies.assigned + tallies.contacted + tallies.converted + tallies.closed + tallies.other;
+            if (metricsTotal > sumBuckets) {
+                tallies.other += metricsTotal - sumBuckets;
             }
 
-            setLeadStats({ total: metricsTotal, ...grouped });
+            setLeadStats({
+                total: metricsTotal,
+                new: tallies.new,
+                assigned: tallies.assigned,
+                contacted: tallies.contacted,
+                converted: tallies.converted,
+                closed: tallies.closed,
+                other: tallies.other
+            });
 
             const leads = leadsRes.data?.leads || leadsRes.data || [];
             const sorted = [...leads].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -89,9 +112,13 @@ const HRDashboard = () => {
         return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'long' });
     };
 
-    const openMyLeads = (status = '') => {
-        const query = status ? `?from=hr-my-leads&status=${encodeURIComponent(status)}` : '?from=hr-my-leads';
-        navigate(`/leads${query}`);
+    /** Use API group keys: New, Assigned, Contacted, Converted, Closed (matches server statusGroups). */
+    const openMyLeads = (statusGroup = '') => {
+        if (!statusGroup) {
+            navigate('/leads?from=hr-my-leads');
+            return;
+        }
+        navigate(`/leads?from=hr-my-leads&status=${encodeURIComponent(statusGroup)}`);
     };
 
     if (loading) return <div className="hr-dashboard-loading">Loading Dashboard...</div>;
@@ -142,30 +169,32 @@ const HRDashboard = () => {
                     </button>
                 </div>
                 <div className="hr-leads-stats-grid">
-                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #4f46e5' }} onClick={() => openMyLeads()}>
+                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #3b82f6' }} onClick={() => openMyLeads()} title="All leads assigned to you (every status). Same list as Open My Leads.">
                         <div className="lead-stat-value">{leadStats.total}</div>
-                        <div className="lead-stat-label">Total Leads</div>
+                        <div className="lead-stat-label">Assigned</div>
                     </button>
-                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #f59e0b' }} onClick={() => openMyLeads('Unassigned')}>
+                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #f59e0b' }} onClick={() => openMyLeads('New')} title="New, Unassigned, Direct Lead (same filter as server)">
                         <div className="lead-stat-value">{leadStats.new}</div>
                         <div className="lead-stat-label">New / Unassigned</div>
                     </button>
-                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #3b82f6' }} onClick={() => openMyLeads('Assigned')}>
-                        <div className="lead-stat-value">{leadStats.assigned}</div>
-                        <div className="lead-stat-label">Assigned</div>
-                    </button>
-                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #8b5cf6' }} onClick={() => openMyLeads('Contacted')}>
+                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #8b5cf6' }} onClick={() => openMyLeads('Contacted')} title="Follow-up, Contacted, Not Responding, etc.">
                         <div className="lead-stat-value">{leadStats.contacted}</div>
                         <div className="lead-stat-label">Contacted</div>
                     </button>
-                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #10b981' }} onClick={() => openMyLeads('Converted')}>
+                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #10b981' }} onClick={() => openMyLeads('Converted')}>
                         <div className="lead-stat-value">{leadStats.converted}</div>
                         <div className="lead-stat-label">Converted</div>
                     </button>
-                    <button className="lead-stat-card" style={{ borderLeft: '4px solid #ef4444' }} onClick={() => openMyLeads('Closed')}>
+                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #ef4444' }} onClick={() => openMyLeads('Closed')}>
                         <div className="lead-stat-value">{leadStats.closed}</div>
                         <div className="lead-stat-label">Closed / Lost</div>
                     </button>
+                    {leadStats.other > 0 && (
+                        <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #64748b' }} onClick={() => openMyLeads()} title="All your leads (includes statuses outside the groups above)">
+                            <div className="lead-stat-value">{leadStats.other}</div>
+                            <div className="lead-stat-label">Other statuses</div>
+                        </button>
+                    )}
                 </div>
 
                 {recentLeads.length > 0 && (
