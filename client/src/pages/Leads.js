@@ -126,12 +126,15 @@ const Leads = () => {
         const urlFollowUpOverdue = searchParams.get('follow_up_overdue') || '';
         const urlCreatedToday = searchParams.get('created_today') === 'true';
         const urlLeadSourceType = searchParams.get('lead_source_type') || '';
+        // HR dashboard / other deep links use ?from=… — must not reuse cache or we show a stale row count
+        // (e.g. old list matched the same empty filters as this URL).
+        const hasDeepLinkFrom = !!searchParams.get('from');
 
         // Don't restore from cache when URL has follow-up or other special filters - always fetch fresh
         const hasFollowUpFilter = !!urlFollowUp || !!urlFollowUpOverdue || urlCreatedToday || !!urlLeadSourceType;
 
         // Only restore if the filters match the URL filters to avoid stale data on new searches
-        if (!hasFollowUpFilter && isRecent && state.search === search && state.statusFilter === statusFilter &&
+        if (!hasFollowUpFilter && !hasDeepLinkFrom && isRecent && state.search === search && state.statusFilter === statusFilter &&
           state.phoneSearch === phoneSearch && state.assignedStaffFilter === assignedStaffFilter &&
           state.viewType === viewType && state.dateFrom === dateFrom && state.dateTo === dateTo &&
           (state.createdMonth || '') === (createdMonth || '') &&
