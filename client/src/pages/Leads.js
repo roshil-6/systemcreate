@@ -941,9 +941,8 @@ const Leads = () => {
 
   const handleExportToGoogleSheets = async () => {
     try {
-      const params = new URLSearchParams();
-      if (statusFilter) params.set('status', statusFilter);
-      if (search) params.set('search', search);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('format', 'xlsx');
 
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_BASE_URL}/api/leads/export/csv?${params.toString()}`, {
@@ -954,13 +953,14 @@ const Leads = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+      const day = new Date().toISOString().split('T')[0];
+      link.setAttribute('download', `leads_export_${day}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert('CSV file downloaded! You can import this file into Google Sheets by:\n1. Opening Google Sheets\n2. File > Import\n3. Upload the CSV file');
+      alert('Excel file downloaded with all leads that match your current filters (not limited to the table page).');
     } catch (error) {
       console.error('Export error:', error);
       alert('Error exporting leads. Please try again.');
@@ -1273,7 +1273,7 @@ const Leads = () => {
               type="button"
               className="leads-topbar__export"
               onClick={handleExportToGoogleSheets}
-              title="Export to CSV (can be imported to Google Sheets)"
+              title="Download Excel (.xlsx): all leads matching current filters (not just this page)"
             >
               <FiDownload /> Export
             </button>

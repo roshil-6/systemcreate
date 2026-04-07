@@ -141,6 +141,117 @@ async function getLeadWithAccessCheck(leadId, user) {
   return null;
 }
 
+/**
+ * Same filter semantics as GET /api/leads. For export, set filter.limit = 0 before db.getLeads
+ * to return every matching row (default list query caps at 50).
+ */
+async function buildLeadsListFilter(req) {
+  const userId = req.user.id;
+  const role = req.user.role;
+  const {
+    status,
+    search,
+    phone,
+    assigned_staff_id,
+    viewType,
+    limit,
+    offset,
+    created_from,
+    created_to,
+    created_month,
+    created_on,
+    updated_from,
+    updated_to,
+    sort,
+    follow_up_date,
+    follow_up_overdue,
+    created_today,
+    lead_source_type,
+    name_starts,
+    priority,
+  } = req.query;
+
+  const filter = {
+    limit: limit ? parseInt(limit, 10) : undefined,
+    offset: offset ? parseInt(offset, 10) : undefined,
+    viewType: viewType || undefined,
+  };
+
+  const userName = req.user.name || '';
+  const userEmail = req.user.email || '';
+  const restrictedNames = ['Sneha', 'SNEHA', 'SNEHA RIGIN', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+  const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6];
+
+  const isTargetedUser = restrictedNames.some(n => userName.toUpperCase().startsWith(n.toUpperCase())) || restrictedEmails.includes(userEmail.toLowerCase()) || restrictedUserIds.includes(userId);
+
+  let accessibleUserIds = null;
+
+  if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
+    accessibleUserIds = [userId];
+    delete filter.assigned_staff_id;
+    delete filter.assigned_staff_ids;
+  } else if (role === 'SALES_TEAM_HEAD') {
+    const teamMembers = await db.getUsers({ managed_by: userId });
+    accessibleUserIds = [userId, ...teamMembers.map(m => m.id)];
+  } else {
+    if (assigned_staff_id) {
+      filter.assigned_staff_id = assigned_staff_id;
+    }
+    accessibleUserIds = null;
+  }
+
+  if (accessibleUserIds && accessibleUserIds.length > 1) {
+    filter.assigned_staff_ids = accessibleUserIds;
+  } else if (accessibleUserIds && accessibleUserIds.length === 1) {
+    filter.assigned_staff_id = accessibleUserIds[0];
+  }
+
+  const singleBucketAssignee =
+    accessibleUserIds && accessibleUserIds.length === 1 &&
+    (role === 'HR' || role === 'STAFF' || role === 'PROCESSING' || role === 'SALES_TEAM' || isTargetedUser);
+  if (singleBucketAssignee && filter.viewType === 'new') {
+    delete filter.viewType;
+  }
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (search) {
+    filter.search = search;
+  }
+
+  if (phone) {
+    filter.phone = phone;
+  }
+  if (name_starts && String(name_starts).trim()) {
+    filter.name_starts = String(name_starts).trim();
+  }
+  if (created_on) {
+    filter.created_on = created_on;
+  } else if (created_month && /^\d{4}-\d{2}$/.test(String(created_month).trim())) {
+    filter.created_month = String(created_month).trim();
+  } else {
+    if (created_from) filter.created_from = created_from;
+    if (created_to) filter.created_to = created_to;
+  }
+  if (updated_from) filter.updated_from = updated_from;
+  if (updated_to) filter.updated_to = updated_to;
+  if (sort) filter.sort = sort;
+  if (follow_up_date) filter.follow_up_date = follow_up_date;
+  if (follow_up_overdue === 'true' || follow_up_overdue === true) filter.follow_up_overdue = true;
+  if (created_today === 'true' || created_today === true) filter.created_today = true;
+  if (lead_source_type) filter.lead_source_type = lead_source_type;
+  if (priority && String(priority).trim()) filter.priority = String(priority).trim();
+
+  if (!status) {
+    filter.excludeStatus = 'Registration Completed';
+  }
+
+  return filter;
+}
+
 // Configure multer for CSV file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -186,97 +297,7 @@ const upload = multer({
 // Get all leads (with role-based filtering and pagination)
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const role = req.user.role;
-    const { status, search, phone, assigned_staff_id, viewType, limit, offset, created_from, created_to, created_month, created_on, updated_from, updated_to, sort, follow_up_date, follow_up_overdue, created_today, lead_source_type, name_starts, priority } = req.query;
-
-    const filter = {
-      limit: limit ? parseInt(limit) : undefined,
-      offset: offset ? parseInt(offset) : undefined,
-      viewType: viewType || undefined
-    };
-
-
-    // High-priority: Strict isolation for specific users regardless of role
-    const userName = req.user.name || '';
-    const userEmail = req.user.email || '';
-    const restrictedNames = ['Sneha', 'SNEHA', 'SNEHA RIGIN', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
-    const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6]; // Sneha(12), Kripa(13), Emy(4), Shilpa(5), Jibina(8), Karthika(7), Asna(6)
-
-    const isTargetedUser = restrictedNames.some(n => userName.toUpperCase().startsWith(n.toUpperCase())) || restrictedEmails.includes(userEmail.toLowerCase()) || restrictedUserIds.includes(userId);
-
-    // Determine accessible user IDs based on role
-    let accessibleUserIds = null;
-
-    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
-      accessibleUserIds = [userId];
-      delete filter.assigned_staff_id;
-      delete filter.assigned_staff_ids;
-    } else if (role === 'SALES_TEAM_HEAD') {
-      // SALES_TEAM_HEAD sees themselves and their team
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      accessibleUserIds = [userId, ...teamMembers.map(m => m.id)];
-    } else {
-      // ADMIN sees everyone (if they are NOT one of the targeted users above)
-      // Honour the assigned_staff_id query param for filtering by staff
-      if (assigned_staff_id) {
-        filter.assigned_staff_id = assigned_staff_id;
-      }
-      accessibleUserIds = null;
-    }
-
-    if (accessibleUserIds && accessibleUserIds.length > 1) {
-      filter.assigned_staff_ids = accessibleUserIds;
-    } else if (accessibleUserIds && accessibleUserIds.length === 1) {
-      filter.assigned_staff_id = accessibleUserIds[0];
-    }
-
-    // Quick view "new" = New/Unassigned/Direct Lead only. After assignment, leads become status "Assigned",
-    // so HR/staff/sales see an empty list and think routing failed. Ignore "new" for single-bucket list users.
-    const singleBucketAssignee =
-      accessibleUserIds && accessibleUserIds.length === 1 &&
-      (role === 'HR' || role === 'STAFF' || role === 'PROCESSING' || role === 'SALES_TEAM' || isTargetedUser);
-    if (singleBucketAssignee && filter.viewType === 'new') {
-      delete filter.viewType;
-    }
-
-    if (status) {
-      filter.status = status;
-    }
-
-    if (search) {
-      filter.search = search;
-    }
-
-    if (phone) {
-      filter.phone = phone;
-    }
-    if (name_starts && String(name_starts).trim()) {
-      filter.name_starts = String(name_starts).trim();
-    }
-    if (created_on) {
-      filter.created_on = created_on;
-    } else if (created_month && /^\d{4}-\d{2}$/.test(String(created_month).trim())) {
-      filter.created_month = String(created_month).trim();
-    } else {
-      if (created_from) filter.created_from = created_from;
-      if (created_to) filter.created_to = created_to;
-    }
-    if (updated_from) filter.updated_from = updated_from;
-    if (updated_to) filter.updated_to = updated_to;
-    if (sort) filter.sort = sort;
-    if (follow_up_date) filter.follow_up_date = follow_up_date;
-    if (follow_up_overdue === 'true' || follow_up_overdue === true) filter.follow_up_overdue = true;
-    if (created_today === 'true' || created_today === true) filter.created_today = true;
-    if (lead_source_type) filter.lead_source_type = lead_source_type;
-    if (priority && String(priority).trim()) filter.priority = String(priority).trim();
-
-    // Performance: Only filter out Registration Completed at database level when not explicitly requested
-    if (!status) {
-      filter.excludeStatus = 'Registration Completed';
-    }
-
+    const filter = await buildLeadsListFilter(req);
     const leadsRaw = await db.getLeads(filter);
     const totalCount = leadsRaw.length > 0 ? parseInt(leadsRaw[0].full_count) : 0;
 
@@ -878,53 +899,14 @@ router.post('/permanent-delete', authenticate, async (req, res) => {
   }
 });
 
-// Export leads to CSV (for Google Sheets import)
+// Export leads to CSV / Excel (same filters as GET /api/leads; all matching rows, not paginated)
 router.get('/export/csv', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const role = req.user.role;
-    const { status, search, phone, created_from, created_to } = req.query;
-    const filter = {};
-
-    let accessibleUserIds = null;
-    const userName = req.user.name || '';
-    const userEmail = req.user.email || '';
-    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
-    const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
-
-    if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'HR') {
-      accessibleUserIds = [userId];
-    } else {
-      // Regular ADMIN, SALES_TEAM_HEAD, PROCESSING see everyone
-      accessibleUserIds = null;
-    }
-
-    if (accessibleUserIds && accessibleUserIds.length === 1) {
-      filter.assigned_staff_id = accessibleUserIds[0];
-    }
-
-    if (status) {
-      filter.status = status;
-    }
-
-    if (search) {
-      filter.search = search;
-    }
-
-    if (phone) {
-      filter.phone = phone;
-    }
-    if (created_from) filter.created_from = created_from;
-    if (created_to) filter.created_to = created_to;
+    const filter = await buildLeadsListFilter(req);
+    filter.limit = 0;
+    filter.offset = 0;
 
     let leads = await db.getLeads(filter);
-
-    if (accessibleUserIds && accessibleUserIds.length > 1) {
-      leads = leads.filter(lead =>
-        !lead.assigned_staff_id || accessibleUserIds.includes(lead.assigned_staff_id)
-      );
-    }
 
     let userMap = {};
     try {
@@ -1022,6 +1004,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
           lead.country || '',
           lead.program || '',
           lead.status || '',
+          lead.source || '',
           lead.priority || '',
           lead.comment || '',
           lead.follow_up_date || '',
