@@ -101,12 +101,25 @@ const Attendance = () => {
 
   const handleDownload = async () => {
     try {
+      console.log('Starting attendance download...');
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_BASE_URL}/api/attendance/download/today`, {
         headers: { Authorization: `Bearer ${token}` },
         responseType: 'blob',
       });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      
+      // Check if response is actually an error (text) instead of a file
+      const blob = response.data;
+      if (blob.type === 'application/json' || blob.type.includes('text/plain')) {
+        // Error response - read as text
+        const errorText = await blob.text();
+        console.error('Download error:', errorText);
+        alert('Error downloading attendance:\n' + errorText);
+        return;
+      }
+      
+      console.log('Download successful, creating blob URL...');
+      const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `attendance_${new Date().toISOString().split('T')[0]}.csv`);
@@ -114,8 +127,13 @@ const Attendance = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
+      console.log('Attendance download completed');
     } catch (error) {
-      alert('Error downloading attendance: ' + (error.response?.data?.error || error.message));
+      console.error('Download error:', error);
+      const errorMsg = error.response?.data 
+        ? (typeof error.response.data === 'string' ? error.response.data : error.response.data.error)
+        : error.message;
+      alert('Error downloading attendance: ' + errorMsg);
     }
   };
 

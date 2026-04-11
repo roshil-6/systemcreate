@@ -44,12 +44,18 @@ const StaffDocumentView = () => {
         }
         const fetchDocBlob = async () => {
             try {
+                console.log('Fetching document:', viewingDoc);
                 const response = await axios.get(`${API_BASE_URL}/api/hr/documents/${viewingDoc.id}/view`, {
                     responseType: 'blob'
                 });
+                console.log('Document fetched successfully:', response.data);
                 setViewerUrl(URL.createObjectURL(response.data));
             } catch (err) {
-                alert('Failed to load document for viewing');
+                console.error('Error fetching document:', err);
+                const errorMsg = err.response?.data 
+                    ? `Error: ${err.response.data}` 
+                    : err.message || 'Failed to load document for viewing';
+                alert('Failed to load document for viewing:\n' + errorMsg);
             }
         };
         fetchDocBlob();
@@ -138,12 +144,17 @@ const StaffDocumentView = () => {
         const formData = new FormData();
         formData.append('document', file);
         try {
+            console.log(`Uploading file to slot ${slot}:`, file);
             const response = await axios.post(`${API_BASE_URL}/api/hr/staff/${id}/documents/${slot}`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
+            console.log('Upload response:', response.data);
             setDocuments(prev => ({ ...prev, [slot]: response.data }));
+            alert('Document uploaded successfully!');
         } catch (err) {
-            alert('Upload failed: ' + (err.response?.data?.error || err.message));
+            console.error('Upload error:', err);
+            const errorMsg = err.response?.data?.error || err.message || 'Unknown error';
+            alert('Upload failed: ' + errorMsg);
         } finally {
             setUploadingSlot(null);
         }

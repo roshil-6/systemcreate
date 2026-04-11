@@ -631,19 +631,24 @@ router.get('/import-history/:id/download', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query('SELECT filename, original_filename FROM import_history WHERE id = $1', [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
+    if (result.rows.length === 0) {
+      console.warn(`Import history record ${id} not found`);
+      return res.status(404).send('Record not found');
+    }
 
     const { filename, original_filename } = result.rows[0];
     const filePath = path.join(__dirname, '../uploads/imports', filename);
 
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, original_filename);
-    } else {
-      res.status(404).json({ error: 'File not found on server' });
+    if (!fs.existsSync(filePath)) {
+      console.error(`Import file not found on disk: ${filePath}`);
+      return res.status(404).send('File not found on server');
     }
+
+    res.download(filePath, original_filename);
+    console.log(`Import file downloaded: ${original_filename}`);
   } catch (error) {
     console.error('❌ API ERROR: /import-history/download:', error.message);
-    res.status(500).json({ error: 'Failed to download file' });
+    res.status(500).send('Failed to download file: ' + error.message);
   }
 });
 
@@ -651,19 +656,24 @@ router.get('/import-history/:id/download', authenticate, async (req, res) => {
 router.get('/last-imported-file', authenticate, async (req, res) => {
   try {
     const result = await db.query('SELECT filename, original_filename FROM import_history ORDER BY created_at DESC LIMIT 1');
-    if (result.rows.length === 0) return res.status(404).json({ error: 'No recent import found' });
+    if (result.rows.length === 0) {
+      console.warn('No recent import found');
+      return res.status(404).send('No recent import found');
+    }
 
     const { filename, original_filename } = result.rows[0];
     const filePath = path.join(__dirname, '../uploads/imports', filename);
 
-    if (fs.existsSync(filePath)) {
-      res.download(filePath, original_filename);
-    } else {
-      res.status(404).json({ error: 'File not found' });
+    if (!fs.existsSync(filePath)) {
+      console.error(`Last imported file not found on disk: ${filePath}`);
+      return res.status(404).send('File not found');
     }
+
+    res.download(filePath, original_filename);
+    console.log(`Last imported file downloaded: ${original_filename}`);
   } catch (error) {
     console.error('❌ API ERROR: /last-imported-file:', error.message);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).send('Failed to download file: ' + error.message);
   }
 });
 

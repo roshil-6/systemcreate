@@ -109,7 +109,22 @@ router.post('/staff/:id/documents/:slot', authenticate, requireHrOrAdmin, upload
         }
 
         if (!req.file) {
+            console.warn(`Upload failed for user ${userId} slot ${slotNumber}: No file in request`);
             return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        console.log(`Uploading document for user ${userId} slot ${slotNumber}:`, {
+            filename: req.file.filename,
+            originalname: req.file.originalname,
+            size: req.file.size,
+            path: req.file.path,
+            destination: req.file.destination
+        });
+
+        // Verify file exists on disk
+        if (!fs.existsSync(req.file.path)) {
+            console.error(`CRITICAL: File not saved to disk at ${req.file.path}`);
+            return res.status(500).json({ error: 'File upload failed - file not saved to disk' });
         }
 
         // Save to DB
@@ -122,13 +137,12 @@ router.post('/staff/:id/documents/:slot', authenticate, requireHrOrAdmin, upload
         };
 
         const savedDoc = await db.saveStaffDocument(docData);
-
-        // Log activity? (Optional but good)
+        console.log(`Document saved to DB:`, savedDoc);
 
         res.json(savedDoc);
     } catch (error) {
         console.error('HR Upload Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Server error: ' + error.message });
     }
 });
 
@@ -158,35 +172,63 @@ router.delete('/documents/:id', authenticate, requireHrOrAdmin, async (req, res)
 router.get('/documents/:id/view', authenticate, requireHrOrAdmin, async (req, res) => {
     try {
         const docId = req.params.id;
-        // We need to fetch the document details to get the filename
-        // Since we don't have a direct getDocumentById, we'll implement a quick lookup
-        // Ideally this should be in database.js, but for now we can rely on the fact that we can query the table.
-        // Wait, we can't query directly here.
-        // Let's use the DB helper we added? No, we didn't add one for single doc.
-        // We'll iterate the user's docs. It's inefficient but works for now.
-        // Actually, let's fix this properly. I'll add `getStaffDocumentById` to database.js in the next step.
-        // For now, I will optimistically implement this assuming the DB helper exists, 
-        // OR I will just use `db.getStaffDocuments` for the user if I knew the user ID. I don't.
-
-        // HACK: For now, I will LIST ALL docs (if I could) or I will trust the client to send the path? NO.
-        // I HAVE TO add `getDocumentById` to database.js. 
-
-        // Let's assume I will add `db.getStaffDocumentById(docId)` in the next tool call.
+        
+        // Fetch document from database
         const doc = await db.getStaffDocumentById(docId);
 
         if (!doc) {
-            return res.status(404).json({ error: 'Document not found' });
+            console.warn(`Document ID ${docId} not found in database`);
+            return res.status(404).send('Document not found');
         }
 
+        // Construct full file path
         const filePath = path.join(uploadDir, doc.file_path);
-        if (fs.existsSync(filePath)) {
-            res.sendFile(filePath);
-        } else {
-            res.status(404).json({ error: 'File not found on server' });
+        
+        // Check if file exists on disk
+        if (!fs.existsSync(filePath)) {
+            console.error(`File not found on disk: ${filePath}. DB ref: ${doc.file_path}. Upload dir: ${uploadDir}`);
+            return res.status(404).send('File not found on server');
         }
+
+        // Get file extension to determine MIME type
+        const ext = path.extname(doc.file_name).toLowerCase();
+        let mimeType = 'application/octet-stream';
+        
+        // Common MIME types
+        const mimeMap = {
+            '.pdf': 'application/pdf',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.txt': 'text/plain',
+            '.zip': 'application/zip',
+            '.rar': 'application/x-rar-compressed',
+            '.csv': 'text/csv'
+        };
+        
+        if (mimeMap[ext]) {
+            mimeType = mimeMap[ext];
+        }
+        
+        // Set response headers for file download
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${doc.file_name}"`);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        
+        // Send the file
+        res.sendFile(filePath);
+        console.log(`Document served: ${doc.file_name}`);
     } catch (error) {
         console.error('HR View Doc Error:', error);
-        res.status(500).json({ error: 'Server error' });
+        if (!res.headersSent) {
+            res.status(500).send('Server error: ' + error.message);
+        }
     }
 });
 

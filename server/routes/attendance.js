@@ -248,14 +248,21 @@ router.get('/download/today', authenticate, async (req, res) => {
   try {
     const role = req.user.role;
     if (role !== 'ADMIN' && role !== 'HR') {
-      return res.status(403).json({ error: 'Access denied' });
+      console.warn(`Attendance download denied for user ${req.user.id} (role: ${role})`);
+      return res.status(403).send('Access denied');
     }
 
     const today = new Date().toISOString().split('T')[0];
     const todayAttendance = await db.getAttendance({ date: today });
 
     if (!todayAttendance || todayAttendance.length === 0) {
-      return res.status(404).json({ error: 'No attendance records found for today' });
+      console.warn(`No attendance records found for ${today}`);
+      // Return empty CSV instead of error
+      const header = 'Name,Date,Check-In,Check-Out,Duration\r\n';
+      const csvData = '\ufeff' + header;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="attendance_${today}.csv"`);
+      return res.status(200).send(csvData);
     }
 
     // Enrich with user names and format for CSV
@@ -298,10 +305,13 @@ router.get('/download/today', authenticate, async (req, res) => {
     const csvData = '\ufeff' + header + rows;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="attendance_${today}.csv"`);
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.status(200).send(csvData);
+    console.log(`Attendance CSV downloaded: ${records.length} records for ${today}`);
   } catch (error) {
     console.error('Download attendance error:', error);
-    res.status(500).json({ error: 'Server error', details: error.message });
+    // Send plain text error (not JSON) to avoid blob parsing issues
+    res.status(500).send(`Server error: ${error.message}`);
   }
 });
 
