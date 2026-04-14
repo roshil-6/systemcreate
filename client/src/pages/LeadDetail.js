@@ -206,6 +206,7 @@ const LeadDetail = () => {
 
   const checkDuplicate = (snapshot) => {
     if (!isNew) return;
+    console.log('[Duplicate Check] Checking with snapshot:', { name: snapshot.name, phone: snapshot.phone_number, email: snapshot.email });
     if (duplicateCheckTimer.current) clearTimeout(duplicateCheckTimer.current);
     setDuplicateWarning(null);
 
@@ -216,11 +217,12 @@ const LeadDetail = () => {
     const combinedPhone = ccDigits + phoneDigits;
     const combinedWa = waCcDigits + waDigits;
 
+    // Prioritize full phone numbers (with country code) for more accurate matching
     let phoneForApi = '';
-    if (phoneDigits.length >= 7) phoneForApi = phoneDigits;
-    else if (combinedPhone.length >= 7) phoneForApi = combinedPhone;
-    else if (waDigits.length >= 7) phoneForApi = waDigits;
+    if (combinedPhone.length >= 7) phoneForApi = combinedPhone;
+    else if (phoneDigits.length >= 7) phoneForApi = phoneDigits;
     else if (combinedWa.length >= 7) phoneForApi = combinedWa;
+    else if (waDigits.length >= 7) phoneForApi = waDigits;
 
     const cleanedEmail = String(snapshot.email || '').trim();
     const trimmedName = String(snapshot.name || '').trim();
@@ -238,12 +240,16 @@ const LeadDetail = () => {
         if (phoneForApi.length >= 7) params.set('phone', phoneForApi);
         if (cleanedEmail.length >= 3) params.set('email', cleanedEmail);
         if (trimmedName.length >= 3) params.set('name', trimmedName);
-        const response = await axios.get(
-          `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`,
-          authConfig()
-        );
+
+        const checkUrl = `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`;
+        console.log('[Duplicate Check] Checking:', checkUrl);
+
+        const response = await axios.get(checkUrl, authConfig());
+        console.log('[Duplicate Check] Response:', response.data);
+
         if (gen !== duplicateCheckGen.current) return;
         if (response.data.exists && response.data.lead) {
+          console.log('[Duplicate Check] Duplicate found:', response.data.lead);
           setDuplicateWarning({
             ...response.data.lead,
             field: response.data.field || 'phone',
@@ -252,7 +258,9 @@ const LeadDetail = () => {
           setDuplicateWarning(null);
         }
       } catch (err) {
-        console.error('Duplicate check error:', err);
+        console.error('[Duplicate Check] Error:', err);
+        // Don't show error to user, just clear the warning
+        setDuplicateWarning(null);
       } finally {
         if (gen === duplicateCheckGen.current) {
           setCheckingDuplicate(false);
