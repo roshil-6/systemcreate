@@ -173,6 +173,20 @@ const StaffList = () => {
                                 <input type="date" name="dob" value={formData.dob} onChange={handleInputChange} />
                             </div>
                             <div className="form-group">
+                                <label>Role *</label>
+                                <select name="role" value={formData.role} onChange={handleInputChange} required>
+                                    <option value="STAFF">Staff (General)</option>
+                                    <option value="SALES_TEAM">Sales Team</option>
+                                    <option value="PROCESSING">Processing</option>
+                                    <option value="HR">HR</option>
+                                </select>
+                                <small style={{ color: '#666', fontSize: '12px' }}>
+                                    Sales Team: Can create and manage their own leads<br/>
+                                    Processing: Handles registered clients<br/>
+                                    HR: Manages staff and documents
+                                </small>
+                            </div>
+                            <div className="form-group">
                                 <label>Password {editingUser ? '(leave blank to keep current)' : '*'}</label>
                                 <input
                                     type="password"
@@ -203,6 +217,7 @@ const StaffList = () => {
                         <tr>
                             <th>Name</th>
                             <th>Email</th>
+                            <th>Role</th>
                             <th>Phone</th>
                             <th>DOB</th>
                             <th>Actions</th>
@@ -211,7 +226,7 @@ const StaffList = () => {
                     <tbody>
                         {staff.length === 0 ? (
                             <tr>
-                                <td colSpan="5" className="no-users">No staff found. Add your first staff member!</td>
+                                <td colSpan="6" className="no-users">No staff found. Add your first staff member!</td>
                             </tr>
                         ) : (
                             staff.map((u) => (
@@ -235,6 +250,11 @@ const StaffList = () => {
                                         </div>
                                     </td>
                                     <td>{u.email}</td>
+                                    <td>
+                                        <span className={`role-badge role-${u.role?.toLowerCase()}`}>
+                                            {u.role === 'SALES_TEAM' ? 'Sales' : u.role === 'SALES_TEAM_HEAD' ? 'Sales Head' : u.role === 'PROCESSING' ? 'Processing' : u.role === 'HR' ? 'HR' : u.role === 'ADMIN' ? 'Admin' : 'Staff'}
+                                        </span>
+                                    </td>
                                     <td>{u.phone_number || '-'}</td>
                                     <td>{u.dob ? new Date(u.dob).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '-'}</td>
                                     <td>

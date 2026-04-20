@@ -249,9 +249,21 @@
   color: #d97706;
 }
 
-.role-badge.staff {
+.role-badge.staff,
+.role-badge.sales_team,
+.role-badge.sales_team_head {
   background: #dbeafe;
   color: #2563eb;
+}
+
+.role-badge.processing {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.role-badge.hr {
+  background: #fce7f3;
+  color: #db2777;
 }
 
 .action-buttons {
