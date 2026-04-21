@@ -66,7 +66,7 @@ const LeadDetail = () => {
         residing_country: '',
         program: '',
         status: 'New',
-        assigned_staff_id: (user?.role === 'STAFF' || user?.role === 'HR') ? user.id : null,
+        assigned_staff_id: (user?.role === 'STAFF' || user?.role === 'HR' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING') ? user.id : null,
         priority: '',
         comment: '',
         follow_up_date: '',
@@ -147,6 +147,12 @@ const LeadDetail = () => {
 
   const handleSave = async () => {
     try {
+      // CRITICAL: Check for duplicates before saving new lead
+      if (id === 'new' && duplicateWarning) {
+        alert(`Cannot create lead: A lead with this ${duplicateWarning.field === 'name' ? 'name' : duplicateWarning.field === 'email' ? 'email' : 'phone number'} already exists.\n\nExisting Lead: ${duplicateWarning.name} (${duplicateWarning.status})\n\nPlease check the existing lead or modify the details.`);
+        return;
+      }
+
       // Clean up form data: convert empty strings to null for optional fields
       const cleanedData = { ...formData };
       const optionalFields = ['email', 'whatsapp_number', 'age', 'occupation', 'qualification', 'year_of_experience', 'country', 'target_country', 'residing_country', 'program', 'priority', 'comment', 'follow_up_date', 'follow_up_status', 'assigned_staff_id', 'source', 'ielts_score'];
@@ -227,7 +233,7 @@ const LeadDetail = () => {
     const cleanedEmail = String(snapshot.email || '').trim();
     const trimmedName = String(snapshot.name || '').trim();
 
-    if (phoneForApi.length < 7 && cleanedEmail.length < 3 && trimmedName.length < 3) {
+    if (phoneForApi.length < 6 && cleanedEmail.length < 3 && trimmedName.length < 2) {
       setCheckingDuplicate(false);
       return;
     }
@@ -237,9 +243,9 @@ const LeadDetail = () => {
     duplicateCheckTimer.current = setTimeout(async () => {
       try {
         const params = new URLSearchParams();
-        if (phoneForApi.length >= 7) params.set('phone', phoneForApi);
+        if (phoneForApi.length >= 6) params.set('phone', phoneForApi);
         if (cleanedEmail.length >= 3) params.set('email', cleanedEmail);
-        if (trimmedName.length >= 3) params.set('name', trimmedName);
+        if (trimmedName.length >= 2) params.set('name', trimmedName);
 
         const checkUrl = `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`;
         console.log('[Duplicate Check] Checking:', checkUrl);
@@ -266,7 +272,7 @@ const LeadDetail = () => {
           setCheckingDuplicate(false);
         }
       }
-    }, 600);
+    }, 300);
   };
 
   const DUPLICATE_CHECK_FIELDS = new Set([
@@ -593,6 +599,7 @@ const LeadDetail = () => {
                   onChange={handleChange}
                   disabled={!canEdit}
                   required
+                  style={duplicateWarning && duplicateWarning.field === 'name' ? { borderColor: '#dc3545', backgroundColor: '#f8d7da' } : undefined}
                 />
               </div>
               <div className="form-group">
@@ -618,6 +625,7 @@ const LeadDetail = () => {
                     required
                     className="phone-number-input"
                     placeholder="Enter phone number"
+                    style={duplicateWarning && duplicateWarning.field === 'phone' ? { borderColor: '#dc3545', backgroundColor: '#f8d7da' } : undefined}
                   />
                 </div>
               </div>
@@ -727,6 +735,7 @@ const LeadDetail = () => {
                   value={formData.email || ''}
                   onChange={handleChange}
                   disabled={!canEdit}
+                  style={duplicateWarning && duplicateWarning.field === 'email' ? { borderColor: '#dc3545', backgroundColor: '#f8d7da' } : undefined}
                 />
               </div>
               <div className="form-group">
