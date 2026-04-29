@@ -217,14 +217,15 @@
 .country-code-select,
 .country-code-input {
   flex-shrink: 0;
-  width: 100px;
+  min-width: 72px;
+  width: 120px;
+  max-width: 140px;
   padding: 10px 8px;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   font-size: 13px;
-  background: #FFF4D6;
+  background: #fff;
   transition: border-color 0.2s;
-  max-width: 100px;
 }
 
 .country-code-select {

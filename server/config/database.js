@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { normalizeDialCode } = require('../utils/dialCode');
 
 // Initialize PostgreSQL connection pool
 // Production-ready configuration
@@ -389,6 +390,9 @@ const database = {
       whereConditions += ` AND (excel_row_data IS NOT NULL OR (source IS NOT NULL AND source ILIKE '%Bulk Import%'))`;
     } else if (filter.lead_source_type === 'manual') {
       whereConditions += ` AND excel_row_data IS NULL AND (source IS NULL OR source = '' OR source ILIKE '%manual%')`;
+    } else if (filter.lead_source_type === 'direct') {
+      // Non-bulk manual leads (aligned with staff Performance "Direct" counts).
+      whereConditions += ` AND excel_row_data IS NULL AND (source IS NULL OR TRIM(source) NOT ILIKE '%bulk import%')`;
     }
 
     // New vs Follow Up Views filtering using optimized EXISTS
@@ -462,9 +466,9 @@ const database = {
       id,
       leadData.name,
       leadData.phone_number,
-      leadData.phone_country_code || '+91',
+      normalizeDialCode(leadData.phone_country_code),
       leadData.whatsapp_number || null,
-      leadData.whatsapp_country_code || '+91',
+      normalizeDialCode(leadData.whatsapp_country_code),
       leadData.email || null,
       leadData.age || null,
       leadData.occupation || null,
@@ -1075,9 +1079,9 @@ const database = {
 
     // Optional fields
     const optionalFields = {
-      phone_country_code: clientData.phone_country_code || '+91',
+      phone_country_code: normalizeDialCode(clientData.phone_country_code),
       whatsapp_number: clientData.whatsapp_number,
-      whatsapp_country_code: clientData.whatsapp_country_code || '+91',
+      whatsapp_country_code: normalizeDialCode(clientData.whatsapp_country_code),
       secondary_phone_number: clientData.secondary_phone_number,
       email: clientData.email,
       age: clientData.age,
@@ -1280,7 +1284,8 @@ const database = {
         (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Follow-up' AND l.deleted_at IS NULL) as followup_leads,
         (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Prospect' AND l.deleted_at IS NULL) as prospect_leads,
         (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Pending Lead' AND l.deleted_at IS NULL) as pending_leads,
-        (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id) as converted_leads,
+        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.deleted_at IS NULL
+          AND l.excel_row_data IS NULL AND (l.source IS NULL OR TRIM(l.source) NOT ILIKE '%bulk import%')) as direct_leads,
         (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id AND c.processing_staff_id IS NOT NULL) as clients_in_processing,
         (SELECT COUNT(*) FROM leads l2 WHERE l2.assigned_staff_id = u.id AND l2.deleted_at IS NULL
           AND l2.follow_up_date IS NOT NULL
@@ -1300,7 +1305,7 @@ const database = {
       followup_leads: parseInt(row.followup_leads),
       prospect_leads: parseInt(row.prospect_leads),
       pending_leads: parseInt(row.pending_leads),
-      converted_leads: parseInt(row.converted_leads),
+      direct_leads: parseInt(row.direct_leads),
       clients_in_processing: parseInt(row.clients_in_processing),
       unattended_leads: parseInt(row.unattended_leads || 0)
     }));

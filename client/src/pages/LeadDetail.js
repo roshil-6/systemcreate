@@ -53,9 +53,9 @@ const LeadDetail = () => {
       setFormData({
         name: '',
         phone_number: '',
-        phone_country_code: '+91',
+        phone_country_code: '',
         whatsapp_number: '',
-        whatsapp_country_code: '+91',
+        whatsapp_country_code: '',
         email: '',
         age: '',
         occupation: '',
@@ -207,12 +207,11 @@ const LeadDetail = () => {
     }
   };
 
-  // Real-time duplicate check — debounced 600ms, only on new lead form
+  // Real-time duplicate check — debounced 300ms, only on new lead form (aligned with POST /api/leads)
   const duplicateCheckGen = useRef(0);
 
   const checkDuplicate = (snapshot) => {
     if (!isNew) return;
-    console.log('[Duplicate Check] Checking with snapshot:', { name: snapshot.name, phone: snapshot.phone_number, email: snapshot.email });
     if (duplicateCheckTimer.current) clearTimeout(duplicateCheckTimer.current);
     setDuplicateWarning(null);
 
@@ -223,7 +222,6 @@ const LeadDetail = () => {
     const combinedPhone = ccDigits + phoneDigits;
     const combinedWa = waCcDigits + waDigits;
 
-    // Prioritize full phone numbers (with country code) for more accurate matching
     let phoneForApi = '';
     if (combinedPhone.length >= 7) phoneForApi = combinedPhone;
     else if (phoneDigits.length >= 7) phoneForApi = phoneDigits;
@@ -233,7 +231,7 @@ const LeadDetail = () => {
     const cleanedEmail = String(snapshot.email || '').trim();
     const trimmedName = String(snapshot.name || '').trim();
 
-    if (phoneForApi.length < 6 && cleanedEmail.length < 3 && trimmedName.length < 2) {
+    if (phoneForApi.length < 7 && cleanedEmail.length < 3 && trimmedName.length < 2) {
       setCheckingDuplicate(false);
       return;
     }
@@ -243,19 +241,15 @@ const LeadDetail = () => {
     duplicateCheckTimer.current = setTimeout(async () => {
       try {
         const params = new URLSearchParams();
-        if (phoneForApi.length >= 6) params.set('phone', phoneForApi);
+        if (phoneForApi.length >= 7) params.set('phone', phoneForApi);
         if (cleanedEmail.length >= 3) params.set('email', cleanedEmail);
         if (trimmedName.length >= 2) params.set('name', trimmedName);
 
         const checkUrl = `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`;
-        console.log('[Duplicate Check] Checking:', checkUrl);
-
         const response = await axios.get(checkUrl, authConfig());
-        console.log('[Duplicate Check] Response:', response.data);
 
         if (gen !== duplicateCheckGen.current) return;
         if (response.data.exists && response.data.lead) {
-          console.log('[Duplicate Check] Duplicate found:', response.data.lead);
           setDuplicateWarning({
             ...response.data.lead,
             field: response.data.field || 'phone',
@@ -265,7 +259,6 @@ const LeadDetail = () => {
         }
       } catch (err) {
         console.error('[Duplicate Check] Error:', err);
-        // Don't show error to user, just clear the warning
         setDuplicateWarning(null);
       } finally {
         if (gen === duplicateCheckGen.current) {
@@ -282,6 +275,7 @@ const LeadDetail = () => {
     'whatsapp_number',
     'whatsapp_country_code',
     'email',
+    'secondary_phone_number',
   ]);
 
   const handleChange = (e) => {
@@ -415,23 +409,22 @@ const LeadDetail = () => {
 
   const canEdit = editing || id === 'new';
 
-  // Helper to check if user owns the lead or is a manager
-  const isOwner = Number(lead?.assigned_staff_id) === Number(user?.id);
-  const isUnassigned = lead?.assigned_staff_id === null;
+  const sameUserId = (a, b) => a != null && b != null && String(a) === String(b);
+
+  const isOwner = sameUserId(lead?.assigned_staff_id, user?.id);
+  const isCreator = sameUserId(lead?.created_by, user?.id);
+  const isUnassigned = lead?.assigned_staff_id === null || lead?.assigned_staff_id === undefined;
   const isManager = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD';
 
-  // Detailed permission logic
-  // Allow editing header fields (Priority, Comment, Follow-up) if:
-  // 1. New lead
-  // 2. Admin/Manager
-  // 3. User owns the lead
-  // 4. Lead is unassigned (so they can work on it)
-  // NOTE: We do NOT allow random staff to edit each other's leads.
-  const canEditHeaderFields = !isNew && (isManager || isOwner || isUnassigned);
+  const salesLikeRoles = ['SALES_TEAM', 'STAFF', 'PROCESSING', 'HR'];
+  const canEditAsCreator = isCreator && salesLikeRoles.includes(user?.role);
 
-  const canEditNextFollowUp = !isNew && (isManager || isOwner || isUnassigned);
+  // Header / follow-up: owner, manager, unassigned pool, or creator (fixes new staff when assignment metadata is wrong)
+  const canEditHeaderFields = !isNew && (isManager || isOwner || isUnassigned || canEditAsCreator);
 
-  const canEditFollowUpStatus = !isNew && (isManager || isOwner || isUnassigned);
+  const canEditNextFollowUp = !isNew && (isManager || isOwner || isUnassigned || canEditAsCreator);
+
+  const canEditFollowUpStatus = !isNew && (isManager || isOwner || isUnassigned || canEditAsCreator);
 
   const canManageAssignment = isManager || isOwner || isUnassigned;
 
@@ -599,7 +592,7 @@ const LeadDetail = () => {
                   onChange={handleChange}
                   disabled={!canEdit}
                   required
-                  style={duplicateWarning && duplicateWarning.field === 'name' ? { borderColor: '#dc3545', backgroundColor: '#f8d7da' } : undefined}
+                  style={isNew && duplicateWarning && duplicateWarning.field === 'name' ? { borderColor: '#dc3545', backgroundColor: '#fff5f5' } : undefined}
                 />
               </div>
               <div className="form-group">
@@ -610,11 +603,12 @@ const LeadDetail = () => {
                   <input
                     type="text"
                     name="phone_country_code"
-                    value={formData.phone_country_code || '+91'}
+                    value={formData.phone_country_code ?? ''}
                     onChange={handleChange}
                     disabled={!canEdit}
                     className="country-code-input"
-                    placeholder="+91"
+                    placeholder="+44"
+                    autoComplete="tel-country-code"
                   />
                   <input
                     type="text"
@@ -625,7 +619,7 @@ const LeadDetail = () => {
                     required
                     className="phone-number-input"
                     placeholder="Enter phone number"
-                    style={duplicateWarning && duplicateWarning.field === 'phone' ? { borderColor: '#dc3545', backgroundColor: '#f8d7da' } : undefined}
+                    style={isNew && duplicateWarning && duplicateWarning.field === 'phone' ? { borderColor: '#dc3545', backgroundColor: '#fff5f5' } : undefined}
                   />
                 </div>
               </div>
@@ -652,11 +646,12 @@ const LeadDetail = () => {
                   <input
                     type="text"
                     name="whatsapp_country_code"
-                    value={formData.whatsapp_country_code || '+91'}
+                    value={formData.whatsapp_country_code ?? ''}
                     onChange={handleChange}
                     disabled={!canEdit}
                     className="country-code-input"
-                    placeholder="+91"
+                    placeholder="+44"
+                    autoComplete="tel-country-code"
                   />
                   <input
                     type="text"
@@ -735,7 +730,7 @@ const LeadDetail = () => {
                   value={formData.email || ''}
                   onChange={handleChange}
                   disabled={!canEdit}
-                  style={duplicateWarning && duplicateWarning.field === 'email' ? { borderColor: '#dc3545', backgroundColor: '#f8d7da' } : undefined}
+                  style={isNew && duplicateWarning && duplicateWarning.field === 'email' ? { borderColor: '#dc3545', backgroundColor: '#fff5f5' } : undefined}
                 />
               </div>
               <div className="form-group">
@@ -872,7 +867,7 @@ const LeadDetail = () => {
                   <option value="New">New</option>
                   <option value="Unassigned">Unassigned</option>
                   <option value="Direct Lead">Direct Lead</option>
-                  <option value="Assigned">Assigned</option>
+                  {!isNew && <option value="Assigned">Assigned</option>}
                   <option value="Follow-up">Follow-up</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Not Responding">Not Responding</option>

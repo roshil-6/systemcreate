@@ -162,11 +162,11 @@ const StaffList = () => {
                             </div>
                             <div className="form-group">
                                 <label>Phone Number</label>
-                                <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleInputChange} placeholder="+91 9876543210" />
+                                <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleInputChange} placeholder="+44 7700 900123" />
                             </div>
                             <div className="form-group">
                                 <label>Office Number</label>
-                                <input type="tel" name="office_number" value={formData.office_number} onChange={handleInputChange} placeholder="+91 9876543210" />
+                                <input type="tel" name="office_number" value={formData.office_number} onChange={handleInputChange} placeholder="+44 7700 900123" />
                             </div>
                             <div className="form-group">
                                 <label>Date of Birth</label>
@@ -180,9 +180,9 @@ const StaffList = () => {
                                     <option value="PROCESSING">Processing</option>
                                     <option value="HR">HR</option>
                                 </select>
-                                <small style={{ color: '#666', fontSize: '12px' }}>
-                                    Sales Team: Can create and manage their own leads<br/>
-                                    Processing: Handles registered clients<br/>
+                                <small style={{ color: '#666', fontSize: '12px', display: 'block', marginTop: '6px' }}>
+                                    Sales Team: Can create and manage their own leads<br />
+                                    Processing: Handles registered clients<br />
                                     HR: Manages staff and documents
                                 </small>
                             </div>
@@ -251,7 +251,7 @@ const StaffList = () => {
                                     </td>
                                     <td>{u.email}</td>
                                     <td>
-                                        <span className={`role-badge role-${u.role?.toLowerCase()}`}>
+                                        <span className={`role-badge role-${String(u.role || '').toLowerCase()}`}>
                                             {u.role === 'SALES_TEAM' ? 'Sales' : u.role === 'SALES_TEAM_HEAD' ? 'Sales Head' : u.role === 'PROCESSING' ? 'Processing' : u.role === 'HR' ? 'HR' : u.role === 'ADMIN' ? 'Admin' : 'Staff'}
                                         </span>
                                     </td>

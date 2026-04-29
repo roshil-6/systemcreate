@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db = require('../config/database');
+const { normalizeDialCode } = require('../utils/dialCode');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
@@ -304,9 +305,9 @@ router.post('/', authenticate, [
     const clientData = {
       name,
       phone_number,
-      phone_country_code: phone_country_code || '+91',
+      phone_country_code: normalizeDialCode(phone_country_code),
       whatsapp_number: whatsapp_number || null,
-      whatsapp_country_code: whatsapp_country_code || '+91',
+      whatsapp_country_code: normalizeDialCode(whatsapp_country_code),
       email: email || null,
       age: age || null,
       occupation: occupation || null,

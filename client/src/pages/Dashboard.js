@@ -1338,9 +1338,31 @@ const Dashboard = () => {
                           <div style={{ fontSize: '10px', color: '#16a34a', textTransform: 'uppercase', marginBottom: '2px' }}>Proc</div>
                           <div style={{ fontSize: '15px', fontWeight: '700', color: '#166534' }}>{staff.clients_in_processing || 0}</div>
                         </div>
-                        <div style={{ backgroundColor: '#f0f9ff', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '10px', color: '#0284c7', textTransform: 'uppercase', marginBottom: '2px' }}>Conv</div>
-                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#075985' }}>{staff.converted_leads || 0}</div>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/leads?assigned_staff_id=${staff.id}&lead_source_type=direct`);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              navigate(`/leads?assigned_staff_id=${staff.id}&lead_source_type=direct`);
+                            }
+                          }}
+                          style={{
+                            backgroundColor: '#eef2ff',
+                            padding: '8px',
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                          }}
+                          title="Manually entered leads (not bulk import) assigned to this staff — click to open list"
+                        >
+                          <div style={{ fontSize: '10px', color: '#4338ca', textTransform: 'uppercase', marginBottom: '2px' }}>Direct</div>
+                          <div style={{ fontSize: '15px', fontWeight: '700', color: '#3730a3' }}>{staff.direct_leads ?? 0}</div>
                         </div>
                       </div>
                       {(staff.unattended_leads || 0) > 0 && (
@@ -2409,7 +2431,7 @@ const Dashboard = () => {
                     <tr>
                       <th>Name</th>
                       <th>Total Leads</th>
-                      <th>Converted Clients</th>
+                      <th>Direct leads</th>
                       <th>In Processing</th>
                       <th>Unattended</th>
                     </tr>
@@ -2497,7 +2519,7 @@ const Dashboard = () => {
                             </div>
                           </td>
                           <td>{staff.total_leads}</td>
-                          <td>{staff.converted_leads || 0}</td>
+                          <td>{staff.direct_leads ?? 0}</td>
                           <td>{staff.clients_in_processing || 0}</td>
                           <td>
                             {(staff.unattended_leads || 0) > 0 ? (
@@ -2530,7 +2552,7 @@ const Dashboard = () => {
                         <p><strong>Staff Members Found ({data.staffPerformance.length}):</strong></p>
                         <ul style={{ marginLeft: '20px', textAlign: 'left' }}>
                           {data.staffPerformance.map((staff, idx) => (
-                            <li key={idx}>{staff.name} (ID: {staff.id}, Leads: {staff.total_leads}, Clients: {staff.converted_leads || 0})</li>
+                            <li key={idx}>{staff.name} (ID: {staff.id}, Leads: {staff.total_leads}, Direct: {staff.direct_leads ?? 0})</li>
                           ))}
                         </ul>
                       </div>

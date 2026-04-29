@@ -734,6 +734,7 @@ const Leads = () => {
     if (viewType === 'follow_up') return 'follow_up';
     if (leadSourceTypeFilter === 'manual') return 'manual';
     if (leadSourceTypeFilter === 'bulk_import') return 'bulk_import';
+    if (leadSourceTypeFilter === 'direct') return 'direct';
     return 'all';
   };
 
@@ -769,7 +770,7 @@ const Leads = () => {
   const handleUnifiedFilterChange = (value) => {
     setCreatedTodayFilter(value === 'today');
     setViewType(value === 'new' ? 'new' : value === 'follow_up' ? 'follow_up' : 'all');
-    setLeadSourceTypeFilter(value === 'manual' ? 'manual' : value === 'bulk_import' ? 'bulk_import' : '');
+    setLeadSourceTypeFilter(value === 'manual' ? 'manual' : value === 'bulk_import' ? 'bulk_import' : value === 'direct' ? 'direct' : '');
     const params = new URLSearchParams(searchParams);
     params.delete('created_today');
     params.delete('viewType');
@@ -780,7 +781,7 @@ const Leads = () => {
     params.delete('created_to');
     if (value === 'today') params.set('created_today', 'true');
     if (value === 'new' || value === 'follow_up') params.set('viewType', value);
-    if (value === 'manual' || value === 'bulk_import') params.set('lead_source_type', value);
+    if (value === 'manual' || value === 'bulk_import' || value === 'direct') params.set('lead_source_type', value);
     setCreatedMonth('');
     setSelectedCreatedOn('');
     setDateFrom('');
@@ -1254,6 +1255,7 @@ const Leads = () => {
                   </>
                 )}
                 <option value="manual">Manual</option>
+                <option value="direct">Direct (non-bulk)</option>
                 <option value="bulk_import">Bulk import</option>
               </select>
             </div>
@@ -2518,6 +2520,7 @@ const Leads = () => {
               <span className="leads-col-menu__title">How the lead was added</span>
               <button type="button" className={`leads-col-menu__opt ${leadSourceTypeFilter === '' ? 'leads-col-menu__opt--on' : ''}`} onClick={() => { handleLeadSourceTypeFilter(''); closeColumnMenu(); }}>All sources</button>
               <button type="button" className={`leads-col-menu__opt ${leadSourceTypeFilter === 'manual' ? 'leads-col-menu__opt--on' : ''}`} onClick={() => { handleLeadSourceTypeFilter('manual'); closeColumnMenu(); }}>Manual</button>
+              <button type="button" className={`leads-col-menu__opt ${leadSourceTypeFilter === 'direct' ? 'leads-col-menu__opt--on' : ''}`} onClick={() => { handleLeadSourceTypeFilter('direct'); closeColumnMenu(); }}>Direct (non-bulk)</button>
               <button type="button" className={`leads-col-menu__opt ${leadSourceTypeFilter === 'bulk_import' ? 'leads-col-menu__opt--on' : ''}`} onClick={() => { handleLeadSourceTypeFilter('bulk_import'); closeColumnMenu(); }}>Bulk import</button>
             </div>
           )}

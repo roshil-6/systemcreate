@@ -4,6 +4,7 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const iconv = require('iconv-lite');
 const db = require('../config/database');
+const { normalizeDialCode } = require('../utils/dialCode');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const fs = require('fs');
 const path = require('path');
@@ -56,6 +57,93 @@ async function findOtherLeadWithEmail(excludeLeadId, emailLowerTrimmed) {
     [excludeLeadId, String(emailLowerTrimmed).trim().toLowerCase()]
   );
   return r.rows[0] || null;
+}
+
+/**
+ * Same rules as GET /api/leads/check-duplicate (exact digits + last-10 match).
+ * Used by check-duplicate route and POST /api/leads so duplicates cannot slip past create.
+ */
+async function findDuplicateLead({ phone, email, name: nameQuery }) {
+  if (phone != null && String(phone).trim().length >= 5) {
+    const cleanPhone = String(phone).trim().replace(/\D/g, '');
+    if (cleanPhone.length >= 7) {
+      const result = await db.query(
+        `SELECT id, name, status FROM leads
+           WHERE deleted_at IS NULL AND (
+             regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g') = $1
+             OR regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g') = $1
+             OR regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g') = $1
+             OR (
+               length($1) >= 10 AND length(regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g')) >= 10
+               AND right(regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g'), 10) = right($1, 10)
+             )
+             OR (
+               length($1) >= 10 AND length(regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g')) >= 10
+               AND right(regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g'), 10) = right($1, 10)
+             )
+             OR (
+               length($1) >= 10 AND length(regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g')) >= 10
+               AND right(regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g'), 10) = right($1, 10)
+             )
+           ) LIMIT 1`,
+        [cleanPhone]
+      );
+      if (result.rows.length > 0) {
+        const match = result.rows[0];
+        return { exists: true, field: 'phone', lead: { id: match.id, name: match.name, status: match.status } };
+      }
+    }
+  }
+
+  if (email != null && String(email).trim().length >= 3) {
+    const result = await db.query(
+      `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(email)) = $1 LIMIT 1`,
+      [String(email).trim().toLowerCase()]
+    );
+    if (result.rows.length > 0) {
+      const match = result.rows[0];
+      return { exists: true, field: 'email', lead: { id: match.id, name: match.name, status: match.status } };
+    }
+  }
+
+  if (nameQuery != null && String(nameQuery).trim().length >= 2) {
+    const result = await db.query(
+      `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`,
+      [String(nameQuery).trim()]
+    );
+    if (result.rows.length > 0) {
+      const match = result.rows[0];
+      return { exists: true, field: 'name', lead: { id: match.id, name: match.name, status: match.status } };
+    }
+  }
+
+  return { exists: false };
+}
+
+/** Digit string for duplicate check — mirrors client LeadDetail (CC + local, else local, else WhatsApp). */
+function buildPhoneDigitCandidatesForCreate(body) {
+  const {
+    phone_number,
+    phone_country_code,
+    whatsapp_number,
+    whatsapp_country_code,
+  } = body;
+  const phoneDigits = String(phone_number || '').replace(/\D/g, '');
+  const ccDigits = String(phone_country_code || '').replace(/\D/g, '');
+  const waDigits = String(whatsapp_number || '').replace(/\D/g, '');
+  const waCcDigits = String(whatsapp_country_code || '').replace(/\D/g, '');
+  const combinedPhone = ccDigits + phoneDigits;
+  const combinedWa = waCcDigits + waDigits;
+  const out = [];
+  let primary = '';
+  if (combinedPhone.length >= 7) primary = combinedPhone;
+  else if (phoneDigits.length >= 7) primary = phoneDigits;
+  if (primary) out.push(primary);
+  let wa = '';
+  if (combinedWa.length >= 7) wa = combinedWa;
+  else if (waDigits.length >= 7) wa = waDigits;
+  if (wa && wa !== primary) out.push(wa);
+  return out;
 }
 
 /**
@@ -682,60 +770,10 @@ router.get('/last-imported-file', authenticate, async (req, res) => {
 router.get('/check-duplicate', authenticate, async (req, res) => {
   try {
     const { phone, email, name: nameQuery } = req.query;
-
-    if (phone && phone.trim().length >= 5) {
-      const cleanPhone = phone.trim().replace(/\D/g, '');
-      if (cleanPhone.length >= 7) {
-        const result = await db.query(
-          `SELECT id, name, status, phone_number, whatsapp_number FROM leads
-           WHERE deleted_at IS NULL AND (
-             regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g') = $1
-             OR regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g') = $1
-             OR regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g') = $1
-             OR (
-               length($1) >= 10 AND length(regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g')) >= 10
-               AND right(regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g'), 10) = right($1, 10)
-             )
-             OR (
-               length($1) >= 10 AND length(regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g')) >= 10
-               AND right(regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g'), 10) = right($1, 10)
-             )
-             OR (
-               length($1) >= 10 AND length(regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g')) >= 10
-               AND right(regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g'), 10) = right($1, 10)
-             )
-           ) LIMIT 1`,
-          [cleanPhone]
-        );
-        if (result.rows.length > 0) {
-          const match = result.rows[0];
-          return res.json({ exists: true, field: 'phone', lead: { id: match.id, name: match.name, status: match.status } });
-        }
-      }
+    const result = await findDuplicateLead({ phone, email, name: nameQuery });
+    if (result.exists) {
+      return res.json({ exists: true, field: result.field, lead: result.lead });
     }
-
-    if (email && email.trim().length >= 3) {
-      const result = await db.query(
-        `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(email)) = $1 LIMIT 1`,
-        [email.trim().toLowerCase()]
-      );
-      if (result.rows.length > 0) {
-        const match = result.rows[0];
-        return res.json({ exists: true, field: 'email', lead: { id: match.id, name: match.name, status: match.status } });
-      }
-    }
-
-    if (nameQuery && String(nameQuery).trim().length >= 3) {
-      const result = await db.query(
-        `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`,
-        [String(nameQuery).trim()]
-      );
-      if (result.rows.length > 0) {
-        const match = result.rows[0];
-        return res.json({ exists: true, field: 'name', lead: { id: match.id, name: match.name, status: match.status } });
-      }
-    }
-
     res.json({ exists: false });
   } catch (error) {
     console.error('Check duplicate error:', error);
@@ -1153,32 +1191,41 @@ router.post(
         }
       }
 
-      // Check for duplicate phone/email using dedicated indexes (not paginated getLeads)
-      const normalizedPhone = phone_number ? String(phone_number).replace(/\D/g, '') : '';
-      const normalizedWhatsapp = whatsapp_number ? String(whatsapp_number).replace(/\D/g, '') : '';
-      const [phoneRows, emailRows] = await Promise.all([
-        (normalizedPhone || normalizedWhatsapp) ? db.getLeadPhones() : Promise.resolve([]),
-        email ? db.getLeadEmails() : Promise.resolve([]),
-      ]);
-      const existingPhones = new Set(phoneRows.map(r => String(r.phone_number || '').replace(/\D/g, '')));
-      const existingEmails = new Set(emailRows.map(r => String(r.email || '').toLowerCase()));
+      // PROCESSING: if no assignee chosen, default to creator so they can edit follow-up and headers on their leads
+      if (role === 'PROCESSING' && (finalAssignedStaffId === null || finalAssignedStaffId === undefined || finalAssignedStaffId === '')) {
+        finalAssignedStaffId = userId;
+      }
 
-      if (normalizedPhone && existingPhones.has(normalizedPhone)) {
-        return res.status(400).json({ error: 'Lead with this phone number already exists' });
+      // Same duplicate rules as GET /check-duplicate (exact + last-10 digit match), not just getLeadPhones()
+      const phoneCandidates = buildPhoneDigitCandidatesForCreate(req.body);
+      for (const digits of phoneCandidates) {
+        const dupPhone = await findDuplicateLead({ phone: digits, email: null, name: null });
+        if (dupPhone.exists) {
+          return res.status(400).json({
+            error: 'Lead with this phone number already exists',
+            duplicateLeadId: dupPhone.lead.id,
+            field: 'phone',
+          });
+        }
       }
-      if (normalizedWhatsapp && existingPhones.has(normalizedWhatsapp)) {
-        return res.status(400).json({ error: 'Lead with this WhatsApp number already exists' });
-      }
-      if (email && existingEmails.has(email.toLowerCase().trim())) {
-        return res.status(400).json({ error: 'Lead with this email already exists' });
+      const dupRest = await findDuplicateLead({ phone: null, email: email || '', name: name || '' });
+      if (dupRest.exists) {
+        const msg = dupRest.field === 'email'
+          ? 'Lead with this email already exists'
+          : 'Lead with this name already exists';
+        return res.status(400).json({
+          error: msg,
+          duplicateLeadId: dupRest.lead.id,
+          field: dupRest.field,
+        });
       }
 
       const newLead = await db.createLead({
         name,
         phone_number,
-        phone_country_code: phone_country_code || '+91',
+        phone_country_code: normalizeDialCode(phone_country_code),
         whatsapp_number: whatsapp_number || null,
-        whatsapp_country_code: whatsapp_country_code || '+91',
+        whatsapp_country_code: normalizeDialCode(whatsapp_country_code),
         email: email || null,
         age: age || null,
         occupation: occupation || null,
@@ -2100,7 +2147,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           validLeads.push({
             name, phone_number: phone, phone_country_code: phoneCountryCode,
             whatsapp_number: g(colIdx.whatsapp_number) || null,
-            whatsapp_country_code: phoneCountryCode || '+91',
+            whatsapp_country_code: normalizeDialCode(phoneCountryCode),
             email: email || null, country: g(colIdx.country) || null, program: g(colIdx.program) || null,
             occupation: g(colIdx.occupation) || null,
             status: st, priority: g(colIdx.priority) || 'Medium',

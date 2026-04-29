@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { normalizeDialCode } = require('../utils/dialCode');
 
 // Ensure data directory exists
 const dataDir = path.join(__dirname, '..', 'data');
@@ -191,9 +192,9 @@ const database = {
       id,
       leadData.name,
       leadData.phone_number,
-      leadData.phone_country_code || '+91',
+      normalizeDialCode(leadData.phone_country_code),
       leadData.whatsapp_number || null,
-      leadData.whatsapp_country_code || '+91',
+      normalizeDialCode(leadData.whatsapp_country_code),
       leadData.email || null,
       leadData.age || null,
       leadData.occupation || null,
@@ -683,9 +684,9 @@ const database = {
       id,
       clientData.name,
       clientData.phone_number,
-      clientData.phone_country_code || '+91',
+      normalizeDialCode(clientData.phone_country_code),
       clientData.whatsapp_number || null,
-      clientData.whatsapp_country_code || '+91',
+      normalizeDialCode(clientData.whatsapp_country_code),
       clientData.email || null,
       clientData.age || null,
       clientData.occupation || null,
