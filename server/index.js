@@ -37,43 +37,60 @@ const PORT = process.env.PORT || 5005;
 // --- READINESS STATE ---
 let isDatabaseReady = false;
 
-// Middleware
-const allowedOrigins = [
+// CORS: merge defaults with ALLOWED_ORIGINS (comma-separated) from Render/Vercel env.
+const defaultAllowedOrigins = [
   'https://systemcreate.vercel.app',
   'http://localhost:3000',
-  'http://localhost:5173'
+  'http://localhost:5173',
 ];
+const envAllowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowedOrigins = [...new Set([...defaultAllowedOrigins, ...envAllowedOrigins])];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('vercel.app')) {
-      return callback(null, true);
-    }
-    return callback(null, true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires']
-}));
+console.log(`🌐 CORS: ${allowedOrigins.length} origin(s); `.concat(envAllowedOrigins.length ? `${envAllowedOrigins.length} from ALLOWED_ORIGINS.` : 'defaults only (*.vercel.app allowed via hostname).'));
 
-// Hard preflight guard: ensure CORS headers are present even during cold starts/readiness states.
-app.use((req, res, next) => {
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+    if (hostname === 'vercel.app' || hostname.endsWith('.vercel.app')) return true;
+  } catch (_) {
+    /* ignore malformed Origin */
+  }
+  return false;
+}
+
+function applyCorsHeaders(req, res) {
   const origin = req.headers.origin;
-  const isAllowedOrigin = origin && (allowedOrigins.includes(origin) || origin.includes('vercel.app'));
-
-  if (isAllowedOrigin) {
+  if (origin && isAllowedCorsOrigin(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
     res.header('Vary', 'Origin');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Pragma, Expires');
   }
+}
 
+app.use(cors({
+  origin(origin, callback) {
+    if (isAllowedCorsOrigin(origin)) return callback(null, true);
+    callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
+}));
+
+// Preflight + mirror headers for proxies/cold-start edge cases (Express paths only).
+app.use((req, res, next) => {
+  applyCorsHeaders(req, res);
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
-
   next();
 });
 
@@ -82,6 +99,7 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/') && !isDatabaseReady) {
     console.warn(`🛡️ Gatekeeper: Blocked ${req.method} ${req.path} (Database still warming up)`);
+    applyCorsHeaders(req, res);
     return res.status(503).json({
       error: 'Backend is starting up',
       message: 'The database is still connecting. Please wait 10-20 seconds and refresh.'
@@ -90,12 +108,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Essential health check (Database-less)
+// Essential health check (Database-less) — explicit CORS for Render wake-ups from Vercel.
 app.get('/health', (req, res) => {
+  applyCorsHeaders(req, res);
   res.status(200).json({
     status: 'ok',
     service: 'CRM API',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -136,9 +155,10 @@ app.use('/api/hr', hrRoutes);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
+  applyCorsHeaders(req, res);
   res.status(err.status || 500).json({
     error: 'Internal server error',
-    message: err.message
+    message: err.message,
   });
 });
 
