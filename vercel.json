@@ -5,8 +5,12 @@
   "outputDirectory": "client/build",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api"
+      "source": "/health",
+      "destination": "https://crm-2b00.onrender.com/health"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://crm-2b00.onrender.com/api/:path*"
     },
     {
       "source": "/(.*)",
