@@ -10,8 +10,48 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  /** Optimistic UI: no blocking banner; wake Render in background */
+  const [serverUnreachable, setServerUnreachable] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const wakeUpServer = async () => {
+      const maxAttempts = 12;
+      const delayMs = 2500;
+
+      for (let attempt = 0; attempt < maxAttempts && !cancelled; attempt++) {
+        try {
+          try {
+            await fetch(`${API_BASE_URL}/health`, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+          } catch (_) {
+            /* ignore */
+          }
+          await new Promise((r) => setTimeout(r, 400));
+
+          const response = await fetch(`${API_BASE_URL}/health`, {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'omit',
+          });
+
+          if (response.ok || response.status !== 503) {
+            return;
+          }
+        } catch (_) {
+          /* still waking */
+        }
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      if (!cancelled) setServerUnreachable(true);
+    };
+
+    void wakeUpServer();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,56 +73,23 @@ const Login = () => {
     setLoading(false);
   };
 
-  const [serverStatus, setServerStatus] = useState('checking'); // checking, online, offline
-
-  // Wake up the server on load with polling
-  React.useEffect(() => {
-    let isMounted = true;
-    const wakeUpServer = async () => {
-      let attempts = 0;
-      const maxAttempts = 30; // Try for ~1 minute (30 * 2s)
-
-      while (attempts < maxAttempts && isMounted) {
-        try {
-          console.log(`⏰ Waking up server... (Attempt ${attempts + 1}/${maxAttempts})`);
-          // Standard fetch to check status (NOT no-cors, so we can see 503)
-          const response = await fetch(`${API_BASE_URL}/health`);
-
-          if (response.ok) {
-            console.log('✅ Server is awake and healthy!');
-            if (isMounted) setServerStatus('online');
-            return;
-          } else if (response.status === 503) {
-            console.log('💤 Server is starting up (503)... retrying in 2s');
-          } else {
-            // 4xx or 5xx other than 503 usually means server is reachable but maybe endpoint has issues
-            console.log(`⚠️ Server reachable but returned ${response.status}`);
-            if (isMounted) setServerStatus('online'); // Technically online
-            return;
-          }
-        } catch (err) {
-          console.log('❌ Network error (server might be down/sleeping)... retrying in 2s', err.message);
-        }
-
-        attempts++;
-        // Wait 2 seconds before next try
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-
-      if (isMounted) setServerStatus('offline');
-    };
-
-    wakeUpServer();
-
-    return () => { isMounted = false; };
-  }, []);
-
   return (
     <div className="login-container">
       <div className="login-card">
-        {serverStatus === 'checking' && (
-          <div style={{ padding: '10px', background: '#e3f2fd', color: '#0d47a1', borderRadius: '4px', marginBottom: '15px', fontSize: '14px', textAlign: 'center' }}>
-            ⏳ Connecting to server... (might take 30s)
+        {serverUnreachable && (
+          <div
+            style={{
+              padding: '10px 12px',
+              background: '#fffbeb',
+              color: '#92400e',
+              borderRadius: '8px',
+              marginBottom: '14px',
+              fontSize: '13px',
+              textAlign: 'center',
+              border: '1px solid #fcd34d',
+            }}
+          >
+            Could not reach the API yet (host may be waking). You can still try logging in—wait a few seconds and submit again if it fails.
           </div>
         )}
         <div className="login-header">
