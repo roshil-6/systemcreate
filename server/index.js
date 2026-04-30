@@ -1,7 +1,6 @@
 const express = require('express');
 const path = require('path');
 console.log('🚀 CRM Server: Starting initialization...');
-const cors = require('cors');
 // Load .env from server directory regardless of cwd (fixes JWT_SECRET missing when run from root)
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const crypto = require('crypto');
@@ -66,30 +65,26 @@ function isAllowedCorsOrigin(origin) {
 
 function applyCorsHeaders(req, res) {
   const origin = req.headers.origin;
-  if (origin && isAllowedCorsOrigin(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Vary', 'Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, Pragma, Expires');
-  }
+  if (!origin || !isAllowedCorsOrigin(origin)) return;
+
+  const requested = req.headers['access-control-request-headers'];
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    requested ||
+      'Content-Type, Authorization, Accept, Accept-Language, Cache-Control, Pragma, Expires, X-Requested-With'
+  );
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Vary', 'Origin');
 }
 
-app.use(cors({
-  origin(origin, callback) {
-    if (isAllowedCorsOrigin(origin)) return callback(null, true);
-    callback(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'Expires'],
-}));
-
-// Preflight + mirror headers for proxies/cold-start edge cases (Express paths only).
+// CORS first: credentialed cross-origin requires explicit Allow-Headers (echo preflight list).
 app.use((req, res, next) => {
   applyCorsHeaders(req, res);
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
+    return res.status(204).end();
   }
   next();
 });

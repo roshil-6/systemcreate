@@ -2,6 +2,14 @@
     "outputDirectory": "build",
     "rewrites": [
         {
+            "source": "/health",
+            "destination": "https://crm-2b00.onrender.com/health"
+        },
+        {
+            "source": "/api/:path*",
+            "destination": "https://crm-2b00.onrender.com/api/:path*"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }
