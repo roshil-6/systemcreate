@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
+import { useAuth } from '../../context/AuthContext';
 import { FiUsers, FiClock, FiCalendar, FiGift, FiArrowRight, FiUser, FiFileText } from 'react-icons/fi';
 import './HR.css';
 
 const HRDashboard = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [stats, setStats] = useState({
         totalStaff: 0,
         presentToday: 0,
@@ -114,11 +116,11 @@ const HRDashboard = () => {
 
     /** Use API group keys: New, Assigned, Contacted, Converted, Closed (matches server statusGroups). */
     const openMyLeads = (statusGroup = '') => {
-        if (!statusGroup) {
-            navigate('/leads?from=hr-my-leads');
-            return;
-        }
-        navigate(`/leads?from=hr-my-leads&status=${encodeURIComponent(statusGroup)}`);
+        const qs = new URLSearchParams();
+        if (user?.id != null) qs.set('assigned_staff_id', String(user.id));
+        qs.set('from', 'hr-my-leads');
+        if (statusGroup) qs.set('status', statusGroup);
+        navigate(`/leads?${qs.toString()}`);
     };
 
     if (loading) return <div className="hr-dashboard-loading">Loading Dashboard...</div>;
@@ -289,7 +291,7 @@ const HRDashboard = () => {
                         <h2>Quick Access</h2>
                     </div>
                     <div className="quick-links">
-                        <button onClick={() => navigate('/leads?from=hr-my-leads')} className="quick-link-card">
+                        <button onClick={() => openMyLeads()} className="quick-link-card">
                             <FiFileText />
                             <span>My Leads</span>
                             <FiArrowRight className="arrow" />

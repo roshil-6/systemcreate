@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
@@ -19,6 +19,7 @@ const SortIconNeutral = () => (
 const Leads = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -261,6 +262,17 @@ const Leads = () => {
       fetchStaffList();
     }
   }, [user]);
+
+  /** HR: list view is only their assigned leads — keep URL aligned (API also enforces). */
+  useEffect(() => {
+    if (user?.role !== 'HR' || user?.id == null) return;
+    if (location.pathname !== '/leads') return;
+    const id = searchParams.get('assigned_staff_id');
+    if (String(id) === String(user.id)) return;
+    const params = new URLSearchParams(searchParams);
+    params.set('assigned_staff_id', String(user.id));
+    navigate({ pathname: '/leads', search: params.toString() }, { replace: true });
+  }, [user?.role, user?.id, location.pathname, searchParams, navigate]);
 
   useEffect(() => {
     setSelectedLeadIds((prev) => prev.filter((id) => leads.some((lead) => lead.id === id)));
@@ -533,6 +545,10 @@ const Leads = () => {
     const followUpOverdue = overrides.followUpOverdue !== undefined ? overrides.followUpOverdue : searchParams.get('follow_up_overdue') === 'true';
     if (followUpDate) params.set('follow_up_date', followUpDate);
     if (followUpOverdue) params.set('follow_up_overdue', 'true');
+
+    if (user?.role === 'HR' && user?.id != null) {
+      params.set('assigned_staff_id', String(user.id));
+    }
 
     return params;
   };
@@ -1084,7 +1100,7 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Unassigned', 'Manual Lead', 'Assigned', 'Contacted', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Wrong Number', 'Converted', 'Closed', 'Registration Completed'];
+  const statusOptions = ['New', 'Unassigned', 'Manual Lead', 'Assigned', 'Contacted', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Not Attended', 'Not Eligible', 'Wrong Number', 'Converted', 'Closed', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
@@ -1097,6 +1113,8 @@ const Leads = () => {
       'Prospect': '#B0E0E6',
       'Pending Lead': '#DDA0DD',
       'Not Responding': '#FCD34D',
+      'Not Attended': '#fdba74',
+      'Not Eligible': '#fca5a5',
       'Wrong Number': '#9CA3AF',
       'Converted': '#10b981',
       'Closed': '#ef4444',
@@ -1116,6 +1134,8 @@ const Leads = () => {
       'Prospect': '#0e7490',
       'Pending Lead': '#7c2d12',
       'Not Responding': '#92400e',
+      'Not Attended': '#9a3412',
+      'Not Eligible': '#991B1B',
       'Wrong Number': '#4B5563',
       'Converted': '#166534',
       'Closed': '#991B1B',
@@ -1147,10 +1167,13 @@ const Leads = () => {
   const isAdmin = user?.role === 'ADMIN';
   const isHr = user?.role === 'HR';
   const canManageLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR';
+  /** HR list is always "my leads" only — no org-wide staff scope filter in UI */
+  const showAssignedStaffFilter = canManageLeads && !isHr;
   const allSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
-  // Avoid duplicate <option value> for admins: "My leads only" uses same id as their staff row
+  const allStaffForFilters = isAdmin;
+  // Avoid duplicate option value for admins: "My leads only" uses same id as their staff row
   const staffFilterListExcludingSelf =
-    isAdmin && user?.id != null
+    allStaffForFilters && user?.id != null
       ? staffList.filter((s) => Number(s.id) !== Number(user.id))
       : staffList;
 
@@ -1163,7 +1186,7 @@ const Leads = () => {
     followUp: !!(searchParams.get('follow_up_date') || searchParams.get('follow_up_overdue') === 'true'),
     source: !!leadSourceTypeFilter,
     priority: !!priorityFilter,
-    assigned: !!assignedStaffFilter,
+    assigned: !!assignedStaffFilter && !isHr,
   };
 
   const nameSortActive = sortBy === 'name_asc' || sortBy === 'name_desc';
@@ -1172,21 +1195,26 @@ const Leads = () => {
   return (
     <div className="leads-page">
       <div className="leads-header">
-        <button className="leads-back-btn" onClick={() => navigate(isHr ? '/hr' : '/')}>
+        <button
+          className="leads-back-btn"
+          onClick={() =>
+            navigate(
+              isHr ? (user?.id != null ? `/dashboard/staff/${user.id}` : '/hr') : '/'
+            )
+          }
+        >
           <FiArrowLeft /> Back to Dashboard
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <h1>{isHr ? 'My Leads' : 'Clients (Leads)'}</h1>
-            {!isHr && (
-              <button
-                className="header-history-btn"
-                onClick={() => { setShowHistoryModal(true); fetchImportHistory(); }}
-                title="View full history of imported Excel files"
-              >
-                <FiClock /> Import History
-              </button>
-            )}
+            <button
+              className="header-history-btn"
+              onClick={() => { setShowHistoryModal(true); fetchImportHistory(); }}
+              title="View full history of imported Excel files"
+            >
+              <FiClock /> Import History
+            </button>
             {isAdmin && (
               <button
                 className="header-trash-btn"
@@ -1307,7 +1335,7 @@ const Leads = () => {
             >
               <FiSearch size={14} aria-hidden /> Search
             </button>
-            {canManageLeads && !isHr && (
+            {showAssignedStaffFilter && (
               <button
                 ref={setTopbarBtnRef('staff')}
                 type="button"
@@ -2264,7 +2292,7 @@ const Leads = () => {
               </form>
             </div>
           )}
-          {topbarPopover.open === 'staff' && canManageLeads && !isHr && (
+          {topbarPopover.open === 'staff' && showAssignedStaffFilter && (
             <div className="leads-topbar-popover__body">
               <span className="leads-topbar-popover__title">Assigned staff</span>
               <p className="leads-topbar-popover__hint">Filter leads by who they are assigned to.</p>
@@ -2568,7 +2596,7 @@ const Leads = () => {
           {columnMenu.open === 'assigned' && (
             <div className="leads-col-menu__body">
               <span className="leads-col-menu__title">Assigned staff</span>
-              {canManageLeads && !isHr ? (
+              {showAssignedStaffFilter ? (
                 <select
                   className="leads-col-menu__select"
                   value={assignedStaffFilter}
@@ -2586,7 +2614,7 @@ const Leads = () => {
                   ))}
                 </select>
               ) : (
-                <p className="leads-col-menu__hint">Use the filter panel above for assignment options.</p>
+                <p className="leads-col-menu__hint">Only your assigned leads are shown.</p>
               )}
             </div>
           )}
