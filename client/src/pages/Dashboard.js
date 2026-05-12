@@ -851,6 +851,7 @@ const Dashboard = () => {
       'Wrong Number',
       'Not Attended',
       'Not Eligible',
+      'Not Interested',
       'Closed',
       'Registration Completed',
     ];

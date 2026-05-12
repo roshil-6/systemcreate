@@ -1100,7 +1100,7 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Unassigned', 'Manual Lead', 'Assigned', 'Contacted', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Not Attended', 'Not Eligible', 'Wrong Number', 'Converted', 'Closed', 'Registration Completed'];
+  const statusOptions = ['New', 'Unassigned', 'Manual Lead', 'Assigned', 'Contacted', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Not Attended', 'Not Eligible', 'Not Interested', 'Wrong Number', 'Converted', 'Closed', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
@@ -1115,6 +1115,7 @@ const Leads = () => {
       'Not Responding': '#FCD34D',
       'Not Attended': '#fdba74',
       'Not Eligible': '#fca5a5',
+      'Not Interested': '#e5e7eb',
       'Wrong Number': '#9CA3AF',
       'Converted': '#10b981',
       'Closed': '#ef4444',
@@ -1136,6 +1137,7 @@ const Leads = () => {
       'Not Responding': '#92400e',
       'Not Attended': '#9a3412',
       'Not Eligible': '#991B1B',
+      'Not Interested': '#4b5563',
       'Wrong Number': '#4B5563',
       'Converted': '#166534',
       'Closed': '#991B1B',

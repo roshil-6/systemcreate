@@ -874,6 +874,7 @@ const LeadDetail = () => {
                   <option value="Not Responding">Not Responding</option>
                   <option value="Not Attended">Not Attended</option>
                   <option value="Not Eligible">Not Eligible</option>
+                  <option value="Not Interested">Not Interested</option>
                   <option value="Wrong Number">Wrong Number</option>
                   <option value="Pending Lead">Pending Lead</option>
                   <option value="Registration Completed">Registration Completed</option>
