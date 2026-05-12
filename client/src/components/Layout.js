@@ -67,6 +67,7 @@ const Layout = ({ children }) => {
                     to={myStaffDash}
                     className={`nav-item ${isMyStaffDashActive ? 'active' : ''}`}
                     aria-current={isMyStaffDashActive ? 'page' : undefined}
+                    title="Your sales dashboard: metrics, follow-ups, and assigned leads"
                   >
                     <FiHome className="nav-icon" />
                     <span>Dashboard</span>
@@ -76,6 +77,7 @@ const Layout = ({ children }) => {
                   to="/leads"
                   className={`nav-item ${isActive('/leads') ? 'active' : ''}`}
                   aria-current={isActive('/leads') ? 'page' : undefined}
+                  title="Full leads list (all you can access)"
                 >
                   <FiUsers className="nav-icon" />
                   <span>All Leads</span>
