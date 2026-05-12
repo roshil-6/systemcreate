@@ -309,7 +309,18 @@ const Dashboard = () => {
   }, [staffId]);
 
   useEffect(() => {
-    if (staffId && user && user.role !== 'ADMIN' && user.role !== 'SALES_TEAM_HEAD' && !isEmy) {
+    const ownStaffDash =
+      user &&
+      staffId != null &&
+      Number(staffId) === Number(user.id) &&
+      user.role === 'HR';
+    const canUseStaffDashboardRoute =
+      user &&
+      (user.role === 'ADMIN' ||
+        user.role === 'SALES_TEAM_HEAD' ||
+        isEmy ||
+        ownStaffDash);
+    if (staffId && user && !canUseStaffDashboardRoute) {
       navigate('/');
       return;
     }
@@ -513,7 +524,11 @@ const Dashboard = () => {
   }
 
   const isStaffDetailView = Boolean(staffId);
-  const isRestrictedRole = data.role === 'STAFF' || data.role === 'SALES_TEAM' || data.role === 'PROCESSING';
+  const isRestrictedRole =
+    data.role === 'STAFF' ||
+    data.role === 'SALES_TEAM' ||
+    data.role === 'PROCESSING' ||
+    data.role === 'HR';
   const isAdminOrTeamHead = data.role === 'ADMIN' || data.role === 'SALES_TEAM_HEAD';
   const isReadOnly = data.isReadOnly || false; // Emy's read-only access
 
@@ -722,6 +737,21 @@ const Dashboard = () => {
         color: '#831843', // Dark pink text
         borderColor: '#ec4899' // Pink border
       },
+      'Follow-up 1': {
+        backgroundColor: '#E6E6FA', // Light lavender
+        color: '#4B0082', // Indigo text
+        borderColor: '#8b5cf6'
+      },
+      'Follow-up 2': {
+        backgroundColor: '#D8D4F7', // Slightly darker lavender
+        color: '#4B0082',
+        borderColor: '#7c3aed'
+      },
+      'Follow-up 3': {
+        backgroundColor: '#CAC2F4', // Even darker lavender
+        color: '#4B0082',
+        borderColor: '#6d28d9'
+      },
       'Prospect': {
         backgroundColor: '#A7F3D0', // Light green
         color: '#065f46', // Dark green text
@@ -737,10 +767,15 @@ const Dashboard = () => {
         color: '#92400e', // Dark amber text
         borderColor: '#f59e0b' // Amber border
       },
-      'Not Eligible': {
-        backgroundColor: '#FEE2E2',
-        color: '#991b1b',
-        borderColor: '#ef4444',
+      'Wrong Number': {
+        backgroundColor: '#E5E7EB', // Light gray
+        color: '#4B5563', // Dark gray text
+        borderColor: '#9CA3AF' // Gray border
+      },
+      'Manual Lead': {
+        backgroundColor: '#FCD34D',
+        color: '#92400e',
+        borderColor: '#f59e0b',
       },
       'Not Interested': {
         backgroundColor: '#F3F4F6',
@@ -751,6 +786,11 @@ const Dashboard = () => {
         backgroundColor: '#DBEAFE',
         color: '#1e40af',
         borderColor: '#3b82f6',
+      },
+      'Closed': {
+        backgroundColor: '#FECACA', // Light red
+        color: '#991B1B', // Dark red text
+        borderColor: '#ef4444' // Red border
       },
       'Closed / Rejected': {
         backgroundColor: '#E5E7EB', // Light gray
@@ -765,7 +805,15 @@ const Dashboard = () => {
     // Navigate to leads page with status filter
     // We use URLSearchParams to ensure proper encoding
     const params = new URLSearchParams();
-    params.set('status', status);
+    
+    // For Manual Lead, we want to show all leads not created via Bulk Import (any status)
+    if (status === 'Manual Lead') {
+      // 'direct' filter shows all leads not from bulk import (any status)
+      params.set('lead_source_type', 'direct');
+    } else {
+      params.set('status', status);
+    }
+    
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -776,23 +824,25 @@ const Dashboard = () => {
     }
 
     const newColor = getStatusBoxColor('New');
+    const manualLeadColor = getStatusBoxColor('Manual Lead');
     const followUpColor = getStatusBoxColor('Follow-up');
     const prospectColor = getStatusBoxColor('Prospect');
     const pendingColor = getStatusBoxColor('Pending Lead');
     const notRespondingColor = getStatusBoxColor('Not Responding');
-    const notEligibleColor = getStatusBoxColor('Not Eligible');
-    const notInterestedColor = getStatusBoxColor('Not Interested');
+    const wrongNumberColor = getStatusBoxColor('Wrong Number');
+    const closedColor = getStatusBoxColor('Closed');
     const registrationCompletedColor = getStatusBoxColor('Registration Completed');
 
-    /** Always show these tiles (count 0 when none) so Follow-up … Registration Completed stay visible */
+    /** Always show these tiles with real counts from leadsByStatus */
     const STATUS_BOX_ORDER = [
       'New',
+      'Manual Lead',
       'Follow-up',
       'Prospect',
       'Pending Lead',
       'Not Responding',
-      'Not Eligible',
-      'Not Interested',
+      'Wrong Number',
+      'Closed',
       'Registration Completed',
     ];
 
@@ -805,7 +855,11 @@ const Dashboard = () => {
           {lbs && typeof lbs === 'object' ? (
             STATUS_BOX_ORDER.map((status) => {
               const color = getStatusBoxColor(status);
-              const count = lbs[status] ?? 0;
+              // For Follow-up, sum up all follow-up statuses (1, 2, 3)
+              let count = lbs[status] ?? 0;
+              if (status === 'Follow-up') {
+                count = (lbs['Follow-up 1'] || 0) + (lbs['Follow-up 2'] || 0) + (lbs['Follow-up 3'] || 0) + (lbs['Follow-up'] || 0);
+              }
               return (
                 <div
                   key={status}
@@ -820,7 +874,7 @@ const Dashboard = () => {
               );
             })
           ) : (
-            // Legacy metrics without leadsByStatus object
+            // Legacy metrics without leadsByStatus object - use real counts
             <>
               <div
                 className="status-item"
@@ -829,16 +883,25 @@ const Dashboard = () => {
                 title="View New Leads"
               >
                 <span className="status-label" style={{ color: newColor.color }}>New</span>
-                <span className="status-count" style={{ color: newColor.color }}>{data.metrics.newLeads}</span>
+                <span className="status-count" style={{ color: newColor.color }}>{data.metrics.newLeads || 0}</span>
+              </div>
+              <div
+                className="status-item"
+                style={manualLeadColor}
+                onClick={() => handleStatusClick('Manual Lead')}
+                title="View Manual Leads"
+              >
+                <span className="status-label" style={{ color: manualLeadColor.color }}>Manual Lead</span>
+                <span className="status-count" style={{ color: manualLeadColor.color }}>{data.metrics.manualLeads || 0}</span>
               </div>
               <div
                 className="status-item"
                 style={followUpColor}
                 onClick={() => handleStatusClick('Follow-up')}
-                title="View Follow-up Leads"
+                title="View All Follow-up Leads"
               >
                 <span className="status-label" style={{ color: followUpColor.color }}>Follow-up</span>
-                <span className="status-count" style={{ color: followUpColor.color }}>{data.metrics.followupLeads}</span>
+                <span className="status-count" style={{ color: followUpColor.color }}>{data.metrics.followupLeads || 0}</span>
               </div>
               <div
                 className="status-item"
@@ -847,7 +910,7 @@ const Dashboard = () => {
                 title="View Prospect Leads"
               >
                 <span className="status-label" style={{ color: prospectColor.color }}>Prospect</span>
-                <span className="status-count" style={{ color: prospectColor.color }}>{data.metrics.processingLeads}</span>
+                <span className="status-count" style={{ color: prospectColor.color }}>{data.metrics.processingLeads || 0}</span>
               </div>
               <div
                 className="status-item"
@@ -856,7 +919,7 @@ const Dashboard = () => {
                 title="View Pending Leads"
               >
                 <span className="status-label" style={{ color: pendingColor.color }}>Pending Lead</span>
-                <span className="status-count" style={{ color: pendingColor.color }}>{data.metrics.convertedLeads}</span>
+                <span className="status-count" style={{ color: pendingColor.color }}>{data.metrics.convertedLeads || 0}</span>
               </div>
               <div
                 className="status-item"
@@ -865,25 +928,25 @@ const Dashboard = () => {
                 title="View Not Responding Leads"
               >
                 <span className="status-label" style={{ color: notRespondingColor.color }}>Not Responding</span>
-                <span className="status-count" style={{ color: notRespondingColor.color }}>0</span>
+                <span className="status-count" style={{ color: notRespondingColor.color }}>{data.metrics.notRespondingLeads || 0}</span>
               </div>
               <div
                 className="status-item"
-                style={notEligibleColor}
-                onClick={() => handleStatusClick('Not Eligible')}
-                title="View Not Eligible Leads"
+                style={wrongNumberColor}
+                onClick={() => handleStatusClick('Wrong Number')}
+                title="View Wrong Number Leads"
               >
-                <span className="status-label" style={{ color: notEligibleColor.color }}>Not Eligible</span>
-                <span className="status-count" style={{ color: notEligibleColor.color }}>0</span>
+                <span className="status-label" style={{ color: wrongNumberColor.color }}>Wrong Number</span>
+                <span className="status-count" style={{ color: wrongNumberColor.color }}>{data.metrics.wrongNumberLeads || 0}</span>
               </div>
               <div
                 className="status-item"
-                style={notInterestedColor}
-                onClick={() => handleStatusClick('Not Interested')}
-                title="View Not Interested Leads"
+                style={closedColor}
+                onClick={() => handleStatusClick('Closed')}
+                title="View Closed Leads"
               >
-                <span className="status-label" style={{ color: notInterestedColor.color }}>Not Interested</span>
-                <span className="status-count" style={{ color: notInterestedColor.color }}>0</span>
+                <span className="status-label" style={{ color: closedColor.color }}>Closed</span>
+                <span className="status-count" style={{ color: closedColor.color }}>{data.metrics.closedLeads || 0}</span>
               </div>
               <div
                 className="status-item"
@@ -892,7 +955,7 @@ const Dashboard = () => {
                 title="View Completed Registrations"
               >
                 <span className="status-label" style={{ color: registrationCompletedColor.color }}>Registration Completed</span>
-                <span className="status-count" style={{ color: registrationCompletedColor.color }}>0</span>
+                <span className="status-count" style={{ color: registrationCompletedColor.color }}>{data.metrics.registrationCompletedLeads || 0}</span>
               </div>
             </>
           )}
@@ -1670,6 +1733,7 @@ const Dashboard = () => {
           // Regular Staff Dashboard View (NOT Processing Team)
           <>
             {renderStaffMetrics()}
+            {renderUnattendedLeadsSection()}
             {renderStatusBreakdown()}
             <div className="recent-leads-section">
               {(() => {

@@ -456,11 +456,9 @@ const LeadDetail = () => {
               className="header-field-select"
             >
               <option value="">Select Priority</option>
-              <option value="cold">Cold</option>
               <option value="hot">Hot</option>
               <option value="warm">Warm</option>
-              <option value="not interested">Not Interested</option>
-              <option value="not eligible">Not Eligible</option>
+              <option value="cold">Cold</option>
             </select>
           ) : (
             <select
@@ -471,11 +469,9 @@ const LeadDetail = () => {
               className="header-field-select"
             >
               <option value="">Select Priority</option>
-              <option value="cold">Cold</option>
               <option value="hot">Hot</option>
               <option value="warm">Warm</option>
-              <option value="not interested">Not Interested</option>
-              <option value="not eligible">Not Eligible</option>
+              <option value="cold">Cold</option>
             </select>
           )}
         </div>
@@ -866,14 +862,14 @@ const LeadDetail = () => {
                 >
                   <option value="New">New</option>
                   <option value="Unassigned">Unassigned</option>
-                  <option value="Direct Lead">Direct Lead</option>
                   {!isNew && <option value="Assigned">Assigned</option>}
-                  <option value="Follow-up">Follow-up</option>
+                  <option value="Follow-up 1">Follow-up 1</option>
+                  <option value="Follow-up 2">Follow-up 2</option>
+                  <option value="Follow-up 3">Follow-up 3</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Not Responding">Not Responding</option>
+                  <option value="Wrong Number">Wrong Number</option>
                   <option value="Pending Lead">Pending Lead</option>
-                  <option value="Not Eligible">Not Eligible</option>
-                  <option value="Not Interested">Not Interested</option>
                   <option value="Registration Completed">Registration Completed</option>
                 </select>
               </div>

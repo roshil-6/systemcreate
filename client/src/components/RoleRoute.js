@@ -23,10 +23,10 @@ const RoleRoute = ({ children, allowedRoles }) => {
 
     // Redirect logic if role is not allowed
     if (userRole === 'HR') {
-        // HR users trying to access unauthorized pages (like Dashboard) go to /hr
-        return <Navigate to="/hr" replace />;
+        // HR users should go to their staff dashboard
+        return <Navigate to={`/dashboard/staff/${user.id}`} replace />;
     } else {
-        // Non-HR users trying to access unauthorized pages (like /hr) go to /
+        // Non-HR users trying to access unauthorized pages go to /
         return <Navigate to="/" replace />;
     }
 };

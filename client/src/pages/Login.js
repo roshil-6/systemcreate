@@ -61,8 +61,8 @@ const Login = () => {
     const result = await login(email, password);
 
     if (result.success) {
-      if (result.user.role === 'HR') {
-        navigate('/hr');
+      if (result.user.role === 'HR' && result.user.id != null) {
+        navigate(`/dashboard/staff/${result.user.id}`);
       } else {
         navigate('/');
       }

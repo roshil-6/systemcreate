@@ -30,7 +30,13 @@ const Leads = () => {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [phoneSearchInput, setPhoneSearchInput] = useState(searchParams.get('phone') || '');
   const [phoneSearch, setPhoneSearch] = useState(searchParams.get('phone') || '');
-  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [statusFilter, setStatusFilter] = useState(() => {
+    // Check if lead_source_type is 'direct' - treat as Manual Lead filter
+    if (searchParams.get('lead_source_type') === 'direct') {
+      return 'Manual Lead';
+    }
+    return searchParams.get('status') || '';
+  });
   const [assignedStaffFilter, setAssignedStaffFilter] = useState(searchParams.get('assigned_staff_id') || '');
   const [viewType, setViewType] = useState(searchParams.get('viewType') || 'all');
   const [dateFrom, setDateFrom] = useState(searchParams.get('created_from') || '');
@@ -552,8 +558,19 @@ const Leads = () => {
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
     const params = buildLeadsParams();
-    if (status) params.set('status', status);
-    else params.delete('status');
+    
+    // Special handling for Manual Lead - filter by source type, not status
+    if (status === 'Manual Lead') {
+      params.delete('status');
+      params.set('lead_source_type', 'direct');
+    } else if (status) {
+      params.set('status', status);
+      params.delete('lead_source_type');
+    } else {
+      params.delete('status');
+      params.delete('lead_source_type');
+    }
+    
     navigate(`/leads?${params.toString()}`);
   };
 
@@ -1067,21 +1084,20 @@ const Leads = () => {
     }
   };
 
-  const statusOptions = ['New', 'Unassigned', 'Direct Lead', 'Assigned', 'Contacted', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Not Eligible', 'Not Interested', 'Converted', 'Closed', 'Registration Completed'];
+  const statusOptions = ['New', 'Unassigned', 'Manual Lead', 'Assigned', 'Contacted', 'Follow-up', 'Prospect', 'Pending Lead', 'Not Responding', 'Wrong Number', 'Converted', 'Closed', 'Registration Completed'];
 
   const getStatusColor = (status) => {
     const colors = {
       'New': '#34D399',
       'Unassigned': '#87CEEB',
-      'Direct Lead': '#FBBF24',
+      'Manual Lead': '#FBBF24',
       'Assigned': '#cbd5e1',
       'Contacted': '#8b5cf6',
       'Follow-up': '#E6E6FA',
       'Prospect': '#B0E0E6',
       'Pending Lead': '#DDA0DD',
       'Not Responding': '#FCD34D',
-      'Not Eligible': '#FCA5A5',
-      'Not Interested': '#D3D3D3',
+      'Wrong Number': '#9CA3AF',
       'Converted': '#10b981',
       'Closed': '#ef4444',
       'Registration Completed': '#86EFAC',
@@ -1093,15 +1109,14 @@ const Leads = () => {
     const colors = {
       'New': '#065F46',
       'Unassigned': '#1e40af',
-      'Direct Lead': '#92400e',
+      'Manual Lead': '#92400e',
       'Assigned': '#334155',
       'Contacted': '#5b21b6',
       'Follow-up': '#6b21a8',
       'Prospect': '#0e7490',
       'Pending Lead': '#7c2d12',
       'Not Responding': '#92400e',
-      'Not Eligible': '#991B1B',
-      'Not Interested': '#374151',
+      'Wrong Number': '#4B5563',
       'Converted': '#166534',
       'Closed': '#991B1B',
       'Registration Completed': '#166534',
@@ -1114,8 +1129,6 @@ const Leads = () => {
       'hot': '#ef4444',
       'warm': '#f59e0b',
       'cold': '#3b82f6',
-      'not interested': '#6b7280',
-      'not eligible': '#dc2626',
     };
     return colors[priority] || '#6b7280';
   };
@@ -1339,21 +1352,27 @@ const Leads = () => {
             >
               All
             </button>
-            {statusOptions.map((status) => (
-              <button
-                type="button"
-                key={status}
-                className={`filter-btn ${statusFilter === status ? 'active' : ''}`}
-                onClick={() => handleStatusFilter(status)}
-                style={{
-                  borderColor: statusFilter === status ? getStatusColor(status) : '#e5e7eb',
-                  backgroundColor: statusFilter === status ? getStatusColor(status) : '#FFF8E7',
-                  color: statusFilter === status ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
-                }}
-              >
-                {status}
-              </button>
-            ))}
+            {statusOptions.map((status) => {
+              // For Manual Lead, check if leadSourceTypeFilter is 'direct'
+              const isActive = status === 'Manual Lead' 
+                ? (statusFilter === status || leadSourceTypeFilter === 'direct')
+                : statusFilter === status;
+              return (
+                <button
+                  type="button"
+                  key={status}
+                  className={`filter-btn ${isActive ? 'active' : ''}`}
+                  onClick={() => handleStatusFilter(status)}
+                  style={{
+                    borderColor: isActive ? getStatusColor(status) : '#e5e7eb',
+                    backgroundColor: isActive ? getStatusColor(status) : '#FFF8E7',
+                    color: isActive ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
+                  }}
+                >
+                  {status}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -16,14 +16,31 @@ import StaffList from './pages/HR/StaffList';
 import StaffDocumentView from './pages/HR/StaffDocumentView';
 import HRDashboard from './pages/HR/HRDashboard';
 import RoleRoute from './components/RoleRoute';
+import { useAuth } from './context/AuthContext';
 
 // Layout wrapper for convenience
 const AppLayout = ({ children }) => (
   <Layout>{children}</Layout>
 );
 
+/** HR uses one combined dashboard at /dashboard/staff/:id — never the legacy / home view */
+function DashboardRoot() {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>;
+  }
+  if (user && String(user.role || '').toUpperCase() === 'HR' && user.id != null) {
+    return <Navigate to={`/dashboard/staff/${user.id}`} replace />;
+  }
+  return (
+    <AppLayout>
+      <Dashboard />
+    </AppLayout>
+  );
+}
+
 // Roles who can access the main dashboard and operational pages
-const DASHBOARD_ROLES = ['ADMIN', 'SALES_TEAM_HEAD', 'SALES_TEAM', 'PROCESSING', 'STAFF'];
+const DASHBOARD_ROLES = ['ADMIN', 'SALES_TEAM_HEAD', 'SALES_TEAM', 'PROCESSING', 'STAFF', 'HR'];
 // Roles who can access leads (includes HR since she gets assigned leads too)
 const LEADS_ROLES = [...DASHBOARD_ROLES, 'HR'];
 // Roles who can access HR section
@@ -36,15 +53,12 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
 
-          {/* Dashboard - Protected from HR */}
           <Route
             path="/"
             element={
               <PrivateRoute>
                 <RoleRoute allowedRoles={DASHBOARD_ROLES}>
-                  <AppLayout>
-                    <Dashboard />
-                  </AppLayout>
+                  <DashboardRoot />
                 </RoleRoute>
               </PrivateRoute>
             }

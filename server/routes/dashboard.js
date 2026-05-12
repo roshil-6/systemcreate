@@ -66,15 +66,47 @@ function buildLeadMetrics(leads) {
     return followDate && followDate < today && isActiveStatus(l.status);
   }).length;
 
+  // Count manual leads: not from bulk import (no excel_row_data and source not like 'Bulk Import')
+  const manualLeadsCount = leads.filter(l => 
+    !l.excel_row_data && 
+    (!l.source || !l.source.toLowerCase().includes('bulk import'))
+  ).length;
+
   return {
     totalLeads: leads.length,
-    newLeads: leads.filter(l => l.status === 'Unassigned').length,
-    followupLeads: leads.filter(l => l.status === 'Follow-up').length,
+    newLeads: leads.filter(l => l.status === 'New' || l.status === 'Unassigned').length,
+    manualLeads: manualLeadsCount,
+    followupLeads: leads.filter(l => l.status === 'Follow-up' || l.status === 'Follow-up 1' || l.status === 'Follow-up 2' || l.status === 'Follow-up 3').length,
+    followup1Leads: leads.filter(l => l.status === 'Follow-up 1').length,
+    followup2Leads: leads.filter(l => l.status === 'Follow-up 2').length,
+    followup3Leads: leads.filter(l => l.status === 'Follow-up 3').length,
     processingLeads: leads.filter(l => l.status === 'Prospect').length,
     convertedLeads: leads.filter(l => l.status === 'Pending Lead').length,
-    closedLeads: leads.filter(l => l.status === 'Closed / Rejected').length,
+    notRespondingLeads: leads.filter(l => l.status === 'Not Responding').length,
+    wrongNumberLeads: leads.filter(l => l.status === 'Wrong Number').length,
+    registrationCompletedLeads: leads.filter(l => l.status === 'Registration Completed').length,
+    closedLeads: leads.filter(l => l.status === 'Closed' || l.status === 'Closed / Rejected').length,
     todayFollowups,
     dueFollowups,
+    // Also include leadsByStatus for detailed breakdown
+    leadsByStatus: {
+      'New': leads.filter(l => l.status === 'New').length,
+      'Unassigned': leads.filter(l => l.status === 'Unassigned').length,
+      'Manual Lead': leads.filter(l => l.status === 'Manual Lead').length,
+      'Assigned': leads.filter(l => l.status === 'Assigned').length,
+      'Contacted': leads.filter(l => l.status === 'Contacted').length,
+      'Follow-up': leads.filter(l => l.status === 'Follow-up').length,
+      'Follow-up 1': leads.filter(l => l.status === 'Follow-up 1').length,
+      'Follow-up 2': leads.filter(l => l.status === 'Follow-up 2').length,
+      'Follow-up 3': leads.filter(l => l.status === 'Follow-up 3').length,
+      'Prospect': leads.filter(l => l.status === 'Prospect').length,
+      'Pending Lead': leads.filter(l => l.status === 'Pending Lead').length,
+      'Not Responding': leads.filter(l => l.status === 'Not Responding').length,
+      'Wrong Number': leads.filter(l => l.status === 'Wrong Number').length,
+      'Converted': leads.filter(l => l.status === 'Converted').length,
+      'Closed': leads.filter(l => l.status === 'Closed').length,
+      'Registration Completed': leads.filter(l => l.status === 'Registration Completed').length,
+    }
   };
 }
 
@@ -83,14 +115,15 @@ async function getAccessibleUserIds(user) {
   const role = user.role;
   const userId = user.id;
 
-  // High-priority: Strict isolation for specific users regardless of role
-  const restrictedNames = ['Sneha', 'SNEHA', 'SNEHA RIGIN', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
-  const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6]; // Sneha(12),Kripa(13),Emy(4),Shilpa(5),Jibina(8),Karthika(7),Asna(6)
+  // Sales staff names/emails/ids forced to a personal scope (same metrics shape as HR personal dashboard)
+  const restrictedNames = ['Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+  const restrictedEmails = ['kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+  const restrictedUserIds = [13, 4, 5, 8, 7, 6]; // Kripa(13),Emy(4),Shilpa(5),Jibina(8),Karthika(7),Asna(6)
 
   const isTargetedUser = restrictedNames.some(n => (user.name || '').toUpperCase().startsWith(n.toUpperCase())) || restrictedEmails.includes((user.email || '').toLowerCase()) || restrictedUserIds.includes(user.id);
 
   // Check if personal view is forced OR if the user is one of the strictly restricted ones
+  // Sneha (processing), Kripa, Emy, and sales staff: personal scope; HR uses same personal scope as staff
   if (user.forcePersonal || isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
     return [userId];
   }
@@ -466,13 +499,20 @@ router.get('/', authenticate, async (req, res) => {
     const isPersonalView = req.query.view === 'personal';
     const accessibleUserIds = await getAccessibleUserIds({ ...req.user, forcePersonal: isPersonalView });
 
-    // Determine if this is a restricted user (Sneha, Kripa, Emy)
-    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    // Personal-scope users (named sales staff + HR): same dashboard branch below
+    const restrictedNames = ['Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+    const restrictedEmails = ['kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
     const isTargetedUser = restrictedNames.includes(req.user.name) || restrictedEmails.includes(req.user.email);
 
     // Determine if this is a restricted view (strictly SALES_TEAM, STAFF, PROCESSING or forced personal or targeted user)
-    const isRestrictedView = role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR' || isPersonalView || isTargetedUser;
+    // HR uses the same personal/sales-scoped metrics as STAFF (not org-wide admin dashboard)
+    const isRestrictedView =
+      role === 'SALES_TEAM' ||
+      role === 'STAFF' ||
+      role === 'PROCESSING' ||
+      role === 'HR' ||
+      isPersonalView ||
+      isTargetedUser;
 
     if (isRestrictedView) {
       // Restricted view - only accessible metrics
@@ -604,7 +644,10 @@ router.get('/', authenticate, async (req, res) => {
 
       // Augment metrics with old-style fields for frontend compatibility
       metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
-      metrics.followupLeads = metrics.leadsByStatus?.['Follow-up'] || 0;
+      metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 3'] || 0);
       metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
       metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
 
@@ -670,7 +713,10 @@ router.get('/', authenticate, async (req, res) => {
 
       // Ensure compatibility with frontend expected properties
       metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
-      metrics.followupLeads = metrics.leadsByStatus?.['Follow-up'] || 0;
+      metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 3'] || 0);
       metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
       metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
       metrics.todayFollowups = metrics.todayFollowups || 0;

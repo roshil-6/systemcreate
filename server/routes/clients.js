@@ -48,17 +48,18 @@ router.get('/', authenticate, async (req, res) => {
 
     const filter = {};
 
-    // Absolute isolation for targeted users (Sneha, Kripa, Emy)
+    // Absolute isolation for targeted users (Kripa, Emy, etc - Sneha removed as she now has full staff access)
     const userNameRaw = (req.user.name || '').toLowerCase().trim();
     const userEmailRaw = (req.user.email || '').toLowerCase().trim();
-    const restrictedNames = ['sneha', 'kripa', 'emy', 'shilpa', 'jibna', 'jibina', 'karthika', 'asna'];
-    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
-    const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6];
+    const restrictedNames = ['kripa', 'emy', 'shilpa', 'jibna', 'jibina', 'karthika', 'asna'];
+    const restrictedEmails = ['kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    const restrictedUserIds = [13, 4, 5, 8, 7, 6]; // Kripa(13),Emy(4),Shilpa(5),Jibina(8),Karthika(7),Asna(6)
     const isTargetedUser = restrictedNames.some(n => userNameRaw.startsWith(n)) || restrictedEmails.includes(userEmailRaw) || restrictedUserIds.includes(userId);
-    const isProcessingStaff = role === 'PROCESSING' || userEmailRaw === 'kripa@toniosenora.com' || userEmailRaw === 'sneha@toniosenora.com';
+    // Note: Sneha removed from processing staff auto-assignment - she now works as regular HR staff
+    const isProcessingStaff = role === 'PROCESSING' || userEmailRaw === 'kripa@toniosenora.com';
 
-    if (isTargetedUser && !req.query.assigned_staff_id && !req.query.processing_staff_id) {
-      // If no specific staff requested, default to ONLY their own data
+    if ((isTargetedUser || role === 'HR') && !req.query.assigned_staff_id && !req.query.processing_staff_id) {
+      // If no specific staff requested, default to ONLY their own data (same isolation as sales staff)
       filter.assigned_staff_id = userId;
       // Note: We'll also handle processing_staff_id check in memory below for completeness
     }

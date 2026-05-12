@@ -39,11 +39,11 @@ const HRDashboard = () => {
                 m[String(s).trim().toLowerCase()] = apiGroup;
             });
         };
-        add(['New', 'Unassigned', 'Direct Lead'], 'New');
+        add(['New', 'Unassigned', 'Manual Lead', 'Direct Lead'], 'New');
         add(['Assigned', 'Prospect', 'Pending Lead'], 'Assigned');
-        add(['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended', 'Not Responding'], 'Contacted');
+        add(['Contacted', 'Follow-up 1', 'Follow-up 2', 'Follow-up 3', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended', 'Not Responding'], 'Contacted');
         add(['Registration Completed', 'Converted', 'Won'], 'Converted');
-        add(['Closed', 'Closed / Rejected', 'Lost', 'Rejected', 'Not Interested', 'Not Eligible'], 'Closed');
+        add(['Closed', 'Closed / Rejected', 'Lost', 'Rejected'], 'Closed');
         return m;
     })();
 
@@ -173,7 +173,7 @@ const HRDashboard = () => {
                         <div className="lead-stat-value">{leadStats.total}</div>
                         <div className="lead-stat-label">Assigned</div>
                     </button>
-                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #f59e0b' }} onClick={() => openMyLeads('New')} title="New, Unassigned, Direct Lead (same filter as server)">
+                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #f59e0b' }} onClick={() => openMyLeads('New')} title="New, Unassigned, Manual Lead (same filter as server)">
                         <div className="lead-stat-value">{leadStats.new}</div>
                         <div className="lead-stat-label">New / Unassigned</div>
                     </button>

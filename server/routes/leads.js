@@ -163,17 +163,20 @@ async function getLeadWithAccessCheck(leadId, user) {
     ? Number(lead.assigned_staff_id)
     : null;
 
-  // 2. CRITICAL: Filter out "Registration Completed" leads - they are now clients
-  // (unless role is ADMIN/PROCESSING who might need to see them, but typically they go to Client route)
-  if (lead.status === 'Registration Completed' && role !== 'ADMIN' && role !== 'PROCESSING' && role !== 'HR') {
+  // 2. CRITICAL: Filter out "Registration Completed" and "Closed" leads
+  // Registration Completed = converted to client, Closed = rejected/lost lead
+  // These are final statuses and are hidden from main leads list (unless ADMIN/PROCESSING/HR)
+  const terminalStatuses = ['Registration Completed', 'Closed'];
+  if (terminalStatuses.includes(lead.status) && role !== 'ADMIN' && role !== 'PROCESSING' && role !== 'HR') {
     return null;
   }
 
   // High-priority: Strict isolation for specific users regardless of role
+  // Note: Sneha removed from restricted list - she now has full staff access as HR
   const userName = user.name || '';
   const userEmail = user.email || '';
-  const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+  const restrictedNames = ['Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+  const restrictedEmails = ['kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
   const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
 
   // 3. Permission logic
@@ -181,19 +184,14 @@ async function getLeadWithAccessCheck(leadId, user) {
     return lead; // Full access for regular Admin and Processing
   }
 
-  if (role === 'STAFF') {
+  if (role === 'STAFF' || role === 'HR') {
+    // STAFF and HR can access leads assigned to themselves
     if (leadAssignedUserId === Number(userId)) return lead;
     return null;
   }
 
   if (role === 'PROCESSING') {
-    // Processing staff (Sneha, Kripa) can access leads assigned to them
-    if (leadAssignedUserId === Number(userId)) return lead;
-    return null;
-  }
-
-  if (role === 'HR') {
-    // HR should only access leads assigned to themselves
+    // Processing staff (Kripa) can access leads assigned to them
     if (leadAssignedUserId === Number(userId)) return lead;
     return null;
   }
@@ -267,15 +265,17 @@ async function buildLeadsListFilter(req) {
 
   const userName = req.user.name || '';
   const userEmail = req.user.email || '';
-  const restrictedNames = ['Sneha', 'SNEHA', 'SNEHA RIGIN', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-  const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
-  const restrictedUserIds = [12, 13, 4, 5, 8, 7, 6];
+  // Note: Sneha removed from restricted list - she now has full staff access as HR
+  const restrictedNames = ['Kripa', 'KRIPA', 'SNEHA RIGIN', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Jibina', 'JIBINA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+  const restrictedEmails = ['kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'jibina@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+  const restrictedUserIds = [13, 4, 5, 8, 7, 6]; // Kripa(13),Emy(4),Shilpa(5),Jibina(8),Karthika(7),Asna(6)
 
   const isTargetedUser = restrictedNames.some(n => userName.toUpperCase().startsWith(n.toUpperCase())) || restrictedEmails.includes(userEmail.toLowerCase()) || restrictedUserIds.includes(userId);
 
   let accessibleUserIds = null;
 
-  if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
+  // Note: HR removed from restricted view - now has full staff access
+  if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
     accessibleUserIds = [userId];
     delete filter.assigned_staff_id;
     delete filter.assigned_staff_ids;
@@ -297,7 +297,7 @@ async function buildLeadsListFilter(req) {
 
   const singleBucketAssignee =
     accessibleUserIds && accessibleUserIds.length === 1 &&
-    (role === 'HR' || role === 'STAFF' || role === 'PROCESSING' || role === 'SALES_TEAM' || isTargetedUser);
+    (role === 'STAFF' || role === 'PROCESSING' || role === 'SALES_TEAM' || isTargetedUser);
   if (singleBucketAssignee && filter.viewType === 'new') {
     delete filter.viewType;
   }
@@ -334,7 +334,9 @@ async function buildLeadsListFilter(req) {
   if (priority && String(priority).trim()) filter.priority = String(priority).trim();
 
   if (!status) {
-    filter.excludeStatus = 'Registration Completed';
+    // Exclude both "Registration Completed" and "Closed" from main leads list
+    // These are considered final/terminal statuses
+    filter.excludeStatus = ['Registration Completed', 'Closed'];
   }
 
   return filter;
@@ -554,7 +556,7 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
 
       const updates = { assigned_staff_id: staffId };
       // AUTOMATIC STATUS UPDATE: Set to 'Assigned' when assigning from initial/unassigned buckets
-      if (lead.status === 'Unassigned' || lead.status === 'New' || lead.status === 'Direct Lead') {
+      if (lead.status === 'Unassigned' || lead.status === 'New' || lead.status === 'Manual Lead' || lead.status === 'Direct Lead') {
         updates.status = 'Assigned';
       }
 
@@ -870,8 +872,9 @@ router.get('/trash', authenticate, async (req, res) => {
     const userId = req.user.id;
     const userName = req.user.name || '';
     const userEmail = req.user.email || '';
-    const restrictedNames = ['Sneha', 'SNEHA', 'Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
-    const restrictedEmails = ['sneha@toniosenora.com', 'kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
+    // Note: Sneha removed from restricted list - she now has full staff access as HR
+    const restrictedNames = ['Kripa', 'KRIPA', 'Emy', 'EMY', 'Shilpa', 'SHILPA', 'Jibna', 'JIBNA', 'Karthika', 'KARTHIKA', 'Asna', 'ASNA'];
+    const restrictedEmails = ['kripa@toniosenora.com', 'emy@toniosenora.com', 'shilpa@toniosenora.com', 'jibna@toniosenora.com', 'karthika@toniosenora.com', 'asna@toniosenora.com'];
     const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
 
     let trashedLeads = await db.getTrashedLeads();
@@ -1246,7 +1249,7 @@ router.post(
 
       // Create notification if lead is assigned to staff (admin or team head)
       if (finalAssignedStaffId) {
-        if (status === 'New' || status === 'Unassigned' || status === 'Direct Lead') {
+        if (status === 'New' || status === 'Unassigned' || status === 'Manual Lead' || status === 'Direct Lead') {
           await db.updateLead(newLead.id, { status: 'Assigned' });
           newLead.status = 'Assigned'; // Update response object
         }
@@ -1418,7 +1421,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
         // AUTOMATIC STATUS UPDATE: If lead is being assigned, set status to 'Assigned'
         if ((status === undefined || status === null || status === '') &&
-          (existingLead.status === 'Unassigned' || existingLead.status === 'New' || existingLead.status === 'Direct Lead')) {
+          (existingLead.status === 'Unassigned' || existingLead.status === 'New' || existingLead.status === 'Manual Lead' || existingLead.status === 'Direct Lead')) {
           updates.status = 'Assigned';
           console.log(`🔄 Auto-updating status to 'Assigned' for lead ${leadId}`);
         }
@@ -1722,7 +1725,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
   try {
     const role = req.user.role;
     const userId = req.user.id;
-    if (!['ADMIN', 'SALES_TEAM_HEAD', 'SALES_TEAM', 'PROCESSING', 'STAFF'].includes(role)) return res.status(403).json({ error: 'Access denied' });
+    if (!['ADMIN', 'SALES_TEAM_HEAD', 'SALES_TEAM', 'PROCESSING', 'STAFF', 'HR'].includes(role)) return res.status(403).json({ error: 'Access denied' });
     if (!req.file) return res.status(400).json({ error: 'File is required' });
 
     const isExcel = req.file.originalname.toLowerCase().endsWith('.xlsx') || req.file.originalname.toLowerCase().endsWith('.xls');
@@ -2097,12 +2100,16 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
 
           // AUTO-ASSIGN LOGIC: If staffId is found, the status should be 'Assigned' 
           // (unless the user explicitly provided a more specific status like 'Follow-up')
-          if (staffId && (sl === 'new' || sl === 'unassigned' || sl === 'direct lead' || !st)) {
+          if (staffId && (sl === 'new' || sl === 'unassigned' || sl === 'manual lead' || sl === 'direct lead' || !st)) {
             st = 'Assigned';
-          } else if (sl.includes('direct')) {
-            st = 'Direct Lead';
+          } else if (sl.includes('manual') || sl.includes('direct')) {
+            st = 'Manual Lead';
           } else if (sl.includes('follow')) {
-            st = 'Follow-up';
+            // Map follow-up variations to Follow-up 1, 2, 3
+            if (sl.includes('1') || sl.includes('one')) st = 'Follow-up 1';
+            else if (sl.includes('2') || sl.includes('two') || sl.includes('second')) st = 'Follow-up 2';
+            else if (sl.includes('3') || sl.includes('three') || sl.includes('third')) st = 'Follow-up 3';
+            else st = 'Follow-up 1'; // Default to Follow-up 1
           } else if (sl.includes('prospect')) {
             st = 'Prospect';
           } else if (sl.includes('eligible')) {

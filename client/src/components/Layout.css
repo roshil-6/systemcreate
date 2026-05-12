@@ -43,6 +43,29 @@
 .sidebar-nav {
   flex: 1;
   padding: 16px 0;
+  overflow-y: auto;
+}
+
+.sidebar-nav-section {
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #ebe4d4;
+}
+
+.sidebar-nav-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sidebar-nav-section-title {
+  margin: 0 0 6px 0;
+  padding: 6px 20px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
 }
 
 .nav-item {

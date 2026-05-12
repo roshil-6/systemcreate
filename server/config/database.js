@@ -289,11 +289,14 @@ const database = {
     if (filter.status) {
       // Support grouped status filters (from HR dashboard etc.) - map to multiple statuses
       const statusGroups = {
-        'Contacted': ['Contacted', 'Follow-up', 'Follow Up', 'Responded', 'Not Available', 'Not Attended', 'Not Responding'],
-        'Closed': ['Closed', 'Closed / Rejected', 'Lost', 'Rejected', 'Not Interested', 'Not Eligible'],
+        'Contacted': ['Contacted', 'Responded', 'Not Available', 'Not Attended', 'Not Responding'],
+        'Follow-up': ['Follow-up 1', 'Follow-up 2', 'Follow-up 3', 'Follow-up', 'Follow Up'],
+        'Wrong Number': ['Wrong Number', 'Invalid Number', 'Wrong Contact'],
+        'Closed': ['Closed', 'Closed / Rejected', 'Lost', 'Rejected'],
         'Assigned': ['Assigned', 'Prospect', 'Pending Lead'],
         'Converted': ['Registration Completed', 'Converted', 'Won'],
-        'New': ['New', 'Unassigned', 'Direct Lead'],
+        'New': ['New', 'Unassigned'],
+        'Manual Lead': ['Manual Lead', 'Direct Lead'],
       };
       const statusList = statusGroups[filter.status] || [filter.status];
       if (statusList.length === 1) {
@@ -305,8 +308,14 @@ const database = {
       }
     }
     if (filter.excludeStatus) {
-      whereConditions += ` AND status != $${paramIndex++}`;
-      params.push(filter.excludeStatus);
+      // Support both single string and array of statuses to exclude
+      if (Array.isArray(filter.excludeStatus)) {
+        whereConditions += ` AND status != ALL($${paramIndex++}::text[])`;
+        params.push(filter.excludeStatus);
+      } else {
+        whereConditions += ` AND status != $${paramIndex++}`;
+        params.push(filter.excludeStatus);
+      }
     }
     if (filter.search) {
       whereConditions += ` AND (name ILIKE $${paramIndex} OR phone_number ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR whatsapp_number ILIKE $${paramIndex} OR secondary_phone_number ILIKE $${paramIndex})`;
@@ -397,8 +406,8 @@ const database = {
 
     // New vs Follow Up Views filtering using optimized EXISTS
     if (filter.viewType === 'new') {
-      whereConditions += ` AND (status = 'New' OR status = 'Unassigned' OR status = 'Direct Lead') 
-                           AND NOT EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id) 
+      whereConditions += ` AND (status = 'New' OR status = 'Unassigned' OR status = 'Manual Lead' OR status = 'Direct Lead')
+                           AND NOT EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id)
                            AND (comment IS NULL OR comment = '')`;
     } else if (filter.viewType === 'follow_up') {
       whereConditions += ` AND (EXISTS (SELECT 1 FROM comments WHERE lead_id = leads.id) 
@@ -1242,12 +1251,12 @@ const database = {
       GROUP BY status
     `, params);
 
-    // Follow-up metrics
+    // Follow-up metrics - include all follow-up statuses (Follow-up, Follow-up 1, 2, 3)
     const today = new Date().toISOString().split('T')[0];
     const followUpResult = await query(`
       SELECT 
-        COUNT(*) FILTER (WHERE follow_up_date::date = $${paramIndex} AND status NOT IN ('Pending Lead', 'Closed / Rejected')) as today_followups,
-        COUNT(*) FILTER (WHERE follow_up_date::date < $${paramIndex} AND status NOT IN ('Pending Lead', 'Closed / Rejected')) as due_followups
+        COUNT(*) FILTER (WHERE follow_up_date::date = $${paramIndex} AND status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed')) as today_followups,
+        COUNT(*) FILTER (WHERE follow_up_date::date < $${paramIndex} AND status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed')) as due_followups
       FROM leads
       ${whereClause}
     `, [...params, today]);
