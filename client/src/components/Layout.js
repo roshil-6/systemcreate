@@ -45,6 +45,22 @@ const Layout = ({ children }) => {
     return location.pathname.startsWith(path);
   };
 
+  const isLeadsListPage = location.pathname === '/leads';
+  const leadsUrlParams = new URLSearchParams(location.search || '');
+  const leadsAssignedFromUrl = isLeadsListPage ? leadsUrlParams.get('assigned_staff_id') : null;
+  const isLeadDetailOrNew =
+    /^\/leads\/(?:new|\d+)\/?$/.test(location.pathname);
+  const isLeadsImportRoute = location.pathname.startsWith('/leads/import');
+
+  const hrMyLeadsNavActive =
+    isHrUser &&
+    user?.id != null &&
+    !isLeadsImportRoute &&
+    ((isLeadsListPage &&
+      leadsAssignedFromUrl != null &&
+      String(leadsAssignedFromUrl) === String(user.id)) ||
+      isLeadDetailOrNew);
+
   return (
     <div className="layout">
       <GoldenLinesBackground />
@@ -73,15 +89,17 @@ const Layout = ({ children }) => {
                     <span>Dashboard</span>
                   </Link>
                 )}
-                <Link
-                  to="/leads"
-                  className={`nav-item ${isActive('/leads') ? 'active' : ''}`}
-                  aria-current={isActive('/leads') ? 'page' : undefined}
-                  title="Full leads list (all you can access)"
-                >
-                  <FiUsers className="nav-icon" />
-                  <span>All Leads</span>
-                </Link>
+                {user?.id != null && (
+                  <Link
+                    to={`/leads?assigned_staff_id=${String(user.id)}`}
+                    className={`nav-item ${hrMyLeadsNavActive ? 'active' : ''}`}
+                    aria-current={hrMyLeadsNavActive ? 'page' : undefined}
+                    title="Leads assigned to you"
+                  >
+                    <FiBriefcase className="nav-icon" />
+                    <span>My Leads</span>
+                  </Link>
+                )}
                 <Link
                   to="/clients"
                   className={`nav-item ${isActive('/clients') ? 'active' : ''}`}
@@ -89,6 +107,23 @@ const Layout = ({ children }) => {
                 >
                   <FiUsers className="nav-icon" />
                   <span>Clients</span>
+                </Link>
+                <Link
+                  to="/hr"
+                  className={`nav-item ${location.pathname === '/hr' ? 'active' : ''}`}
+                  aria-current={location.pathname === '/hr' ? 'page' : undefined}
+                  title="Team stats and milestones"
+                >
+                  <FiFileText className="nav-icon" />
+                  <span>Overview</span>
+                </Link>
+                <Link
+                  to="/hr/staff"
+                  className={`nav-item ${isActive('/hr/staff') ? 'active' : ''}`}
+                  aria-current={isActive('/hr/staff') ? 'page' : undefined}
+                >
+                  <FiUsers className="nav-icon" />
+                  <span>Staff Directory</span>
                 </Link>
                 <Link
                   to="/leads/import"
@@ -105,25 +140,6 @@ const Layout = ({ children }) => {
                 >
                   <FiClock className="nav-icon" />
                   <span>Attendance</span>
-                </Link>
-              </div>
-              <div className="sidebar-nav-section">
-                <p className="sidebar-nav-section-title">HR</p>
-                <Link
-                  to="/hr"
-                  className={`nav-item ${location.pathname === '/hr' ? 'active' : ''}`}
-                  aria-current={location.pathname === '/hr' ? 'page' : undefined}
-                >
-                  <FiFileText className="nav-icon" />
-                  <span>HR Dashboard</span>
-                </Link>
-                <Link
-                  to="/hr/staff"
-                  className={`nav-item ${isActive('/hr/staff') ? 'active' : ''}`}
-                  aria-current={isActive('/hr/staff') ? 'page' : undefined}
-                >
-                  <FiUsers className="nav-icon" />
-                  <span>Staff Directory</span>
                 </Link>
               </div>
             </>

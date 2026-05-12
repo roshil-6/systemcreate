@@ -388,6 +388,10 @@ const LeadDetail = () => {
     } catch (e) {
       console.error('Error parsing leads page state for back navigation', e);
     }
+    if (user?.role === 'HR' && user?.id != null) {
+      navigate(`/leads?assigned_staff_id=${user.id}`);
+      return;
+    }
     navigate('/leads');
   };
 
@@ -868,6 +872,8 @@ const LeadDetail = () => {
                   <option value="Follow-up 3">Follow-up 3</option>
                   <option value="Prospect">Prospect</option>
                   <option value="Not Responding">Not Responding</option>
+                  <option value="Not Attended">Not Attended</option>
+                  <option value="Not Eligible">Not Eligible</option>
                   <option value="Wrong Number">Wrong Number</option>
                   <option value="Pending Lead">Pending Lead</option>
                   <option value="Registration Completed">Registration Completed</option>

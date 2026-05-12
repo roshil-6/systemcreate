@@ -102,6 +102,8 @@ function buildLeadMetrics(leads) {
       'Prospect': leads.filter(l => l.status === 'Prospect').length,
       'Pending Lead': leads.filter(l => l.status === 'Pending Lead').length,
       'Not Responding': leads.filter(l => l.status === 'Not Responding').length,
+      'Not Attended': leads.filter(l => l.status === 'Not Attended').length,
+      'Not Eligible': leads.filter(l => l.status === 'Not Eligible').length,
       'Wrong Number': leads.filter(l => l.status === 'Wrong Number').length,
       'Converted': leads.filter(l => l.status === 'Converted').length,
       'Closed': leads.filter(l => l.status === 'Closed').length,

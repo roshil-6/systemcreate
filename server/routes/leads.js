@@ -274,8 +274,8 @@ async function buildLeadsListFilter(req) {
 
   let accessibleUserIds = null;
 
-  // Note: HR removed from restricted view - now has full staff access
-  if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
+  // HR sees only leads assigned to them (same bucket as staff); not org-wide "all leads"
+  if (isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
     accessibleUserIds = [userId];
     delete filter.assigned_staff_id;
     delete filter.assigned_staff_ids;
@@ -297,7 +297,7 @@ async function buildLeadsListFilter(req) {
 
   const singleBucketAssignee =
     accessibleUserIds && accessibleUserIds.length === 1 &&
-    (role === 'STAFF' || role === 'PROCESSING' || role === 'SALES_TEAM' || isTargetedUser);
+    (role === 'STAFF' || role === 'PROCESSING' || role === 'SALES_TEAM' || role === 'HR' || isTargetedUser);
   if (singleBucketAssignee && filter.viewType === 'new') {
     delete filter.viewType;
   }
