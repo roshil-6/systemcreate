@@ -62,8 +62,10 @@ async function findOtherLeadWithEmail(excludeLeadId, emailLowerTrimmed) {
 /**
  * Same rules as GET /api/leads/check-duplicate (exact digits + last-10 match).
  * Used by check-duplicate route and POST /api/leads so duplicates cannot slip past create.
+ * CRITICAL: Only checks phone and email - name is NOT used for duplicate detection
  */
-async function findDuplicateLead({ phone, email, name: nameQuery }) {
+async function findDuplicateLead({ phone, email }) {
+  // PRIORITY 1: Check phone number (primary duplicate detection method)
   if (phone != null && String(phone).trim().length >= 5) {
     const cleanPhone = String(phone).trim().replace(/\D/g, '');
     if (cleanPhone.length >= 7) {
@@ -95,6 +97,7 @@ async function findDuplicateLead({ phone, email, name: nameQuery }) {
     }
   }
 
+  // PRIORITY 2: Check email (secondary duplicate detection method)
   if (email != null && String(email).trim().length >= 3) {
     const result = await db.query(
       `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(email)) = $1 LIMIT 1`,
@@ -106,17 +109,7 @@ async function findDuplicateLead({ phone, email, name: nameQuery }) {
     }
   }
 
-  if (nameQuery != null && String(nameQuery).trim().length >= 2) {
-    const result = await db.query(
-      `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(name)) = LOWER(TRIM($1)) LIMIT 1`,
-      [String(nameQuery).trim()]
-    );
-    if (result.rows.length > 0) {
-      const match = result.rows[0];
-      return { exists: true, field: 'name', lead: { id: match.id, name: match.name, status: match.status } };
-    }
-  }
-
+  // Note: Name is intentionally NOT checked for duplicates - same person can have multiple inquiries
   return { exists: false };
 }
 
@@ -742,6 +735,105 @@ router.get('/import-history/:id/download', authenticate, async (req, res) => {
   }
 });
 
+// Get skipped leads for a specific import history
+router.get('/import-history/:id/skipped-leads', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `SELECT s.*, h.original_filename, h.created_at as import_date, u.name as creator_name
+       FROM import_skipped_leads s
+       JOIN import_history h ON s.import_history_id = h.id
+       LEFT JOIN users u ON h.created_by = u.id
+       WHERE s.import_history_id = $1
+       ORDER BY s.row_number ASC`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ API ERROR: /import-history/:id/skipped-leads:', error);
+    res.status(500).json({ error: 'Failed to fetch skipped leads', details: error.message });
+  }
+});
+
+// Get all skipped leads history (with filters)
+router.get('/skipped-leads-history', authenticate, async (req, res) => {
+  try {
+    const { import_id, phone, email, start_date, end_date, limit = 50, offset = 0 } = req.query;
+
+    let query = `
+      SELECT s.*, h.original_filename, h.created_at as import_date, u.name as creator_name
+      FROM import_skipped_leads s
+      JOIN import_history h ON s.import_history_id = h.id
+      LEFT JOIN users u ON h.created_by = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIdx = 1;
+
+    if (import_id) {
+      query += ` AND s.import_history_id = $${paramIdx++}`;
+      params.push(import_id);
+    }
+    if (phone) {
+      query += ` AND s.phone_number ILIKE $${paramIdx++}`;
+      params.push(`%${phone}%`);
+    }
+    if (email) {
+      query += ` AND s.email ILIKE $${paramIdx++}`;
+      params.push(`%${email}%`);
+    }
+    if (start_date) {
+      query += ` AND h.created_at >= $${paramIdx++}`;
+      params.push(start_date);
+    }
+    if (end_date) {
+      query += ` AND h.created_at <= $${paramIdx++}`;
+      params.push(end_date);
+    }
+
+    query += ` ORDER BY h.created_at DESC, s.row_number ASC`;
+    query += ` LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await db.query(query, params);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ API ERROR: /skipped-leads-history:', error);
+    res.status(500).json({ error: 'Failed to fetch skipped leads history', details: error.message });
+  }
+});
+
+// Get summary stats of skipped leads
+router.get('/skipped-leads-stats', authenticate, async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT
+        COUNT(*) as total_skipped,
+        COUNT(DISTINCT import_history_id) as total_imports_with_skips,
+        skip_reason,
+        COUNT(*) as count_by_reason
+      FROM import_skipped_leads
+      GROUP BY skip_reason
+      ORDER BY count_by_reason DESC
+    `);
+
+    const recentResult = await db.query(`
+      SELECT COUNT(*) as recent_skipped_7d
+      FROM import_skipped_leads s
+      JOIN import_history h ON s.import_history_id = h.id
+      WHERE h.created_at >= NOW() - INTERVAL '7 days'
+    `);
+
+    res.json({
+      by_reason: result.rows,
+      recent_7_days: parseInt(recentResult.rows[0]?.recent_skipped_7d || 0)
+    });
+  } catch (error) {
+    console.error('❌ API ERROR: /skipped-leads-stats:', error);
+    res.status(500).json({ error: 'Failed to fetch skipped leads stats', details: error.message });
+  }
+});
+
 // Keep the "last-imported-file" for backward compatibility if needed, but point to latest history record
 router.get('/last-imported-file', authenticate, async (req, res) => {
   try {
@@ -769,10 +861,11 @@ router.get('/last-imported-file', authenticate, async (req, res) => {
 
 // Check for duplicate phone/whatsapp number (used by frontend real-time check)
 // IMPORTANT: This must be defined BEFORE the /:id wildcard route
+// CRITICAL: Only checks phone and email - name is NOT used for duplicate detection
 router.get('/check-duplicate', authenticate, async (req, res) => {
   try {
-    const { phone, email, name: nameQuery } = req.query;
-    const result = await findDuplicateLead({ phone, email, name: nameQuery });
+    const { phone, email } = req.query;
+    const result = await findDuplicateLead({ phone, email });
     if (result.exists) {
       return res.json({ exists: true, field: result.field, lead: result.lead });
     }
@@ -1200,9 +1293,10 @@ router.post(
       }
 
       // Same duplicate rules as GET /check-duplicate (exact + last-10 digit match), not just getLeadPhones()
+      // CRITICAL: Only phone and email are checked - name is NOT a duplicate indicator
       const phoneCandidates = buildPhoneDigitCandidatesForCreate(req.body);
       for (const digits of phoneCandidates) {
-        const dupPhone = await findDuplicateLead({ phone: digits, email: null, name: null });
+        const dupPhone = await findDuplicateLead({ phone: digits, email: null });
         if (dupPhone.exists) {
           return res.status(400).json({
             error: 'Lead with this phone number already exists',
@@ -1211,16 +1305,16 @@ router.post(
           });
         }
       }
-      const dupRest = await findDuplicateLead({ phone: null, email: email || '', name: name || '' });
-      if (dupRest.exists) {
-        const msg = dupRest.field === 'email'
-          ? 'Lead with this email already exists'
-          : 'Lead with this name already exists';
-        return res.status(400).json({
-          error: msg,
-          duplicateLeadId: dupRest.lead.id,
-          field: dupRest.field,
-        });
+      // Check email separately if provided
+      if (email && String(email).trim().length >= 3) {
+        const dupEmail = await findDuplicateLead({ phone: null, email: email });
+        if (dupEmail.exists) {
+          return res.status(400).json({
+            error: 'Lead with this email already exists',
+            duplicateLeadId: dupEmail.lead.id,
+            field: 'email',
+          });
+        }
       }
 
       const newLead = await db.createLead({
@@ -1816,9 +1910,36 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
     if (sheetsData.length === 0) return res.status(400).json({ error: 'No valid data found in file' });
 
     const validLeads = [];
-    const results = { total: 0, created: 0, skipped: 0, errors: 0, errorRows: [], skippedRows: [] };
+    const results = { total: 0, created: 0, skipped: 0, errors: 0, errorRows: [], skippedRows: [], skippedLeadsDetails: [] };
     const existingPhones = new Set();
     const existingEmails = new Set();
+
+    // Helper to find existing lead info for skipped records
+    async function findExistingLeadInfo(phoneDigits, email) {
+      try {
+        if (phoneDigits && phoneDigits.length >= 7) {
+          const phoneResult = await db.query(
+            `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND (
+              regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g') = $1
+              OR regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g') = $1
+              OR regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g') = $1
+            ) LIMIT 1`,
+            [phoneDigits.replace(/\D/g, '')]
+          );
+          if (phoneResult.rows.length > 0) return phoneResult.rows[0];
+        }
+        if (email && email.length >= 3) {
+          const emailResult = await db.query(
+            `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(email)) = $1 LIMIT 1`,
+            [email.toLowerCase().trim()]
+          );
+          if (emailResult.rows.length > 0) return emailResult.rows[0];
+        }
+      } catch (e) {
+        console.error('Error finding existing lead:', e.message);
+      }
+      return null;
+    }
 
     const phoneData = await db.getLeadPhones();
     phoneData.forEach(r => { if (r.phone_number) existingPhones.add(String(r.phone_number).toLowerCase().replace(/\D/g, '')); });
@@ -1985,14 +2106,43 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
 
           if (emailIsDupe) {
             results.skipped++;
-            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Email ${email} already in CRM` });
+            const existingLead = await findExistingLeadInfo(null, email);
+            const skipDetail = {
+              row: i + 1,
+              sheet: sheetName,
+              message: `Skipped: Email ${email} already in CRM`,
+              name: name || '',
+              phone_number: rowCandidates[0] || '',
+              email: email || '',
+              skip_reason: 'Duplicate Email',
+              existing_lead_id: existingLead?.id || null,
+              existing_lead_name: existingLead?.name || null,
+              existing_lead_status: existingLead?.status || null,
+              raw_data: Object.fromEntries(headerValues.map((h, idx) => [h, row[idx]]))
+            };
+            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: skipDetail.message });
+            results.skippedLeadsDetails.push(skipDetail);
             continue;
           }
 
           // Check for within-file duplicate email
           if (email && seenInThisImport.has('email:' + email)) {
             results.skipped++;
-            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Duplicate email in file: ${email}` });
+            const skipDetail = {
+              row: i + 1,
+              sheet: sheetName,
+              message: `Skipped: Duplicate email in file: ${email}`,
+              name: name || '',
+              phone_number: rowCandidates[0] || '',
+              email: email || '',
+              skip_reason: 'Duplicate Email in Import File',
+              existing_lead_id: null,
+              existing_lead_name: null,
+              existing_lead_status: null,
+              raw_data: Object.fromEntries(headerValues.map((h, idx) => [h, row[idx]]))
+            };
+            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: skipDetail.message });
+            results.skippedLeadsDetails.push(skipDetail);
             continue;
           }
 
@@ -2025,7 +2175,22 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           if (!phone && rowCandidates.length > 0) {
             // All candidates are already in CRM
             results.skipped++;
-            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Phone(s) ${rowCandidates.join(', ')} already in CRM` });
+            const existingLead = await findExistingLeadInfo(rowCandidates[0], null);
+            const skipDetail = {
+              row: i + 1,
+              sheet: sheetName,
+              message: `Skipped: Phone(s) ${rowCandidates.join(', ')} already in CRM`,
+              name: name || '',
+              phone_number: rowCandidates[0] || '',
+              email: email || '',
+              skip_reason: 'Duplicate Phone Number',
+              existing_lead_id: existingLead?.id || null,
+              existing_lead_name: existingLead?.name || null,
+              existing_lead_status: existingLead?.status || null,
+              raw_data: Object.fromEntries(headerValues.map((h, idx) => [h, row[idx]]))
+            };
+            if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: skipDetail.message });
+            results.skippedLeadsDetails.push(skipDetail);
             continue;
           }
 
@@ -2034,7 +2199,21 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             const normalizedPhone = phone.replace(/\D/g, '');
             if (seenInThisImport.has('phone:' + normalizedPhone)) {
               results.skipped++;
-              if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: `Skipped: Duplicate phone in file: ${phone}` });
+              const skipDetail = {
+                row: i + 1,
+                sheet: sheetName,
+                message: `Skipped: Duplicate phone in file: ${phone}`,
+                name: name || '',
+                phone_number: phone || '',
+                email: email || '',
+                skip_reason: 'Duplicate Phone in Import File',
+                existing_lead_id: null,
+                existing_lead_name: null,
+                existing_lead_status: null,
+                raw_data: Object.fromEntries(headerValues.map((h, idx) => [h, row[idx]]))
+              };
+              if (results.skippedRows.length < 100) results.skippedRows.push({ row: i + 1, sheet: sheetName, message: skipDetail.message });
+              results.skippedLeadsDetails.push(skipDetail);
               continue;
             }
           }
@@ -2223,11 +2402,13 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
         results.created = validLeads.length;
 
         // RECORD TO IMPORT HISTORY
+        let importHistoryId = null;
         try {
-          await client.query(`
-            INSERT INTO import_history 
+          const historyResult = await client.query(`
+            INSERT INTO import_history
             (filename, original_filename, total_rows, successful_rows, skipped_rows, error_rows, created_by)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
           `, [
             uniqueFilename,
             req.file.originalname,
@@ -2237,8 +2418,43 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             results.errors,
             userId
           ]);
+          importHistoryId = historyResult.rows[0]?.id;
+
+          // RECORD SKIPPED LEADS DETAILS (if any)
+          if (importHistoryId && results.skippedLeadsDetails && results.skippedLeadsDetails.length > 0) {
+            const skippedValues = [];
+            const skippedPlaceholders = [];
+            let sIdx = 1;
+
+            for (const skip of results.skippedLeadsDetails.slice(0, 500)) { // Limit to 500 skipped records
+              skippedValues.push(
+                importHistoryId,
+                skip.row || null,
+                skip.sheet || null,
+                skip.name || null,
+                skip.phone_number || null,
+                skip.email || null,
+                skip.skip_reason || 'Unknown',
+                skip.existing_lead_id || null,
+                skip.existing_lead_name || null,
+                skip.existing_lead_status || null,
+                skip.raw_data ? JSON.stringify(skip.raw_data) : null
+              );
+              skippedPlaceholders.push(`($${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++}, $${sIdx++})`);
+            }
+
+            if (skippedPlaceholders.length > 0) {
+              const skipQuery = `
+                INSERT INTO import_skipped_leads
+                (import_history_id, row_number, sheet_name, name, phone_number, email, skip_reason, existing_lead_id, existing_lead_name, existing_lead_status, raw_data)
+                VALUES ${skippedPlaceholders.join(', ')}
+              `;
+              await client.query(skipQuery, skippedValues);
+              console.log(`✅ Recorded ${skippedPlaceholders.length} skipped leads to import_skipped_leads`);
+            }
+          }
         } catch (historyErr) {
-          console.error('⚠️ Failed to log import history:', historyErr.message);
+          console.error('⚠️ Failed to log import history or skipped leads:', historyErr.message);
         }
       } catch (e) { await client.query('ROLLBACK'); throw e; }
       finally { client.release(); }
