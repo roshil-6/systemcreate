@@ -1199,14 +1199,41 @@ const database = {
 
   // Fast lookup: only phone_number + email for duplicate checking during bulk import
   getLeadPhones: async () => {
+    // Include: raw phone/whatsapp/secondary digits, AND (country_code + local) for manually entered leads
+    // where local is stored without country prefix. Bulk imports often carry full international digits only
+    // in one column — last-10 matching in bulk-import also aligns with findDuplicateLead().
     const result = await query(`
       SELECT DISTINCT regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g') AS phone_number
       FROM leads
       WHERE deleted_at IS NULL AND length(regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g')) >= 7
       UNION
+      SELECT DISTINCT
+        regexp_replace(COALESCE(phone_country_code, ''), '\\D', '', 'g')
+        || regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g') AS phone_number
+      FROM leads
+      WHERE deleted_at IS NULL
+        AND length(regexp_replace(COALESCE(phone_country_code, ''), '\\D', '', 'g')) >= 1
+        AND length(regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g')) BETWEEN 7 AND 11
+        AND length(
+          regexp_replace(COALESCE(phone_country_code, ''), '\\D', '', 'g')
+          || regexp_replace(COALESCE(phone_number, ''), '\\D', '', 'g')
+        ) >= 7
+      UNION
       SELECT DISTINCT regexp_replace(COALESCE(whatsapp_number, ''), '\\D', '', 'g') AS phone_number
       FROM leads
       WHERE deleted_at IS NULL AND length(regexp_replace(COALESCE(whatsapp_number, ''), '\\D', '', 'g')) >= 7
+      UNION
+      SELECT DISTINCT
+        regexp_replace(COALESCE(whatsapp_country_code, ''), '\\D', '', 'g')
+        || regexp_replace(COALESCE(whatsapp_number, ''), '\\D', '', 'g') AS phone_number
+      FROM leads
+      WHERE deleted_at IS NULL
+        AND length(regexp_replace(COALESCE(whatsapp_country_code, ''), '\\D', '', 'g')) >= 1
+        AND length(regexp_replace(COALESCE(whatsapp_number, ''), '\\D', '', 'g')) BETWEEN 7 AND 11
+        AND length(
+          regexp_replace(COALESCE(whatsapp_country_code, ''), '\\D', '', 'g')
+          || regexp_replace(COALESCE(whatsapp_number, ''), '\\D', '', 'g')
+        ) >= 7
       UNION
       SELECT DISTINCT regexp_replace(COALESCE(secondary_phone_number, ''), '\\D', '', 'g') AS phone_number
       FROM leads

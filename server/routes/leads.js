@@ -1914,26 +1914,17 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
     const existingPhones = new Set();
     const existingEmails = new Set();
 
-    // Helper to find existing lead info for skipped records
+    // Helper to find existing lead info for skipped records (same rules as findDuplicateLead)
     async function findExistingLeadInfo(phoneDigits, email) {
       try {
-        if (phoneDigits && phoneDigits.length >= 7) {
-          const phoneResult = await db.query(
-            `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND (
-              regexp_replace(COALESCE(phone_number,''), '\\D', '', 'g') = $1
-              OR regexp_replace(COALESCE(whatsapp_number,''), '\\D', '', 'g') = $1
-              OR regexp_replace(COALESCE(secondary_phone_number,''), '\\D', '', 'g') = $1
-            ) LIMIT 1`,
-            [phoneDigits.replace(/\D/g, '')]
-          );
-          if (phoneResult.rows.length > 0) return phoneResult.rows[0];
+        const cleanPhone = phoneDigits != null ? String(phoneDigits).replace(/\D/g, '') : '';
+        if (cleanPhone.length >= 7) {
+          const dup = await findDuplicateLead({ phone: cleanPhone, email: null });
+          if (dup.exists && dup.lead) return dup.lead;
         }
-        if (email && email.length >= 3) {
-          const emailResult = await db.query(
-            `SELECT id, name, status FROM leads WHERE deleted_at IS NULL AND LOWER(TRIM(email)) = $1 LIMIT 1`,
-            [email.toLowerCase().trim()]
-          );
-          if (emailResult.rows.length > 0) return emailResult.rows[0];
+        if (email != null && String(email).trim().length >= 3) {
+          const dup = await findDuplicateLead({ phone: null, email: String(email).trim() });
+          if (dup.exists && dup.lead) return dup.lead;
         }
       } catch (e) {
         console.error('Error finding existing lead:', e.message);
@@ -1942,7 +1933,22 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
     }
 
     const phoneData = await db.getLeadPhones();
-    phoneData.forEach(r => { if (r.phone_number) existingPhones.add(String(r.phone_number).toLowerCase().replace(/\D/g, '')); });
+    phoneData.forEach((r) => {
+      const d = String(r.phone_number || '').replace(/\D/g, '');
+      if (d.length >= 7) {
+        existingPhones.add(d);
+        if (d.length >= 10) existingPhones.add(d.slice(-10));
+      }
+    });
+
+    /** True if these digits match any CRM phone (exact or last-10, same as findDuplicateLead). */
+    function crmHasPhoneDigits(digitsRaw) {
+      const d = String(digitsRaw || '').replace(/\D/g, '');
+      if (d.length < 7) return false;
+      if (existingPhones.has(d)) return true;
+      if (d.length >= 10 && existingPhones.has(d.slice(-10))) return true;
+      return false;
+    }
 
     const emailData = await db.getLeadEmails();
     emailData.forEach(r => { if (r.email) existingEmails.add(String(r.email).toLowerCase().trim()); });
@@ -2093,15 +2099,15 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             const lowVal = val.toLowerCase();
             const cleaned = val.replace(/\D/g, '');
             const isGarbage = ['yrs', 'age', 'qualification', 'score', 'date', 'interest', 'course', 'exp'].some(k => lowVal.includes(k));
-            // MOBILE NUMBER HARDENING: Minimum 10 digits for scanner
-            if (cleaned.length >= 10 && cleaned.length <= 16 && !isGarbage) {
+            // Collect plausible phone-like strings (7–16 digits), aligned with create/check-duplicate rules
+            if (cleaned.length >= 7 && cleaned.length <= 16 && !isGarbage) {
               const fullVal = val.replace(/[^\d+]/g, '');
               if (!rowCandidates.includes(fullVal)) rowCandidates.push(fullVal);
             }
           }
 
           // Distinguish between CRM-duplicates and unique-to-import
-          const uniqueCandidates = rowCandidates.filter(c => !existingPhones.has(c.replace(/\D/g, '')));
+          const uniqueCandidates = rowCandidates.filter((c) => !crmHasPhoneDigits(c.replace(/\D/g, '')));
           const emailIsDupe = email && existingEmails.has(email);
 
           if (emailIsDupe) {
@@ -2150,7 +2156,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           secPhone = '';
 
           // 1. Prioritize mapped phone (Ensure it's actually a number, at least 7 digits)
-          if (mappedPhone && mappedPhone.replace(/\D/g, '').length >= 7 && !existingPhones.has(mappedPhone.replace(/\D/g, ''))) {
+          if (mappedPhone && mappedPhone.replace(/\D/g, '').length >= 7 && !crmHasPhoneDigits(mappedPhone)) {
             phone = mappedPhone;
           }
           // 2. If no mapped phone or it's a dupe, use scanner
@@ -2159,7 +2165,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           }
 
           // 3. Handle secondary phone (Ensure it's actually a number, at least 7 digits)
-          if (mappedSecPhone && mappedSecPhone.replace(/\D/g, '').length >= 7 && mappedSecPhone !== phone && !existingPhones.has(mappedSecPhone.replace(/\D/g, ''))) {
+          if (mappedSecPhone && mappedSecPhone.replace(/\D/g, '').length >= 7 && mappedSecPhone !== phone && !crmHasPhoneDigits(mappedSecPhone)) {
             secPhone = mappedSecPhone;
           }
           // 4. Fill from candidates if still empty
@@ -2314,11 +2320,13 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           if (phone) {
             const normalizedPhone = phone.replace(/\D/g, '');
             existingPhones.add(normalizedPhone);
+            if (normalizedPhone.length >= 10) existingPhones.add(normalizedPhone.slice(-10));
             seenInThisImport.add('phone:' + normalizedPhone);
           }
           if (secPhone) {
             const normalizedSec = secPhone.replace(/\D/g, '');
             existingPhones.add(normalizedSec);
+            if (normalizedSec.length >= 10) existingPhones.add(normalizedSec.slice(-10));
             seenInThisImport.add('phone:' + normalizedSec);
           }
 
