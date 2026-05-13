@@ -200,10 +200,12 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
   };
 
   const getInitials = (name) => {
-    if (!name) return '?';
-    const parts = name.split(' ');
+    if (!name || typeof name !== 'string') return '?';
+    const parts = name.split(' ').filter(p => p.length > 0);
     if (parts.length >= 2) {
-      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      const first = parts[0][0] || '';
+      const last = parts[parts.length - 1][0] || '';
+      return (first + last).toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
   };

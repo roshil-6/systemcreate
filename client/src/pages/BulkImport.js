@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
 import './BulkImport.css';
-import { FiUpload, FiDownload, FiCheckCircle, FiXCircle, FiArrowLeft, FiClock } from 'react-icons/fi';
+import { FiUpload, FiDownload, FiCheckCircle, FiXCircle, FiArrowLeft, FiClock, FiAlertTriangle, FiSearch, FiEye } from 'react-icons/fi';
 
 const BulkImport = () => {
   const { user } = useAuth();
@@ -15,9 +15,57 @@ const BulkImport = () => {
   const [preview, setPreview] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Tab state: 'import' | 'history' | 'skipped'
+  const [activeTab, setActiveTab] = useState('import');
+
+  // Skipped leads history state
+  const [skippedLeads, setSkippedLeads] = useState([]);
+  const [skippedLoading, setSkippedLoading] = useState(false);
+  const [skippedSearchPhone, setSkippedSearchPhone] = useState('');
+  const [skippedSearchEmail, setSkippedSearchEmail] = useState('');
+  const [selectedSkippedLead, setSelectedSkippedLead] = useState(null);
+
   useEffect(() => {
     // Initial setup if needed
   }, []);
+
+  // Fetch skipped leads history when tab is active
+  useEffect(() => {
+    if (activeTab === 'skipped') {
+      fetchSkippedLeads();
+    }
+  }, [activeTab]);
+
+  const fetchSkippedLeads = async () => {
+    setSkippedLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (skippedSearchPhone) params.set('phone', skippedSearchPhone);
+      if (skippedSearchEmail) params.set('email', skippedSearchEmail);
+      params.set('limit', '100');
+
+      const response = await axios.get(`${API_BASE_URL}/api/leads/skipped-leads-history?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSkippedLeads(response.data);
+    } catch (error) {
+      console.error('Error fetching skipped leads:', error);
+    } finally {
+      setSkippedLoading(false);
+    }
+  };
+
+  const handleSearchSkipped = (e) => {
+    e.preventDefault();
+    fetchSkippedLeads();
+  };
+
+  const viewExistingLead = (leadId) => {
+    if (leadId) {
+      navigate(`/leads/${leadId}`);
+    }
+  };
 
   const handleDeleteAll = async () => {
     if (!window.confirm('⚠️ DANGER: This will delete ALL leads. Are you sure?')) return;
@@ -222,28 +270,210 @@ const BulkImport = () => {
         <button className="btn-export-all" onClick={handleExportLeads}>
           <FiDownload /> Export Leads
         </button>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="import-tabs" style={{
+        display: 'flex',
+        gap: '4px',
+        marginBottom: '20px',
+        borderBottom: '2px solid #e5e7eb',
+        paddingBottom: '0'
+      }}>
         <button
-          className="btn-view-history"
-          onClick={() => navigate('/leads?showHistory=true')}
+          onClick={() => setActiveTab('import')}
           style={{
+            padding: '12px 24px',
+            background: activeTab === 'import' ? '#D4AF37' : '#f3f4f6',
+            color: activeTab === 'import' ? 'white' : '#374151',
+            border: 'none',
+            borderRadius: '6px 6px 0 0',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'import' ? '600' : '400',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '10px 16px',
-            background: '#D4AF37',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer'
+            gap: '8px'
           }}
         >
-          <FiClock /> View Import History
+          <FiUpload /> Import / Export
+        </button>
+        <button
+          onClick={() => navigate('/leads?showHistory=true')}
+          style={{
+            padding: '12px 24px',
+            background: '#f3f4f6',
+            color: '#374151',
+            border: 'none',
+            borderRadius: '6px 6px 0 0',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <FiClock /> Import History
+        </button>
+        <button
+          onClick={() => setActiveTab('skipped')}
+          style={{
+            padding: '12px 24px',
+            background: activeTab === 'skipped' ? '#dc3545' : '#f3f4f6',
+            color: activeTab === 'skipped' ? 'white' : '#374151',
+            border: 'none',
+            borderRadius: '6px 6px 0 0',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'skipped' ? '600' : '400',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <FiAlertTriangle /> Skipped Leads History
         </button>
       </div>
 
       <div className="bulk-import-content">
+        {activeTab === 'skipped' && (
+          <div className="skipped-leads-section" style={{ padding: '20px' }}>
+            <h2 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <FiAlertTriangle color="#dc3545" /> Skipped Leads History
+            </h2>
+            <p style={{ marginBottom: '20px', color: '#666' }}>
+              View leads that were skipped during bulk imports due to duplicate phone numbers or email addresses.
+            </p>
+
+            {/* Search Form */}
+            <form onSubmit={handleSearchSkipped} style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Search by phone..."
+                value={skippedSearchPhone}
+                onChange={(e) => setSkippedSearchPhone(e.target.value)}
+                style={{
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  flex: '1',
+                  minWidth: '200px'
+                }}
+              />
+              <input
+                type="text"
+                placeholder="Search by email..."
+                value={skippedSearchEmail}
+                onChange={(e) => setSkippedSearchEmail(e.target.value)}
+                style={{
+                  padding: '10px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  flex: '1',
+                  minWidth: '200px'
+                }}
+              />
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 20px',
+                  background: '#D4AF37',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <FiSearch /> Search
+              </button>
+            </form>
+
+            {/* Skipped Leads Table */}
+            {skippedLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
+            ) : skippedLeads.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                No skipped leads found. Import some leads with duplicates to see them here.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ background: '#f3f4f6' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Import Date</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>File</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Lead Name</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Phone</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Email</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Skip Reason</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Existing Lead</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #e5e7eb' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {skippedLeads.map((lead, index) => (
+                      <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '12px' }}>
+                          {new Date(lead.import_date).toLocaleDateString()}
+                        </td>
+                        <td style={{ padding: '12px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {lead.original_filename}
+                        </td>
+                        <td style={{ padding: '12px' }}>{lead.name || '-'}</td>
+                        <td style={{ padding: '12px' }}>{lead.phone_number || '-'}</td>
+                        <td style={{ padding: '12px' }}>{lead.email || '-'}</td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: lead.skip_reason?.includes('Phone') ? '#fff3cd' : '#f8d7da',
+                            color: lead.skip_reason?.includes('Phone') ? '#856404' : '#721c24'
+                          }}>
+                            {lead.skip_reason}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {lead.existing_lead_id ? (
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{lead.existing_lead_name}</div>
+                              <div style={{ fontSize: '12px', color: '#666' }}>{lead.existing_lead_status}</div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#999' }}>-</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          {lead.existing_lead_id && (
+                            <button
+                              onClick={() => viewExistingLead(lead.existing_lead_id)}
+                              style={{
+                                padding: '6px 12px',
+                                background: '#D4AF37',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <FiEye /> View
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'import' && (<>
         <div className="import-export-tabs">
           <div className="tab-section export-tab">
             <h2>📤 Export Leads</h2>
@@ -371,6 +601,21 @@ const BulkImport = () => {
                 {result.skipped > 0 && (
                   <div className="skip-notice" style={{ marginTop: '10px', fontSize: '14px', color: '#666' }}>
                     <p>💡 Tip: {result.skipped} leads were skipped because their phone number or email already exists in the CRM, or they were missing required fields.</p>
+                    <button
+                      onClick={() => setActiveTab('skipped')}
+                      style={{
+                        marginTop: '10px',
+                        padding: '8px 16px',
+                        background: '#dc3545',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '13px'
+                      }}
+                    >
+                      View Skipped Leads History →
+                    </button>
                   </div>
                 )}
                 {result.skippedRows && result.skippedRows.length > 0 && (
@@ -451,8 +696,9 @@ const BulkImport = () => {
             )}
           </div>
         )}
+        </>)}
       </div>
-    </div >
+    </div>
   );
 };
 

@@ -274,7 +274,26 @@ async function initDatabase() {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
+    console.log('Creating import_skipped_leads table...');
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS import_skipped_leads (
+        id SERIAL PRIMARY KEY,
+        import_history_id INTEGER REFERENCES import_history(id) ON DELETE CASCADE,
+        row_number INTEGER,
+        sheet_name TEXT,
+        name TEXT,
+        phone_number TEXT,
+        email TEXT,
+        skip_reason TEXT NOT NULL,
+        existing_lead_id INTEGER REFERENCES leads(id),
+        existing_lead_name TEXT,
+        existing_lead_status TEXT,
+        raw_data JSONB,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Create indexes for performance
     console.log('Creating indexes...');
     await client.query(`
@@ -296,6 +315,9 @@ async function initDatabase() {
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
       CREATE INDEX IF NOT EXISTS idx_import_history_user ON import_history(created_by);
+      CREATE INDEX IF NOT EXISTS idx_import_skipped_import_id ON import_skipped_leads(import_history_id);
+      CREATE INDEX IF NOT EXISTS idx_import_skipped_phone ON import_skipped_leads(phone_number);
+      CREATE INDEX IF NOT EXISTS idx_import_skipped_email ON import_skipped_leads(email);
     `);
     
     await client.query('COMMIT');

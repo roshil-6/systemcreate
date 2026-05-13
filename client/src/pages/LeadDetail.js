@@ -148,8 +148,9 @@ const LeadDetail = () => {
   const handleSave = async () => {
     try {
       // CRITICAL: Check for duplicates before saving new lead
+      // Note: Duplicate detection only checks phone number and email (not name)
       if (id === 'new' && duplicateWarning) {
-        alert(`Cannot create lead: A lead with this ${duplicateWarning.field === 'name' ? 'name' : duplicateWarning.field === 'email' ? 'email' : 'phone number'} already exists.\n\nExisting Lead: ${duplicateWarning.name} (${duplicateWarning.status})\n\nPlease check the existing lead or modify the details.`);
+        alert(`Cannot create lead: A lead with this ${duplicateWarning.field === 'email' ? 'email' : 'phone number'} already exists.\n\nExisting Lead: ${duplicateWarning.name} (${duplicateWarning.status})\n\nPlease check the existing lead or modify the details.`);
         return;
       }
 
@@ -208,6 +209,7 @@ const LeadDetail = () => {
   };
 
   // Real-time duplicate check — debounced 300ms, only on new lead form (aligned with POST /api/leads)
+  // CRITICAL: Only checks phone and email - name is NOT used for duplicate detection
   const duplicateCheckGen = useRef(0);
 
   const checkDuplicate = (snapshot) => {
@@ -229,9 +231,10 @@ const LeadDetail = () => {
     else if (waDigits.length >= 7) phoneForApi = waDigits;
 
     const cleanedEmail = String(snapshot.email || '').trim();
-    const trimmedName = String(snapshot.name || '').trim();
 
-    if (phoneForApi.length < 7 && cleanedEmail.length < 3 && trimmedName.length < 2) {
+    // Only check if we have phone (min 7 digits) or email (min 3 chars)
+    // Name is intentionally NOT checked for duplicates
+    if (phoneForApi.length < 7 && cleanedEmail.length < 3) {
       setCheckingDuplicate(false);
       return;
     }
@@ -243,7 +246,7 @@ const LeadDetail = () => {
         const params = new URLSearchParams();
         if (phoneForApi.length >= 7) params.set('phone', phoneForApi);
         if (cleanedEmail.length >= 3) params.set('email', cleanedEmail);
-        if (trimmedName.length >= 2) params.set('name', trimmedName);
+        // Note: We do NOT send name for duplicate checking
 
         const checkUrl = `${API_BASE_URL}/api/leads/check-duplicate?${params.toString()}`;
         const response = await axios.get(checkUrl, authConfig());
@@ -269,7 +272,7 @@ const LeadDetail = () => {
   };
 
   const DUPLICATE_CHECK_FIELDS = new Set([
-    'name',
+    // Note: Name is NOT included - we only check duplicates by phone or email
     'phone_number',
     'phone_country_code',
     'whatsapp_number',
@@ -592,7 +595,6 @@ const LeadDetail = () => {
                   onChange={handleChange}
                   disabled={!canEdit}
                   required
-                  style={isNew && duplicateWarning && duplicateWarning.field === 'name' ? { borderColor: '#dc3545', backgroundColor: '#fff5f5' } : undefined}
                 />
               </div>
               <div className="form-group">
@@ -681,20 +683,10 @@ const LeadDetail = () => {
                       <div className="duplicate-warning__body">
                         <div className="duplicate-warning__title">Lead Already Exists in the System!</div>
                         <div className="duplicate-warning__detail">
-                          {duplicateWarning.field === 'name' ? (
-                            <>
-                              A lead with this name already exists:{' '}
-                              <strong>{duplicateWarning.name}</strong>
-                              <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
-                            </>
-                          ) : (
-                            <>
-                              This{' '}
-                              {duplicateWarning.field === 'email' ? 'email' : 'phone number'} is already registered under{' '}
-                              <strong>{duplicateWarning.name}</strong>
-                              <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
-                            </>
-                          )}
+                          This{' '}
+                          {duplicateWarning.field === 'email' ? 'email' : 'phone number'} is already registered under{' '}
+                          <strong>{duplicateWarning.name}</strong>
+                          <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
                         </div>
                         <div className="duplicate-warning__message">
                           Please check the existing lead before creating a new one to avoid duplicates.
