@@ -542,7 +542,7 @@ const Dashboard = () => {
             <FiUsers style={{ color: '#D4AF37' }} />
           </div>
           <div className="metric-content">
-            <div className="metric-value">{data.metrics.totalLeads}</div>
+            <div className="metric-value">{data.metrics?.totalLeads ?? 0}</div>
             <div className="metric-label">Total Leads</div>
           </div>
         </div>
@@ -551,7 +551,7 @@ const Dashboard = () => {
             <FiTrendingUp style={{ color: '#D4AF37' }} />
           </div>
           <div className="metric-content">
-            <div className="metric-value">{data.metrics.newLeads}</div>
+            <div className="metric-value">{data.metrics?.newLeads ?? 0}</div>
             <div className="metric-label">New Leads</div>
           </div>
         </div>
@@ -565,7 +565,7 @@ const Dashboard = () => {
             <FiClock style={{ color: '#D4AF37' }} />
           </div>
           <div className="metric-content">
-            <div className="metric-value">{data.metrics.todayFollowups}</div>
+            <div className="metric-value">{data.metrics?.todayFollowups ?? 0}</div>
             <div className="metric-label">Today's Follow-ups</div>
           </div>
         </div>
@@ -579,7 +579,7 @@ const Dashboard = () => {
             <FiXCircle style={{ color: '#D4AF37' }} />
           </div>
           <div className="metric-content">
-            <div className="metric-value">{data.metrics.dueFollowups}</div>
+            <div className="metric-value">{data.metrics?.dueFollowups ?? 0}</div>
             <div className="metric-label">Due Follow-ups</div>
           </div>
         </div>
@@ -867,6 +867,10 @@ const Dashboard = () => {
               const color = getStatusBoxColor(status);
               // For Follow-up, sum up all follow-up statuses (1, 2, 3)
               let count = lbs[status] ?? 0;
+              if (status === 'Manual Lead') {
+                // Match staff cards & filter: non–bulk (direct) leads, not only status "Manual Lead"
+                count = Number(data.metrics?.manualLeads ?? lbs[status] ?? 0);
+              }
               if (status === 'Follow-up') {
                 count = (lbs['Follow-up 1'] || 0) + (lbs['Follow-up 2'] || 0) + (lbs['Follow-up 3'] || 0) + (lbs['Follow-up'] || 0);
               }
@@ -876,7 +880,11 @@ const Dashboard = () => {
                   className="status-item"
                   style={color}
                   onClick={() => handleStatusClick(status)}
-                  title={`View ${status} leads`}
+                  title={
+                    status === 'Manual Lead'
+                      ? 'View leads entered manually or not from bulk import (direct)'
+                      : `View ${status} leads`
+                  }
                 >
                   <span className="status-label" style={{ color: color.color }}>{status}</span>
                   <span className="status-count" style={{ color: color.color }}>{count}</span>
@@ -1743,47 +1751,74 @@ const Dashboard = () => {
           // Regular Staff Dashboard View (NOT Processing Team)
           <>
             {renderStaffMetrics()}
+            {renderUnattendedLeadsSection()}
             {renderStatusBreakdown()}
+            {((data.recentLeads && data.recentLeads.length > 0) || (data.leadsList && data.leadsList.length > 0)) && (
+              <div className="recent-leads-section" style={{ marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#1f2937' }}>Recent leads</h2>
+                <div className="table-responsive">
+                  <table className="leads-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Updated</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data.recentLeads || data.leadsList || [])
+                        .slice()
+                        .sort(
+                          (a, b) =>
+                            new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+                        )
+                        .slice(0, 10)
+                        .map((lead) => (
+                          <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} style={{ cursor: 'pointer' }}>
+                            <td>{lead.name}</td>
+                            <td>
+                              <span className={`status-badge status-${lead.status?.toLowerCase().replace(/\s+/g, '-')}`}>
+                                {lead.status}
+                              </span>
+                            </td>
+                            <td>{new Date(lead.updated_at || lead.created_at).toLocaleDateString()}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             <div className="recent-leads-section">
               <div
                 style={{
-                  padding: '20px 24px',
-                  background: '#fff',
+                  padding: '16px 20px',
+                  background: '#faf9f6',
                   borderRadius: '12px',
                   border: '1px solid #e5e7eb',
                   display: 'flex',
                   flexWrap: 'wrap',
                   alignItems: 'center',
-                  gap: '16px',
+                  gap: '12px',
                   justifyContent: 'space-between',
                 }}
               >
-                <div>
-                  <h2 style={{ margin: '0 0 6px', fontSize: '18px' }}>Assigned leads</h2>
-                  <p style={{ margin: 0, fontSize: '14px', color: '#6b7280', maxWidth: '640px', lineHeight: 1.5 }}>
-                    <strong style={{ color: '#111827' }}>
-                      {data.metrics?.totalLeads ?? data.leadsList?.length ?? 0}
-                    </strong>{' '}
-                    lead(s) assigned to{' '}
-                    {viewingOwnStaffDash ? 'you' : data.staff?.name || 'this staff member'}.
-                    The full table, search, staff filter, and bulk actions are on the Leads page — use{' '}
-                    <strong>My Leads</strong> in the sidebar when you are viewing your own dashboard.
-                  </p>
-                </div>
+                <p style={{ margin: 0, fontSize: '14px', color: '#4b5563' }}>
+                  <strong style={{ color: '#111827' }}>
+                    {data.metrics?.totalLeads ?? data.leadsList?.length ?? 0}
+                  </strong>{' '}
+                  leads assigned to {viewingOwnStaffDash ? 'you' : data.staff?.name || 'this staff'} — open the full list for search and bulk actions.
+                </p>
                 <button
                   type="button"
                   className="btn-view-lead"
                   onClick={() =>
-                    navigate(
-                      staffId != null
-                        ? `/leads?assigned_staff_id=${staffId}`
-                        : '/leads'
-                    )
+                    navigate(staffId != null ? `/leads?assigned_staff_id=${staffId}` : '/leads')
                   }
-                  style={{ padding: '12px 20px', fontWeight: 600 }}
+                  style={{ padding: '10px 18px', fontWeight: 600 }}
                 >
                   <FiUsers style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-                  {viewingOwnStaffDash ? 'Open My Leads' : 'Open Leads for this staff'}
+                  {viewingOwnStaffDash ? 'Open My Leads' : 'Open all leads for this staff'}
                 </button>
               </div>
             </div>

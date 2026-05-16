@@ -358,6 +358,38 @@ router.get('/staff/:id', authenticate, async (req, res) => {
       // Regular Staff Dashboard - Show lead metrics AND clients they converted
       const metrics = await db.getLeadsMetrics({ assigned_staff_id: staffId });
 
+      // Align with main / personal dashboard: getLeadsMetrics only returns leadsByStatus + follow-ups + totalLeads.
+      metrics.leadsByStatus = metrics.leadsByStatus || {};
+      metrics.newLeads =
+        (metrics.leadsByStatus['New'] || 0) + (metrics.leadsByStatus['Unassigned'] || 0);
+      metrics.followupLeads =
+        (metrics.leadsByStatus['Follow-up'] || 0) +
+        (metrics.leadsByStatus['Follow-up 1'] || 0) +
+        (metrics.leadsByStatus['Follow-up 2'] || 0) +
+        (metrics.leadsByStatus['Follow-up 3'] || 0);
+      metrics.processingLeads = metrics.leadsByStatus['Prospect'] || 0;
+      metrics.convertedLeads = metrics.leadsByStatus['Pending Lead'] || 0;
+      metrics.notRespondingLeads = metrics.leadsByStatus['Not Responding'] || 0;
+      metrics.wrongNumberLeads = metrics.leadsByStatus['Wrong Number'] || 0;
+      metrics.closedLeads =
+        (metrics.leadsByStatus['Closed'] || 0) + (metrics.leadsByStatus['Closed / Rejected'] || 0);
+      metrics.registrationCompletedLeads = metrics.leadsByStatus['Registration Completed'] || 0;
+
+      // "Manual" tile = non–bulk / direct leads (same rule as staff performance cards), not status = Manual Lead
+      try {
+        const directRes = await db.query(
+          `SELECT COUNT(*)::int AS c FROM leads
+           WHERE deleted_at IS NULL AND assigned_staff_id = $1
+             AND excel_row_data IS NULL
+             AND (source IS NULL OR TRIM(source) NOT ILIKE '%bulk import%')`,
+          [staffId]
+        );
+        metrics.manualLeads = directRes.rows[0]?.c ?? 0;
+      } catch (e) {
+        console.error('staff dashboard manualLeads count:', e);
+        metrics.manualLeads = 0;
+      }
+
       // Get leads list (dashboard needs more than default page size; match unattended scan breadth)
       const staffLeads = await db.getLeads({ assigned_staff_id: staffId, limit: 500 });
 
@@ -428,6 +460,11 @@ router.get('/staff/:id', authenticate, async (req, res) => {
         });
       }
 
+      const recentLeadsSorted = [...leadsList].sort(
+        (a, b) =>
+          new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+      );
+
       res.json({
         role: role,
         isReadOnly: isEmy,
@@ -439,6 +476,7 @@ router.get('/staff/:id', authenticate, async (req, res) => {
         },
         metrics,
         leadsList,
+        recentLeads: recentLeadsSorted.slice(0, 10),
         unattendedLeads,
         unattendedCount: unattendedLeads.length,
         clientsList, // Clients converted by this staff member
@@ -646,13 +684,27 @@ router.get('/', authenticate, async (req, res) => {
       const unattendedLeads = unattendedRaw.map(mapUnattendedLeadForApi);
 
       // Augment metrics with old-style fields for frontend compatibility
-      metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
+      metrics.newLeads =
+        (metrics.leadsByStatus?.['New'] || 0) + (metrics.leadsByStatus?.['Unassigned'] || 0);
       metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
                               (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
                               (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
                               (metrics.leadsByStatus?.['Follow-up 3'] || 0);
       metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
       metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
+      try {
+        const directRes = await db.query(
+          `SELECT COUNT(*)::int AS c FROM leads
+           WHERE deleted_at IS NULL AND assigned_staff_id = $1
+             AND excel_row_data IS NULL
+             AND (source IS NULL OR TRIM(source) NOT ILIKE '%bulk import%')`,
+          [userId]
+        );
+        metrics.manualLeads = directRes.rows[0]?.c ?? 0;
+      } catch (e) {
+        console.error('restricted dashboard manualLeads:', e);
+        metrics.manualLeads = 0;
+      }
 
       if (req.query.metricsOnly === 'true') {
         return res.json({
@@ -715,7 +767,8 @@ router.get('/', authenticate, async (req, res) => {
       metrics.totalClients = allClients.length;
 
       // Ensure compatibility with frontend expected properties
-      metrics.newLeads = metrics.leadsByStatus?.['New'] || 0;
+      metrics.newLeads =
+        (metrics.leadsByStatus?.['New'] || 0) + (metrics.leadsByStatus?.['Unassigned'] || 0);
       metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
                               (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
                               (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
