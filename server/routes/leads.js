@@ -161,7 +161,32 @@ async function getLeadWithAccessCheck(leadId, user) {
   // These are final statuses and are hidden from main leads list (unless ADMIN/PROCESSING/HR)
   const terminalStatuses = ['Registration Completed', 'Closed'];
   if (terminalStatuses.includes(lead.status) && role !== 'ADMIN' && role !== 'PROCESSING' && role !== 'HR') {
-    return null;
+    // Check if the user has direct involvement/access rights to this lead
+    const isOwner = leadAssignedUserId === Number(userId) || Number(lead.created_by) === Number(userId);
+    
+    if (!isOwner) {
+      // Check if they historically handled it
+      const assignmentNotif = await db.query(
+        "SELECT 1 FROM notifications WHERE type = 'lead_assigned' AND lead_id = $1 AND created_by = $2 LIMIT 1",
+        [lead.id, userId]
+      );
+      
+      if (assignmentNotif.rows.length === 0) {
+        // Check if they are the head of the team member assigned to it
+        let isTeamLead = false;
+        if (role === 'SALES_TEAM_HEAD') {
+          const teamMembers = await db.getUsers({ managed_by: userId });
+          const teamMemberIds = teamMembers.map(u => Number(u.id));
+          if (teamMemberIds.includes(leadAssignedUserId)) {
+            isTeamLead = true;
+          }
+        }
+        
+        if (!isTeamLead) {
+          return null;
+        }
+      }
+    }
   }
 
   // High-priority: Strict isolation for specific users regardless of role
@@ -2657,5 +2682,7 @@ router.delete('/:id', authenticate, async (req, res) => {
     client.release();
   }
 });
+
+router.getLeadWithAccessCheck = getLeadWithAccessCheck;
 
 module.exports = router;
