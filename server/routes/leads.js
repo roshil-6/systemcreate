@@ -198,8 +198,8 @@ async function getLeadWithAccessCheck(leadId, user) {
   const isTargetedUser = restrictedNames.includes(userName) || restrictedEmails.includes(userEmail);
 
   // 3. Permission logic
-  if (!isTargetedUser && (role === 'ADMIN' || role === 'PROCESSING')) {
-    return lead; // Full access for regular Admin and Processing
+  if (!isTargetedUser && (role === 'ADMIN' || role === 'PROCESSING' || role === 'HR')) {
+    return lead; // Full access for regular Admin, Processing, and HR
   }
 
   if (role === 'STAFF' || role === 'HR') {
@@ -511,7 +511,7 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
     }
 
     // For non-admin roles, check if they can assign to the target staff
-    if (role !== 'ADMIN') {
+    if (role !== 'ADMIN' && role !== 'HR') {
       if (role === 'SALES_TEAM_HEAD') {
         // Sales team head can assign to themselves or their team members
         const teamMembers = await db.getUsers({ managed_by: userId, id: staffId });
@@ -547,7 +547,7 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
       }
 
       // For non-admin roles, verify they own the lead
-      if (role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD') {
+      if (role !== 'ADMIN' && role !== 'HR' && role !== 'SALES_TEAM_HEAD') {
         const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
         if (leadOwnerId !== userId) {
           notFoundLeadIds.push(leadId);
@@ -934,7 +934,7 @@ router.post('/bulk-delete', authenticate, async (req, res) => {
     const existingLeads = leadsResult.rows;
     let permittedLeadIds = [];
 
-    if (role === 'ADMIN') {
+    if (role === 'ADMIN' || role === 'HR') {
       permittedLeadIds = existingLeads.map(l => l.id);
     } else if (role === 'SALES_TEAM_HEAD') {
       const teamMembers = await db.getUsers({ managed_by: userId });
@@ -1022,7 +1022,7 @@ router.get('/trash', authenticate, async (req, res) => {
 router.post('/restore', authenticate, async (req, res) => {
   try {
     const role = req.user.role;
-    if (role !== 'ADMIN') {
+    if (role !== 'ADMIN' && role !== 'HR') {
       return res.status(403).json({ error: 'Only admins can restore leads' });
     }
     const { leadIds } = req.body;
@@ -1046,7 +1046,7 @@ router.post('/restore', authenticate, async (req, res) => {
 router.post('/permanent-delete', authenticate, async (req, res) => {
   try {
     const role = req.user.role;
-    if (role !== 'ADMIN') {
+    if (role !== 'ADMIN' && role !== 'HR') {
       return res.status(403).json({ error: 'Only admins can permanently delete leads' });
     }
     const { leadIds } = req.body;
@@ -1298,15 +1298,15 @@ router.post(
 
       // CRITICAL: Non-admin roles can only assign leads to themselves (or their team for heads)
       let finalAssignedStaffId = assigned_staff_id;
-      if (role === 'SALES_TEAM' || role === 'STAFF' || role === 'HR') {
+      if (role === 'SALES_TEAM' || role === 'STAFF') {
         finalAssignedStaffId = userId;
       } else if (role === 'SALES_TEAM_HEAD' || role === 'PROCESSING') {
         // Now allowed to assign based on the regular flow or leave as is.
-      } else if (role === 'ADMIN') {
+      } else if (role === 'ADMIN' || role === 'HR') {
         if (assigned_staff_id) {
           const staffUsers = await db.getUsers({ id: assigned_staff_id });
           const assignee = staffUsers[0];
-          if (!assignee || (assignee.role === 'ADMIN' && !isAssignableLeadTarget(assignee))) {
+          if (!assignee || ((assignee.role === 'ADMIN' || assignee.role === 'HR') && !isAssignableLeadTarget(assignee))) {
             return res.status(400).json({ error: 'Invalid staff member' });
           }
         }
@@ -1375,7 +1375,7 @@ router.post(
 
         const assignedUsers = await db.getUsers({ id: finalAssignedStaffId });
         const assignedUser = assignedUsers[0];
-        if (assignedUser && assignedUser.role !== 'ADMIN') {
+        if (assignedUser && assignedUser.role !== 'ADMIN' && assignedUser.role !== 'HR') {
           const notification = await db.createNotification({
             user_id: finalAssignedStaffId,
             lead_id: newLead.id,
@@ -1478,18 +1478,18 @@ router.put('/:id', authenticate, async (req, res) => {
       }
 
       if (!normalizedStaffId) {
-        if (role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD') {
+        if (role !== 'ADMIN' && role !== 'HR' && role !== 'SALES_TEAM_HEAD') {
           return res.status(400).json({ error: 'Only admin can unassign leads' });
         }
       } else {
         const targetUsers = await db.getUsers({ id: normalizedStaffId });
         const targetUser = targetUsers[0];
-        if (!targetUser || (targetUser.role === 'ADMIN' && !isAssignableLeadTarget(targetUser))) {
+        if (!targetUser || ((targetUser.role === 'ADMIN' || targetUser.role === 'HR') && !isAssignableLeadTarget(targetUser))) {
           return res.status(400).json({ error: 'Invalid staff member' });
         }
 
         // For non-admin roles, verify permissions
-        if (role !== 'ADMIN') {
+        if (role !== 'ADMIN' && role !== 'HR') {
           const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
 
           // Case 1: Lead is currently Unassigned - Allow claiming
@@ -1547,7 +1547,7 @@ router.put('/:id', authenticate, async (req, res) => {
 
         const assignedUsers = await db.getUsers({ id: normalizedStaffId });
         const assignedUser = assignedUsers[0];
-        if (assignedUser && assignedUser.role !== 'ADMIN') {
+        if (assignedUser && assignedUser.role !== 'ADMIN' && assignedUser.role !== 'HR') {
           const notification = await db.createNotification({
             user_id: normalizedStaffId,
             lead_id: leadId,
@@ -1646,7 +1646,7 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
     // Role-based editing restrictions
     const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
 
-    if (role !== 'ADMIN') {
+    if (role !== 'ADMIN' && role !== 'HR') {
       if (role === 'SALES_TEAM_HEAD') {
         const teamMembers = await db.getUsers({ managed_by: userId });
         const teamIds = teamMembers.map(u => u.id);
@@ -1724,10 +1724,11 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
     // 3. Create Notification for Processing Team (Sneha/Kripa)
     // Find processing team users
     const processingUsers = await db.getUsers({ role: 'PROCESSING' }); // Or specific IDs
-    // Also include Admin
+    // Also include Admin and HR
     const admins = await db.getUsers({ role: 'ADMIN' });
+    const hrUsers = await db.getUsers({ role: 'HR' });
 
-    const notifyUsers = [...processingUsers, ...admins];
+    const notifyUsers = [...processingUsers, ...admins, ...hrUsers];
     const uniqueNotifyIds = [...new Set(notifyUsers.map(u => u.id))];
 
     for (const notifyUserId of uniqueNotifyIds) {
@@ -2640,7 +2641,7 @@ router.delete('/:id', authenticate, async (req, res) => {
     // Permission Check
     let canDelete = false;
 
-    if (role === 'ADMIN') {
+    if (role === 'ADMIN' || role === 'HR') {
       canDelete = true;
     } else if (role === 'SALES_TEAM_HEAD') {
       const teamMembers = await db.getUsers({ managed_by: userId });

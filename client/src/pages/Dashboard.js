@@ -306,17 +306,12 @@ const Dashboard = () => {
   }, [staffId]);
 
   useEffect(() => {
-    const ownStaffDash =
-      user &&
-      staffId != null &&
-      Number(staffId) === Number(user.id) &&
-      user.role === 'HR';
     const canUseStaffDashboardRoute =
       user &&
       (user.role === 'ADMIN' ||
+        user.role === 'HR' ||
         user.role === 'SALES_TEAM_HEAD' ||
-        isEmy ||
-        ownStaffDash);
+        isEmy);
     if (staffId && user && !canUseStaffDashboardRoute) {
       navigate('/');
       return;

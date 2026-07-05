@@ -22,7 +22,7 @@ const UserManagement = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (user?.role === 'ADMIN') {
+    if (user?.role === 'ADMIN' || user?.role === 'HR') {
       fetchUsers();
     }
   }, [user]);
@@ -145,7 +145,7 @@ const UserManagement = () => {
     }
   };
 
-  if (user?.role !== 'ADMIN') {
+  if (user?.role !== 'ADMIN' && user?.role !== 'HR') {
     return (
       <div className="user-management">
         <div className="access-denied">

@@ -146,7 +146,7 @@ function App() {
             path="/users"
             element={
               <PrivateRoute>
-                <RoleRoute allowedRoles={['ADMIN']}>
+                <RoleRoute allowedRoles={['ADMIN', 'HR']}>
                   <AppLayout>
                     <UserManagement />
                   </AppLayout>
@@ -172,7 +172,7 @@ function App() {
             path="/email-templates"
             element={
               <PrivateRoute>
-                <RoleRoute allowedRoles={['ADMIN']}>
+                <RoleRoute allowedRoles={['ADMIN', 'HR']}>
                   <AppLayout>
                     <EmailTemplates />
                   </AppLayout>

@@ -141,6 +141,22 @@ const Layout = ({ children }) => {
                   <FiClock className="nav-icon" />
                   <span>Attendance</span>
                 </Link>
+                <Link
+                  to="/users"
+                  className={`nav-item ${isActive('/users') ? 'active' : ''}`}
+                  aria-current={isActive('/users') ? 'page' : undefined}
+                >
+                  <FiSettings className="nav-icon" />
+                  <span>User Management</span>
+                </Link>
+                <Link
+                  to="/email-templates"
+                  className={`nav-item ${isActive('/email-templates') ? 'active' : ''}`}
+                  aria-current={isActive('/email-templates') ? 'page' : undefined}
+                >
+                  <FiMail className="nav-icon" />
+                  <span>Email Templates</span>
+                </Link>
               </div>
             </>
           ) : (

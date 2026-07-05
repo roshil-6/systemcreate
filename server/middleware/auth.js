@@ -55,9 +55,9 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Check if user is ADMIN
+// Check if user is ADMIN or HR
 const requireAdmin = (req, res, next) => {
-  if (req.user.role !== 'ADMIN') {
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'HR') {
     return res.status(403).json({ error: 'Admin access required' });
   }
   next();
@@ -71,9 +71,9 @@ const requireStaff = (req, res, next) => {
   next();
 };
 
-// Check if user is ADMIN or SALES_TEAM_ADMIN
+// Check if user is ADMIN, HR or SALES_TEAM_ADMIN
 const requireAdminOrSalesTeamAdmin = (req, res, next) => {
-  if (req.user.role !== 'ADMIN' && req.user.role !== 'SALES_TEAM_ADMIN') {
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'HR' && req.user.role !== 'SALES_TEAM_ADMIN') {
     return res.status(403).json({ error: 'Admin or Sales Team Admin access required' });
   }
   next();

@@ -125,8 +125,8 @@ router.put('/:id', authenticate, requireHrOrAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    // HR can edit staff but cannot change roles or passwords — those fields are skipped for HR
-    const isHrCaller = callerRole === 'HR';
+    // HR now has full admin privileges, so they are not restricted as isHrCaller
+    const isHrCaller = false;
 
     const users = await db.getUsers({ id: userId });
     if (users.length === 0) {
@@ -154,7 +154,7 @@ router.put('/:id', authenticate, requireHrOrAdmin, async (req, res) => {
         updates.assignable_for_leads = true;
       }
     }
-    if (assignable_for_leads !== undefined && callerRole === 'ADMIN' && !isHrCaller) {
+    if (assignable_for_leads !== undefined && (callerRole === 'ADMIN' || callerRole === 'HR') && !isHrCaller) {
       updates.assignable_for_leads = !!assignable_for_leads;
     }
     if (phone_number !== undefined) {
