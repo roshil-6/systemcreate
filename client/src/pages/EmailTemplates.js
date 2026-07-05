@@ -22,7 +22,7 @@ const EmailTemplates = () => {
   });
 
   useEffect(() => {
-    if (user?.role === 'ADMIN') {
+    if (user?.role === 'ADMIN' || user?.role === 'HR') {
       fetchTemplates();
     }
   }, [user]);
@@ -123,7 +123,7 @@ const EmailTemplates = () => {
     }
   };
 
-  if (user?.role !== 'ADMIN') {
+  if (user?.role !== 'ADMIN' && user?.role !== 'HR') {
     return (
       <div className="email-templates-container">
         <div className="error-message">Access denied. Admin only.</div>

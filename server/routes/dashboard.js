@@ -127,7 +127,7 @@ async function getAccessibleUserIds(user) {
 
   // Check if personal view is forced OR if the user is one of the strictly restricted ones
   // Sneha (processing), Kripa, Emy, and sales staff: personal scope; HR uses same personal scope as staff
-  if (user.forcePersonal || isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING' || role === 'HR') {
+  if (user.forcePersonal || isTargetedUser || role === 'SALES_TEAM' || role === 'STAFF' || role === 'PROCESSING') {
     return [userId];
   }
 
@@ -162,7 +162,7 @@ router.get('/staff/:id', authenticate, async (req, res) => {
     // Allow users to view their OWN dashboard regardless of role
     const isOwnDashboard = userId === staffId;
 
-    if (role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD' && !isEmy && !isOwnDashboard) {
+    if (role !== 'ADMIN' && role !== 'HR' && role !== 'SALES_TEAM_HEAD' && !isEmy && !isOwnDashboard) {
       return res.status(403).json({ error: 'Admin, Sales Team Head, Emy, or own dashboard access required' });
     }
 
@@ -546,12 +546,11 @@ router.get('/', authenticate, async (req, res) => {
     const isTargetedUser = restrictedNames.includes(req.user.name) || restrictedEmails.includes(req.user.email);
 
     // Determine if this is a restricted view (strictly SALES_TEAM, STAFF, PROCESSING or forced personal or targeted user)
-    // HR uses the same personal/sales-scoped metrics as STAFF (not org-wide admin dashboard)
+    // HR now gets the full admin company dashboard, unless they explicitly request their personal view
     const isRestrictedView =
       role === 'SALES_TEAM' ||
       role === 'STAFF' ||
       role === 'PROCESSING' ||
-      role === 'HR' ||
       isPersonalView ||
       isTargetedUser;
 

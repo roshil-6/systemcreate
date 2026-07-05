@@ -1166,11 +1166,11 @@ const Leads = () => {
     return <div className="leads-loading">Loading leads...</div>;
   }
 
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'HR';
   const isHr = user?.role === 'HR';
   const canManageLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR';
-  /** HR list is always "my leads" only — no org-wide staff scope filter in UI */
-  const showAssignedStaffFilter = canManageLeads && !isHr;
+  /** HR now gets the org-wide staff scope filter in UI if they have admin rights */
+  const showAssignedStaffFilter = canManageLeads;
   const allSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
   const allStaffForFilters = isAdmin;
   // Avoid duplicate option value for admins: "My leads only" uses same id as their staff row
@@ -1188,7 +1188,7 @@ const Leads = () => {
     followUp: !!(searchParams.get('follow_up_date') || searchParams.get('follow_up_overdue') === 'true'),
     source: !!leadSourceTypeFilter,
     priority: !!priorityFilter,
-    assigned: !!assignedStaffFilter && !isHr,
+    assigned: !!assignedStaffFilter,
   };
 
   const nameSortActive = sortBy === 'name_asc' || sortBy === 'name_desc';

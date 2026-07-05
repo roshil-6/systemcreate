@@ -14,7 +14,7 @@ router.get('/test', (req, res) => {
 // Debug route to check all clients (admin only)
 router.get('/debug/all', authenticate, async (req, res) => {
   try {
-    if (req.user.role !== 'ADMIN') {
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'HR') {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
@@ -172,7 +172,7 @@ router.get('/', authenticate, async (req, res) => {
     const userEmailLower = (req.user.email || '').toLowerCase().trim();
 
     const isEmy = userNameLower === 'emy' || userEmailLower === 'emy@toniosenora.com';
-    const canViewPaymentData = role === 'ADMIN' ||
+    const canViewPaymentData = role === 'ADMIN' || role === 'HR' ||
       userNameLower === 'sneha' || userEmailLower === 'sneha@toniosenora.com' ||
       userNameLower === 'kripa' || userEmailLower === 'kripa@toniosenora.com';
     // Removed Emy's monitoring access as user wants absolute isolation
@@ -223,7 +223,7 @@ router.get('/:id', authenticate, async (req, res) => {
     const userName = req.user.name || '';
     const userEmail = req.user.email || '';
     const isEmy = userName === 'Emy' || userName === 'EMY' || userEmail === 'emy@toniosenora.com';
-    const canViewPaymentData = role === 'ADMIN' ||
+    const canViewPaymentData = role === 'ADMIN' || role === 'HR' ||
       userName === 'Sneha' || userName === 'SNEHA' || userEmail === 'sneha@toniosenora.com' ||
       userName === 'Kripa' || userName === 'KRIPA' || userEmail === 'kripa@toniosenora.com';
     // Removed Emy's monitoring access as user wants absolute isolation
@@ -571,7 +571,7 @@ router.delete('/:id', authenticate, async (req, res) => {
   try {
     const role = req.user.role;
 
-    if (role !== 'ADMIN') {
+    if (role !== 'ADMIN' && role !== 'HR') {
       return res.status(403).json({ error: 'Only admin can delete clients' });
     }
 
