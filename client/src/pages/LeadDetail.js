@@ -903,6 +903,24 @@ const LeadDetail = () => {
         {!isNew && (
           <div className="lead-detail-right">
             {/* Lead Comment Field - Display prominently */}
+            {formData.comment && (
+              <div className="comments-section" style={{ marginBottom: '20px' }}>
+                <h2>Lead Notes / Comment</h2>
+                <div style={{
+                  padding: '15px',
+                  background: '#fef3c7',
+                  borderRadius: '8px',
+                  border: '1px solid #fde68a',
+                  fontSize: '15px',
+                  fontWeight: '400',
+                  color: '#92400e',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {formData.comment}
+                </div>
+              </div>
+            )}
+            
             {/* Lead Source Field - Display prominently */}
             {(() => {
               const rawSource = formData.source || '';
