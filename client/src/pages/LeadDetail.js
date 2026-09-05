@@ -848,6 +848,26 @@ const LeadDetail = () => {
                 />
               </div>
 
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>Lead Notes / Comment</label>
+                <textarea
+                  name="comment"
+                  value={formData.comment || ''}
+                  onChange={handleChange}
+                  disabled={!canEdit}
+                  placeholder="Add any additional notes or comments here..."
+                  style={{
+                    width: '100%',
+                    padding: '10px',
+                    borderRadius: '4px',
+                    border: '1px solid #d1d5db',
+                    minHeight: '80px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
               <div className="form-group">
                 <label>Status</label>
                 <select
@@ -902,25 +922,6 @@ const LeadDetail = () => {
         </div>
         {!isNew && (
           <div className="lead-detail-right">
-            {/* Lead Comment Field - Display prominently */}
-            {formData.comment && (
-              <div className="comments-section" style={{ marginBottom: '20px' }}>
-                <h2>Lead Notes / Comment</h2>
-                <div style={{
-                  padding: '15px',
-                  background: '#fef3c7',
-                  borderRadius: '8px',
-                  border: '1px solid #fde68a',
-                  fontSize: '15px',
-                  fontWeight: '400',
-                  color: '#92400e',
-                  whiteSpace: 'pre-wrap'
-                }}>
-                  {formData.comment}
-                </div>
-              </div>
-            )}
-            
             {/* Lead Source Field - Display prominently */}
             {(() => {
               const rawSource = formData.source || '';
