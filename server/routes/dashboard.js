@@ -16,12 +16,16 @@ function getDateOnly(value) {
 }
 
 /** Leads assigned to staff with follow-up date in the past and not completed/skipped (same idea as overdue follow-ups). */
+const TERMINAL_STATUSES = new Set([
+  'Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed',
+  'Wrong Number', 'Not Interested', 'Not Eligible', 'Not Attending', 'Converted'
+]);
+
 function getUnattendedLeadsFromList(leads) {
   const today = new Date().toISOString().split('T')[0];
-  const isActiveStatus = (status) => status !== 'Pending Lead' && status !== 'Closed / Rejected';
 
   return (leads || []).filter((l) => {
-    if (!isActiveStatus(l.status)) return false;
+    if (TERMINAL_STATUSES.has(l.status)) return false;
     const fd = getDateOnly(l.follow_up_date);
     if (!fd || fd >= today) return false;
     const fus = String(l.follow_up_status || '').toLowerCase();
@@ -702,7 +706,7 @@ router.get('/', authenticate, async (req, res) => {
              AND assigned_staff_id = $1
              AND follow_up_date IS NOT NULL
              AND follow_up_date::date < CURRENT_DATE
-             AND status NOT IN ('Pending Lead', 'Closed / Rejected')
+             AND status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed', 'Wrong Number', 'Not Interested', 'Not Eligible', 'Not Attending', 'Converted')
              AND COALESCE(NULLIF(TRIM(LOWER(follow_up_status)), ''), 'pending') NOT IN ('completed', 'skipped')
            ORDER BY follow_up_date ASC`,
           [userId]
