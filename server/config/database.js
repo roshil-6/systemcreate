@@ -1326,7 +1326,7 @@ const database = {
         (SELECT COUNT(*) FROM leads l2 WHERE l2.assigned_staff_id = u.id AND l2.deleted_at IS NULL
           AND l2.follow_up_date IS NOT NULL
           AND l2.follow_up_date::date < CURRENT_DATE
-          AND l2.status NOT IN ('Pending Lead', 'Closed / Rejected')
+          AND l2.status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed', 'Wrong Number', 'Not Interested', 'Not Eligible', 'Not Attending', 'Converted')
           AND COALESCE(NULLIF(TRIM(LOWER(l2.follow_up_status)), ''), 'pending') NOT IN ('completed', 'skipped')
         ) as unattended_leads
       FROM users u
