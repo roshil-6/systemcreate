@@ -885,13 +885,16 @@ const Leads = () => {
       }
 
       // For comments, we need to fetch each lead first to append to existing comment
+      const token = localStorage.getItem('token');
       const updatePromises = selectedLeadIds.map(async (leadId) => {
         const leadUpdateData = { ...updateData };
 
         // If comment is provided, fetch the lead first to append comment
         if (bulkEditData.comment && bulkEditData.comment.trim() !== '') {
           try {
-            const leadResponse = await axios.get(`${API_BASE_URL}/api/leads/${leadId}`);
+            const leadResponse = await axios.get(`${API_BASE_URL}/api/leads/${leadId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
             const existingComment = leadResponse.data.comment || '';
             // Append new comment to existing comment
             leadUpdateData.comment = existingComment
@@ -904,7 +907,9 @@ const Leads = () => {
           }
         }
 
-        return axios.put(`${API_BASE_URL}/api/leads/${leadId}`, leadUpdateData);
+        return axios.put(`${API_BASE_URL}/api/leads/${leadId}`, leadUpdateData, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
       });
 
       await Promise.all(updatePromises);
