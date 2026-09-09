@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -28,8 +29,10 @@ const Leads = () => {
   const [bulkAssignStaffId, setBulkAssignStaffId] = useState('');
   const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
+  const searchInputRef = useRef(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [phoneSearchInput, setPhoneSearchInput] = useState(searchParams.get('phone') || '');
+  const phoneSearchInputRef = useRef(searchParams.get('phone') || '');
   const [phoneSearch, setPhoneSearch] = useState(searchParams.get('phone') || '');
   const [statusFilter, setStatusFilter] = useState(() => {
     // Check if lead_source_type is 'direct' - treat as Manual Lead filter
@@ -491,7 +494,7 @@ const Leads = () => {
       });
       await fetchLeads(true);
     } catch (error) {
-      alert(error.response?.data?.error || 'Error marking follow-up as completed');
+      toast.error(error.response?.data?.error || 'Error marking follow-up as completed');
     }
   };
 
@@ -557,19 +560,15 @@ const Leads = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setSearch(searchInput.trim());
-    setPhoneSearch(phoneSearchInput.trim());
+    setSearch(searchInputRef.current.trim());
+    setPhoneSearch(phoneSearchInputRef.current.trim());
     navigate(`/leads?${buildLeadsParams().toString()}`);
     setTopbarPopover(null);
   };
 
-  const handleSearchInputChange = (e) => {
-    setSearchInput(e.target.value);
-  };
+  const handleSearchInputChange = (e) => { searchInputRef.current = e.target.value; };
 
-  const handlePhoneSearchInputChange = (e) => {
-    setPhoneSearchInput(e.target.value);
-  };
+  const handlePhoneSearchInputChange = (e) => { phoneSearchInputRef.current = e.target.value; };
 
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
@@ -848,7 +847,7 @@ const Leads = () => {
       setBulkAssignStaffId('');
       fetchLeads(true);
     } catch (error) {
-      alert(error.response?.data?.error || 'Error assigning leads');
+      toast.error(error.response?.data?.error || 'Error assigning leads');
     } finally {
       setBulkAssignLoading(false);
     }
@@ -879,7 +878,7 @@ const Leads = () => {
       if (bulkEditData.follow_up_status) updateData.follow_up_status = bulkEditData.follow_up_status;
 
       if (Object.keys(updateData).length === 0 && (!bulkEditData.comment || bulkEditData.comment.trim() === '')) {
-        alert('Please fill at least one field to update');
+        toast.error('Please fill at least one field to update');
         setBulkEditLoading(false);
         return;
       }
@@ -925,10 +924,10 @@ const Leads = () => {
       });
       setShowBulkEditModal(false);
       fetchLeads(true);
-      alert(`Successfully updated ${updatedCount} lead(s)`);
+      toast.success(`Successfully updated ${updatedCount} lead(s)`);
     } catch (error) {
       console.error('Bulk edit error:', error);
-      alert(error.response?.data?.error || 'Error updating leads. Some leads may not have been updated.');
+      toast.error(error.response?.data?.error || 'Error updating leads. Some leads may not have been updated.');
     } finally {
       setBulkEditLoading(false);
     }
@@ -951,10 +950,10 @@ const Leads = () => {
         sessionStorage.removeItem('leadsPageState');
         setOffset(0);
         fetchLeads(true);
-        alert(`🗑 ${response.data.deletedCount || selectedLeadIds.length} lead(s) moved to Recycle Bin. Admins can restore them.`);
+        toast.success(`🗑 ${response.data.deletedCount || selectedLeadIds.length} lead(s) moved to Recycle Bin. Admins can restore them.`);
       } catch (error) {
         console.error('Bulk delete error:', error);
-        alert(error.response?.data?.error || 'Failed to delete leads. You might not have permission.');
+        toast.error(error.response?.data?.error || 'Failed to delete leads. You might not have permission.');
         sessionStorage.removeItem('leadsPageState');
         setOffset(0);
         fetchLeads(true);
@@ -973,11 +972,11 @@ const Leads = () => {
       setAssigningLeadId(null);
       setAssignStaffId('');
       fetchLeads(true);
-      alert('Lead transferred successfully!');
+      toast.success('Lead transferred successfully!');
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message || 'Error transferring lead';
       console.error('Transfer error:', error);
-      alert(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -1002,10 +1001,10 @@ const Leads = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert('Excel file downloaded with all leads that match your current filters (not limited to the table page).');
+      toast.success('Excel file downloaded with all leads that match your current filters (not limited to the table page).');
     } catch (error) {
       console.error('Export error:', error);
-      alert('Error exporting leads. Please try again.');
+      toast.error('Error exporting leads. Please try again.');
     }
   };
 
@@ -1047,7 +1046,7 @@ const Leads = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert('Failed to download file');
+      toast.error('Failed to download file');
     }
   };
 
@@ -1077,11 +1076,11 @@ const Leads = () => {
       await axios.post(`${API_BASE_URL}/api/leads/restore`, { leadIds: selectedTrashIds }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert(`✅ ${selectedTrashIds.length} lead(s) restored successfully!`);
+      toast.success(`✅ ${selectedTrashIds.length} lead(s) restored successfully!`);
       fetchTrashLeads();
       fetchLeads(true);
     } catch (error) {
-      alert(error.response?.data?.error || 'Error restoring leads');
+      toast.error(error.response?.data?.error || 'Error restoring leads');
     } finally {
       setTrashActionLoading(false);
     }
@@ -1096,10 +1095,10 @@ const Leads = () => {
       await axios.post(`${API_BASE_URL}/api/leads/permanent-delete`, { leadIds: selectedTrashIds }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert(`🔥 ${selectedTrashIds.length} lead(s) permanently deleted.`);
+      toast.success(`🔥 ${selectedTrashIds.length} lead(s) permanently deleted.`);
       fetchTrashLeads();
     } catch (error) {
-      alert(error.response?.data?.error || 'Error deleting leads');
+      toast.error(error.response?.data?.error || 'Error deleting leads');
     } finally {
       setTrashActionLoading(false);
     }
@@ -2098,11 +2097,11 @@ const Leads = () => {
                               })
                                 .then(() => {
                                   fetchLeads(true);
-                                  alert('Lead moved to Recycle Bin successfully');
+                                  toast.success('Lead moved to Recycle Bin successfully');
                                 })
                                 .catch(error => {
                                   console.error('Delete error:', error);
-                                  alert(error.response?.data?.error || 'Failed to delete lead');
+                                  toast.error(error.response?.data?.error || 'Failed to delete lead');
                                 });
                             }
                           }}
@@ -2278,8 +2277,7 @@ const Leads = () => {
                   <input
                     type="text"
                     placeholder="Name / email contains…"
-                    value={searchInput}
-                    onChange={handleSearchInputChange}
+                    defaultValue={searchInputRef.current} onChange={handleSearchInputChange}
                     aria-label="Search by name or email"
                   />
                 </div>
@@ -2288,8 +2286,7 @@ const Leads = () => {
                   <input
                     type="text"
                     placeholder="Phone contains…"
-                    value={phoneSearchInput}
-                    onChange={handlePhoneSearchInputChange}
+                    defaultValue={phoneSearchInputRef.current} onChange={handlePhoneSearchInputChange}
                     aria-label="Search by phone"
                   />
                 </div>
@@ -2449,15 +2446,14 @@ const Leads = () => {
               <input
                 type="text"
                 className="leads-col-menu__input"
-                value={phoneSearchInput}
-                onChange={handlePhoneSearchInputChange}
+                defaultValue={phoneSearchInputRef.current} onChange={handlePhoneSearchInputChange}
                 placeholder="Digits or part of number"
               />
               <button
                 type="button"
                 className="leads-col-menu__apply"
                 onClick={() => {
-                  setPhoneSearch(phoneSearchInput.trim());
+                  setPhoneSearch(phoneSearchInputRef.current.trim());
                   navigate(`/leads?${buildLeadsParamsWith().toString()}`);
                   closeColumnMenu();
                 }}
@@ -2472,15 +2468,14 @@ const Leads = () => {
               <input
                 type="text"
                 className="leads-col-menu__input"
-                value={searchInput}
-                onChange={handleSearchInputChange}
+                defaultValue={searchInputRef.current} onChange={handleSearchInputChange}
                 placeholder="Text to find"
               />
               <button
                 type="button"
                 className="leads-col-menu__apply"
                 onClick={() => {
-                  setSearch(searchInput.trim());
+                  setSearch(searchInputRef.current.trim());
                   navigate(`/leads?${buildLeadsParamsWith().toString()}`);
                   closeColumnMenu();
                 }}

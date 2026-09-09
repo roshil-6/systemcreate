@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
@@ -55,7 +56,7 @@ const StaffDocumentView = () => {
                 const errorMsg = err.response?.data 
                     ? `Error: ${err.response.data}` 
                     : err.message || 'Failed to load document for viewing';
-                alert('Failed to load document for viewing:\n' + errorMsg);
+                toast.error('Failed to load document for viewing:\n' + errorMsg);
             }
         };
         fetchDocBlob();
@@ -104,7 +105,7 @@ const StaffDocumentView = () => {
             setIsEditingDetails(false);
             fetchStaffDetails();
         } catch (err) {
-            alert('Failed to update: ' + (err.response?.data?.error || err.message));
+            toast.error('Failed to update: ' + (err.response?.data?.error || err.message));
         } finally {
             setSavingDetails(false);
         }
@@ -122,7 +123,7 @@ const StaffDocumentView = () => {
             // Bust cache so new photo loads
             setProfilePhoto(`${API_BASE_URL}/api/hr/staff/${id}/photo?t=${Date.now()}`);
         } catch (err) {
-            alert('Photo upload failed: ' + (err.response?.data?.error || err.message));
+            toast.error('Photo upload failed: ' + (err.response?.data?.error || err.message));
         } finally {
             setUploadingPhoto(false);
         }
@@ -134,7 +135,7 @@ const StaffDocumentView = () => {
             await axios.delete(`${API_BASE_URL}/api/hr/staff/${id}/photo`, { headers: authHeaders() });
             setProfilePhoto(null);
         } catch (err) {
-            alert('Failed to remove photo');
+            toast.error('Failed to remove photo');
         }
     };
 
@@ -150,11 +151,11 @@ const StaffDocumentView = () => {
             });
             console.log('Upload response:', response.data);
             setDocuments(prev => ({ ...prev, [slot]: response.data }));
-            alert('Document uploaded successfully!');
+            toast.success('Document uploaded successfully!');
         } catch (err) {
             console.error('Upload error:', err);
             const errorMsg = err.response?.data?.error || err.message || 'Unknown error';
-            alert('Upload failed: ' + errorMsg);
+            toast.error('Upload failed: ' + errorMsg);
         } finally {
             setUploadingSlot(null);
         }
@@ -171,7 +172,7 @@ const StaffDocumentView = () => {
                 return next;
             });
         } catch (err) {
-            alert('Delete failed: ' + (err.response?.data?.error || err.message));
+            toast.error('Delete failed: ' + (err.response?.data?.error || err.message));
         }
     };
 

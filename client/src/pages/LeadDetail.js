@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -29,6 +30,7 @@ const LeadDetail = () => {
   const [staffList, setStaffList] = useState([]);
   const [duplicateWarning, setDuplicateWarning] = useState(null);
   const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const duplicateCheckTimer = useRef(null);
   const [showChatComments, setShowChatComments] = useState(false);
   const chatEndRef = useRef(null);
@@ -146,11 +148,14 @@ const LeadDetail = () => {
   };
 
   const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       // CRITICAL: Check for duplicates before saving new lead
       // Note: Duplicate detection only checks phone number and email (not name)
       if (id === 'new' && duplicateWarning) {
-        alert(`Cannot create lead: A lead with this ${duplicateWarning.field === 'email' ? 'email' : 'phone number'} already exists.\n\nExisting Lead: ${duplicateWarning.name} (${duplicateWarning.status})\n\nPlease check the existing lead or modify the details.`);
+        toast.error(`Cannot create lead: A lead with this ${duplicateWarning.field === 'email' ? 'email' : 'phone number'} already exists.\n\nExisting Lead: ${duplicateWarning.name} (${duplicateWarning.status})\n\nPlease check the existing lead or modify the details.`, { duration: 5000 });
+        setIsSaving(false);
         return;
       }
 
@@ -167,15 +172,18 @@ const LeadDetail = () => {
         // Only clear the cache if a completely new Lead is created, to force it onto page 1
         sessionStorage.removeItem('leadsPageState');
         await axios.post(`${API_BASE_URL}/api/leads`, cleanedData, authConfig());
+        toast.success('Lead created successfully');
         handleBack();
       } else {
         await axios.put(`${API_BASE_URL}/api/leads/${id}`, cleanedData, authConfig());
-
+        toast.success('Lead updated successfully');
         await fetchLead();
         setEditing(false);
       }
     } catch (error) {
-      alert(error.response?.data?.error || 'Error saving lead');
+      toast.error(error.response?.data?.error || 'Error saving lead');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -204,7 +212,7 @@ const LeadDetail = () => {
         }
       } catch (e) { }
     } catch (error) {
-      alert(error.response?.data?.error || 'Error adding comment');
+      toast.error(error.response?.data?.error || 'Error adding comment');
     }
   };
 
@@ -304,12 +312,15 @@ const LeadDetail = () => {
   };
 
   const handleRegistrationSubmit = async () => {
+    if (isSaving) return;
+    
     // Validate required fields
     if (!registrationData.assessment_authority || !registrationData.occupation_mapped || !registrationData.registration_fee_paid) {
-      alert('Please fill all required fields');
+      toast.error('Please fill all required fields');
       return;
     }
 
+    setIsSaving(true);
     try {
       // Use the new complete-registration endpoint
       const response = await axios.post(`${API_BASE_URL}/api/leads/${id}/complete-registration`, {
@@ -319,7 +330,7 @@ const LeadDetail = () => {
       }, authConfig());
 
       console.log('✅ Registration completed:', response.data);
-      alert('Lead converted to client successfully! The client is now accessible to the processing team (Sneha and Kripa).');
+      toast.success('Lead converted to client successfully! The client is now accessible to the processing team.');
 
       // Close modal and navigate to clients page
       setShowRegistrationModal(false);
@@ -329,7 +340,9 @@ const LeadDetail = () => {
       const errorMessage = error.response?.data?.error ||
         error.response?.data?.message ||
         (error.response?.status === 404 ? 'Lead not found' : 'Error completing registration. Please try again.');
-      alert(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -365,7 +378,7 @@ const LeadDetail = () => {
         }
       } catch (error) {
         console.error('Error auto-saving field:', error);
-        alert('Error saving field. Please try again.');
+        toast.error('Error saving field. Please try again.');
         // Revert on error
         setFormData(formData);
       }
@@ -914,8 +927,9 @@ const LeadDetail = () => {
               )}
             </div>
             {canEdit && (
-              <button className="btn-save" onClick={handleSave}>
-                <FiSave /> {isNew ? 'Create Lead' : 'Save Changes'}
+              <button className="btn-save" onClick={handleSave} disabled={isSaving}>
+                <FiSave style={{ marginRight: '5px' }} />
+                {isSaving ? 'Saving...' : (isNew ? 'Create Lead' : 'Save Changes')}
               </button>
             )}
           </div>
@@ -1074,8 +1088,8 @@ const LeadDetail = () => {
               <button className="btn-cancel" onClick={() => setShowRegistrationModal(false)}>
                 Cancel
               </button>
-              <button className="btn-save" onClick={handleRegistrationSubmit}>
-                Create Client
+              <button className="btn-save" onClick={handleRegistrationSubmit} disabled={isSaving}>
+                {isSaving ? 'Processing...' : 'Complete Registration'}
               </button>
             </div>
           </div>
