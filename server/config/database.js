@@ -467,10 +467,10 @@ const database = {
     await query(`
       INSERT INTO leads (
         id, name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code,
-        email, age, occupation, qualification, year_of_experience, country, program,
+        email, age, occupation, qualification, year_of_experience, country, target_country, residing_country, program,
         status, priority, comment, follow_up_date, follow_up_status,
         assigned_staff_id, source, ielts_score, created_by, created_at, updated_at, secondary_phone_number
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
     `, [
       id,
       leadData.name,
@@ -484,6 +484,8 @@ const database = {
       leadData.qualification || null,
       leadData.year_of_experience || null,
       leadData.country || null,
+      leadData.target_country || null,
+      leadData.residing_country || null,
       leadData.program || null,
       leadData.status || 'New',
       leadData.priority || null,
@@ -510,7 +512,7 @@ const database = {
 
     const allowedFields = [
       'name', 'phone_number', 'phone_country_code', 'whatsapp_number', 'whatsapp_country_code', 'secondary_phone_number',
-      'email', 'age', 'occupation', 'qualification', 'year_of_experience', 'country', 'program',
+      'email', 'age', 'occupation', 'qualification', 'year_of_experience', 'country', 'target_country', 'residing_country', 'program',
       'status', 'priority', 'comment', 'follow_up_date', 'follow_up_status',
       'assigned_staff_id', 'source', 'ielts_score'
     ];
