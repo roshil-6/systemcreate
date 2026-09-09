@@ -1279,6 +1279,7 @@ router.post(
         phone_country_code,
         whatsapp_number,
         whatsapp_country_code,
+        secondary_phone_number,
         email,
         age,
         occupation,
@@ -1350,6 +1351,7 @@ router.post(
         phone_country_code: normalizeDialCode(phone_country_code),
         whatsapp_number: whatsapp_number || null,
         whatsapp_country_code: normalizeDialCode(whatsapp_country_code),
+        secondary_phone_number: secondary_phone_number || null,
         email: email || null,
         age: age || null,
         occupation: occupation || null,
@@ -1428,12 +1430,15 @@ router.put('/:id', authenticate, async (req, res) => {
       phone_country_code,
       whatsapp_number,
       whatsapp_country_code,
+      secondary_phone_number,
       email,
       age,
       occupation,
       qualification,
       year_of_experience,
       country,
+      target_country,
+      residing_country,
       program,
       status,
       assigned_staff_id,
@@ -1452,12 +1457,15 @@ router.put('/:id', authenticate, async (req, res) => {
     if (phone_country_code !== undefined) updates.phone_country_code = phone_country_code;
     if (whatsapp_number !== undefined) updates.whatsapp_number = whatsapp_number;
     if (whatsapp_country_code !== undefined) updates.whatsapp_country_code = whatsapp_country_code;
+    if (secondary_phone_number !== undefined) updates.secondary_phone_number = secondary_phone_number;
     if (email !== undefined) updates.email = email;
     if (age !== undefined) updates.age = age;
     if (occupation !== undefined) updates.occupation = occupation;
     if (qualification !== undefined) updates.qualification = qualification;
     if (year_of_experience !== undefined) updates.year_of_experience = year_of_experience;
     if (country !== undefined) updates.country = country;
+    if (target_country !== undefined) updates.target_country = target_country;
+    if (residing_country !== undefined) updates.residing_country = residing_country;
     if (program !== undefined) updates.program = program;
     if (status !== undefined) updates.status = status;
     if (priority !== undefined) updates.priority = priority;
@@ -1696,21 +1704,25 @@ router.post('/:id/complete-registration', authenticate, async (req, res) => {
       name: lead.name,
       phone_number: lead.phone_number,
       phone_country_code: lead.phone_country_code,
+      whatsapp_number: lead.whatsapp_number || null,
+      whatsapp_country_code: lead.whatsapp_country_code || null,
+      secondary_phone_number: lead.secondary_phone_number || null,
       email: lead.email,
       age: lead.age,
       occupation: lead.occupation,
       qualification: lead.qualification,
       year_of_experience: lead.year_of_experience,
       country: lead.country,
-      target_country: lead.country,
+      target_country: lead.target_country || lead.country,
+      residing_country: lead.residing_country || null,
       program: lead.program,
       assigned_staff_id: lead.assigned_staff_id,
       processing_staff_id: processingStaffId,
-      fee_status: 'Payment Pending', // Initial status
+      fee_status: 'Payment Pending',
       processing_status: 'Agreement Pending',
       assessment_authority: assessment_authority,
       occupation_mapped: occupation_mapped,
-      registration_fee_paid: registration_fee_paid, // Flag from form
+      registration_fee_paid: registration_fee_paid,
       amount_paid: 0,
     };
 
@@ -2374,6 +2386,8 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             whatsapp_country_code: normalizeDialCode(phoneCountryCode),
             email: email || null, country: g(colIdx.country) || null, program: g(colIdx.program) || null,
             occupation: g(colIdx.occupation) || null,
+            qualification: g(colIdx.qualification) || null,
+            year_of_experience: g(colIdx.year_of_experience) || null,
             status: st, priority: g(colIdx.priority) || 'Medium',
             comment: fileComment || 'Bulk Imported',
             follow_up_date: parseDate(g(colIdx.follow_up_date)), follow_up_status: g(colIdx.follow_up_status) || 'Pending',
@@ -2399,7 +2413,8 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           batch.forEach(l => {
             const vals = [
               l.name, l.phone_number, l.phone_country_code, l.whatsapp_number, l.email,
-              l.country, l.program, l.occupation, l.status, l.priority, l.comment,
+              l.country, l.program, l.occupation, l.qualification, l.year_of_experience,
+              l.status, l.priority, l.comment,
               l.follow_up_date, l.follow_up_status, l.assigned_staff_id, l.source, l.ielts_score,
               l.created_by, l.created_at, l.updated_at, l.secondary_phone_number, l.excel_row_data
             ];
@@ -2409,7 +2424,8 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           });
           const query = `INSERT INTO leads (
             name, phone_number, phone_country_code, whatsapp_number, email,
-            country, program, occupation, status, priority, comment,
+            country, program, occupation, qualification, year_of_experience,
+            status, priority, comment,
             follow_up_date, follow_up_status, assigned_staff_id, source, ielts_score,
             created_by, created_at, updated_at, secondary_phone_number, excel_row_data
           ) VALUES ${placeholders.join(', ')} RETURNING id`;
