@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -73,10 +74,10 @@ const BulkImport = () => {
     setDeleting(true);
     try {
       await axios.delete(`${API_BASE_URL}/api/leads/delete-all-maintenance?key=fix_my_phones_please`);
-      alert('✅ All leads deleted successfully!');
+      toast.success('✅ All leads deleted successfully!');
       window.location.reload();
     } catch (error) {
-      alert('❌ Delete failed: ' + (error.response?.data?.error || error.message));
+      toast.error('❌ Delete failed: ' + (error.response?.data?.error || error.message));
     } finally {
       setDeleting(false);
     }
@@ -123,7 +124,7 @@ const BulkImport = () => {
 
   const handleImport = async () => {
     if (!file) {
-      alert('Please select a CSV file');
+      toast.error('Please select a CSV file');
       return;
     }
 
@@ -136,7 +137,7 @@ const BulkImport = () => {
 
       const token = localStorage.getItem('token');
       if (!token) {
-        alert('You are not logged in. Please log in again.');
+        toast.error('You are not logged in. Please log in again.');
         navigate('/login');
         return;
       }
@@ -253,10 +254,10 @@ const BulkImport = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert(`${format.toUpperCase()} file downloaded successfully!`);
+      toast.success(`${format.toUpperCase()} file downloaded successfully!`);
     } catch (error) {
       console.error('Export error:', error);
-      alert('Error exporting leads. Please try again.');
+      toast.error('Error exporting leads. Please try again.');
     }
   };
 

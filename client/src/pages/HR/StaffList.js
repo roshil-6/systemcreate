@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../../config/api';
@@ -115,7 +116,7 @@ const StaffList = () => {
 
     const handleDelete = async (userId, userName) => {
         if (userId === currentUser?.id) {
-            alert('You cannot delete your own account.');
+            toast.success('You cannot delete your own account.');
             return;
         }
         if (!window.confirm(`Delete ${userName}? This cannot be undone.`)) return;
@@ -123,7 +124,7 @@ const StaffList = () => {
             await axios.delete(`${API_BASE_URL}/api/users/${userId}`);
             fetchStaff();
         } catch (err) {
-            alert(err.response?.data?.error || 'Error deleting staff member.');
+            toast.error(err.response?.data?.error || 'Error deleting staff member.');
         }
     };
 

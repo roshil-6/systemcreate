@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
@@ -81,7 +82,7 @@ const Attendance = () => {
         fetchMissingAttendance();
       }
     } catch (error) {
-      alert(error.response?.data?.error || 'Error checking in');
+      toast.error(error.response?.data?.error || 'Error checking in');
     }
   };
 
@@ -91,7 +92,7 @@ const Attendance = () => {
       fetchTodayStatus();
       fetchHistory();
     } catch (error) {
-      alert(error.response?.data?.error || 'Error checking out');
+      toast.error(error.response?.data?.error || 'Error checking out');
     }
   };
 
@@ -114,7 +115,7 @@ const Attendance = () => {
         // Error response - read as text
         const errorText = await blob.text();
         console.error('Download error:', errorText);
-        alert('Error downloading attendance:\n' + errorText);
+        toast.error('Error downloading attendance:\n' + errorText);
         return;
       }
       
@@ -133,7 +134,7 @@ const Attendance = () => {
       const errorMsg = error.response?.data 
         ? (typeof error.response.data === 'string' ? error.response.data : error.response.data.error)
         : error.message;
-      alert('Error downloading attendance: ' + errorMsg);
+      toast.error('Error downloading attendance: ' + errorMsg);
     }
   };
 

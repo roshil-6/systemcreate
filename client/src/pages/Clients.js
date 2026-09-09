@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -94,10 +95,10 @@ const Clients = () => {
 
         setSelectedClientIds([]);
         fetchClients();
-        alert(`Successfully deleted ${selectedClientIds.length} clients`);
+        toast.success(`Successfully deleted ${selectedClientIds.length} clients`);
       } catch (error) {
         console.error('Bulk delete error:', error);
-        alert('Failed to delete some clients. You might not have permission.');
+        toast.error('Failed to delete some clients. You might not have permission.');
         fetchClients();
       }
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
@@ -36,7 +37,7 @@ const EmailTemplates = () => {
       setTemplates(response.data);
     } catch (error) {
       console.error('Error fetching templates:', error);
-      alert('Error loading email templates');
+      toast.error('Error loading email templates');
     } finally {
       setLoading(false);
     }
@@ -65,10 +66,10 @@ const EmailTemplates = () => {
       setEditingTemplate(null);
       setFormData({ name: '', subject: '', body: '', active: true });
       fetchTemplates();
-      alert(editingTemplate ? 'Template updated successfully!' : 'Template created successfully!');
+      toast.success(editingTemplate ? 'Template updated successfully!' : 'Template created successfully!');
     } catch (error) {
       console.error('Error saving template:', error);
-      alert(error.response?.data?.error || 'Error saving template');
+      toast.error(error.response?.data?.error || 'Error saving template');
     }
   };
 
@@ -92,16 +93,16 @@ const EmailTemplates = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       fetchTemplates();
-      alert('Template deleted successfully!');
+      toast.success('Template deleted successfully!');
     } catch (error) {
       console.error('Error deleting template:', error);
-      alert(error.response?.data?.error || 'Error deleting template');
+      toast.error(error.response?.data?.error || 'Error deleting template');
     }
   };
 
   const handleTest = async (templateId) => {
     if (!testEmail) {
-      alert('Please enter a test email address');
+      toast.error('Please enter a test email address');
       return;
     }
     
@@ -113,11 +114,11 @@ const EmailTemplates = () => {
         { testEmail },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert('Test email sent successfully!');
+      toast.success('Test email sent successfully!');
       setTestEmail('');
     } catch (error) {
       console.error('Error sending test email:', error);
-      alert(error.response?.data?.error || 'Error sending test email');
+      toast.error(error.response?.data?.error || 'Error sending test email');
     } finally {
       setTesting(false);
     }

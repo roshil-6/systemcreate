@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -62,7 +63,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
     } catch (error) {
       console.error('❌ Error fetching clients:', error);
       console.error('Error details:', error.response?.data);
-      alert('Error fetching clients: ' + (error.response?.data?.error || error.message));
+      toast.error('Error fetching clients: ' + (error.response?.data?.error || error.message));
     } finally {
       setLoading(false);
     }
@@ -139,10 +140,10 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
       setEditingClient(null);
       setEditData({});
       fetchClients();
-      alert('Client updated successfully!');
+      toast.success('Client updated successfully!');
     } catch (error) {
       console.error('Error updating client:', error);
-      alert(error.response?.data?.error || 'Error updating client');
+      toast.error(error.response?.data?.error || 'Error updating client');
     }
   };
 

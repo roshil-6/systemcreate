@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -210,7 +211,7 @@ const Dashboard = () => {
         fetchDashboardData();
       } catch (error) {
         console.error('Delete error:', error);
-        alert('Failed to delete lead: ' + (error.response?.data?.error || 'You might not have permission to delete this lead.'));
+        toast.error('Failed to delete lead: ' + (error.response?.data?.error || 'You might not have permission to delete this lead.'));
       }
     }
   };
@@ -248,7 +249,7 @@ const Dashboard = () => {
         fetchDashboardData();
       } catch (error) {
         console.error('Bulk delete error:', error);
-        alert('Failed to delete some leads. You might not have permission.');
+        toast.error('Failed to delete some leads. You might not have permission.');
         fetchDashboardData();
       }
     }
@@ -288,7 +289,7 @@ const Dashboard = () => {
         fetchDashboardData();
       } catch (error) {
         console.error('Bulk delete error:', error);
-        alert('Failed to delete some clients. You might not have permission.');
+        toast.error('Failed to delete some clients. You might not have permission.');
         fetchDashboardData();
       }
     }
