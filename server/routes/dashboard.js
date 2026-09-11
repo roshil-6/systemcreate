@@ -394,6 +394,39 @@ router.get('/staff/:id', authenticate, async (req, res) => {
         metrics.manualLeads = 0;
       }
 
+      // OPTIMIZED: Direct SQL query for unattended leads instead of fetching 500 leads into memory
+      let unattendedLeads = [];
+      try {
+        const unattendedResult = await db.query(
+          `SELECT id, name, phone_number, phone_country_code, email, status, priority, follow_up_date, follow_up_status
+           FROM leads
+           WHERE deleted_at IS NULL
+             AND assigned_staff_id = $1
+             AND follow_up_date IS NOT NULL
+             AND follow_up_date::date < CURRENT_DATE
+             AND status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed', 'Wrong Number', 'Not Interested', 'Not Eligible', 'Not Attending', 'Converted')
+             AND COALESCE(NULLIF(TRIM(LOWER(follow_up_status)), ''), 'pending') NOT IN ('completed', 'skipped')
+           ORDER BY follow_up_date ASC`,
+          [staffId]
+        );
+        unattendedLeads = unattendedResult.rows.map(mapUnattendedLeadForApi);
+      } catch (e) {
+        console.error('Error fetching unattended leads:', e);
+      }
+
+      if (req.query.metricsOnly === 'true') {
+        try {
+          const cRes = await db.query('SELECT COUNT(*)::int as c FROM clients WHERE assigned_staff_id = $1', [staffId]);
+          metrics.totalClients = cRes.rows[0].c;
+        } catch(e) { metrics.totalClients = 0; }
+        
+        return res.json({
+          metrics,
+          unattendedLeads,
+          unattendedCount: unattendedLeads.length,
+        });
+      }
+
       // Get leads list (dashboard needs more than default page size; match unattended scan breadth)
       const staffLeads = await db.getLeads({ assigned_staff_id: staffId, limit: 500 });
 
@@ -402,10 +435,6 @@ router.get('/staff/:id', authenticate, async (req, res) => {
 
       // Add client count to metrics
       metrics.totalClients = staffClients.length;
-
-      // Get leads with details for this staff member (paginated)
-      const unattendedRaw = getUnattendedLeadsFromList(staffLeads);
-      const unattendedLeads = unattendedRaw.map(mapUnattendedLeadForApi);
 
       const leadsList = staffLeads.map(lead => ({
         id: lead.id,
@@ -456,13 +485,7 @@ router.get('/staff/:id', authenticate, async (req, res) => {
         clientsCount: staffClients.length
       });
 
-      if (req.query.metricsOnly === 'true') {
-        return res.json({
-          metrics,
-          unattendedLeads,
-          unattendedCount: unattendedLeads.length,
-        });
-      }
+
 
       const recentLeadsSorted = [...leadsList].sort(
         (a, b) =>
@@ -569,55 +592,133 @@ router.get('/', authenticate, async (req, res) => {
       metrics.leadsByStatus = metrics.leadsByStatus || {};
       metrics.leadsByStatus['Registration Completed'] = metrics.leadsByStatus['Registration Completed'] || 0;
 
-      // Get clients - strictly filtered for this Staff Member or Processing Staff
-      // OPTIMIZED: Use targeted SQL query instead of fetching all clients into memory
+      // Calculate unattended leads early
+      let unattendedLeads = [];
+      try {
+        const unattendedResult = await db.query(
+          `SELECT id, name, phone_number, phone_country_code, email, status, priority, follow_up_date, follow_up_status
+           FROM leads
+           WHERE deleted_at IS NULL
+             AND assigned_staff_id = $1
+             AND follow_up_date IS NOT NULL
+             AND follow_up_date::date < CURRENT_DATE
+             AND status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed', 'Wrong Number', 'Not Interested', 'Not Eligible', 'Not Attending', 'Converted')
+             AND COALESCE(NULLIF(TRIM(LOWER(follow_up_status)), ''), 'pending') NOT IN ('completed', 'skipped')
+           ORDER BY follow_up_date ASC`,
+          [userId]
+        );
+        unattendedLeads = unattendedResult.rows.map(mapUnattendedLeadForApi);
+      } catch (e) {
+        console.error('Error fetching unattended leads:', e);
+      }
+
+      // Augment metrics with old-style fields for frontend compatibility
+      metrics.newLeads = (metrics.leadsByStatus?.['New'] || 0) + (metrics.leadsByStatus?.['Unassigned'] || 0);
+      metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 3'] || 0);
+      metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
+      metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
+
+      try {
+        const directRes = await db.query(
+          `SELECT COUNT(*)::int AS c FROM leads
+           WHERE deleted_at IS NULL AND assigned_staff_id = $1
+             AND excel_row_data IS NULL
+             AND (source IS NULL OR TRIM(source) NOT ILIKE '%bulk import%')`,
+          [userId]
+        );
+        metrics.manualLeads = directRes.rows[0]?.c ?? 0;
+      } catch (e) {
+        metrics.manualLeads = 0;
+      }
+
+      let snehaUserId = null;
+      let kripaUserId = null;
+      try {
+        const processingUsers = await db.query(`SELECT id, name, email FROM users WHERE email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com') OR name IN ('Sneha', 'Kripa')`);
+        const sneha = processingUsers.rows.find(u => u.email === 'sneha@toniosenora.com' || u.name === 'Sneha');
+        const kripa = processingUsers.rows.find(u => u.email === 'kripa@toniosenora.com' || u.name === 'Kripa');
+        snehaUserId = sneha?.id;
+        kripaUserId = kripa?.id;
+      } catch (error) {}
+
+      let clientsByStatusCounts = { paymentPending: 0, firstInstallment: 0, ptePaid: 0, withSneha: 0, withKripa: 0 };
+      let totalClientsCount = 0;
+
+      if (req.query.metricsOnly === 'true') {
+        try {
+          const countsResult = await db.query(
+            `SELECT
+              COUNT(*)::int as total,
+              COUNT(*) FILTER (WHERE fee_status = 'Payment Pending')::int as payment_pending,
+              COUNT(*) FILTER (WHERE fee_status = '1st Installment Completed')::int as first_installment,
+              COUNT(*) FILTER (WHERE fee_status = 'PTE Fee Paid')::int as pte_paid,
+              COUNT(*) FILTER (WHERE processing_staff_id = $2 OR assigned_staff_id = $2)::int as with_sneha,
+              COUNT(*) FILTER (WHERE processing_staff_id = $3)::int as with_kripa
+            FROM clients WHERE assigned_staff_id = $1 OR processing_staff_id = $1`,
+            [userId, snehaUserId || -1, kripaUserId || -1]
+          );
+          const r = countsResult.rows[0];
+          totalClientsCount = r.total || 0;
+          clientsByStatusCounts = {
+            paymentPending: r.payment_pending || 0,
+            firstInstallment: r.first_installment || 0,
+            ptePaid: r.pte_paid || 0,
+            withSneha: r.with_sneha || 0,
+            withKripa: r.with_kripa || 0,
+          };
+        } catch (e) {}
+
+        metrics.totalClients = totalClientsCount;
+        metrics.clientsByStatus = {
+          'Total Clients': totalClientsCount,
+          'With Sneha': clientsByStatusCounts.withSneha,
+          'With Kripa': clientsByStatusCounts.withKripa,
+          'Payment Pending': clientsByStatusCounts.paymentPending,
+          '1st Installment Completed': clientsByStatusCounts.firstInstallment,
+          'PTE Fee Paid': clientsByStatusCounts.ptePaid,
+        };
+
+        return res.json({
+          metrics,
+          unattendedLeads,
+          unattendedCount: unattendedLeads.length,
+        });
+      }
+
+      // If not metricsOnly, fetch the full clients list
       const restrictedClients = (await db.query(
         `SELECT * FROM clients WHERE assigned_staff_id = $1 OR processing_staff_id = $1 ORDER BY updated_at DESC, created_at DESC`,
         [userId]
       )).rows;
 
-      // Get Sneha and Kripa user IDs dynamically
-      // OPTIMIZED: Use a single targeted query instead of fetching all users
-      let snehaUserId = null;
-      let kripaUserId = null;
-      try {
-        const processingUsers = await db.query(
-          `SELECT id, name, email FROM users WHERE email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com') OR name IN ('Sneha', 'Kripa')`
-        );
-        const sneha = processingUsers.rows.find(u => u.email === 'sneha@toniosenora.com' || u.name === 'Sneha');
-        const kripa = processingUsers.rows.find(u => u.email === 'kripa@toniosenora.com' || u.name === 'Kripa');
-        snehaUserId = sneha?.id;
-        kripaUserId = kripa?.id;
-      } catch (error) {
-        console.error('Error finding processing users:', error);
-      }
-
-      // OPTIMIZED: Use SQL COUNT queries for clientsByStatus instead of JS .filter().length
-      let clientsByStatusCounts = { paymentPending: 0, firstInstallment: 0, ptePaid: 0, withSneha: 0, withKripa: 0 };
+      totalClientsCount = restrictedClients.length;
       try {
         const countsResult = await db.query(
           `SELECT
-            COUNT(*) FILTER (WHERE fee_status = 'Payment Pending') as payment_pending,
-            COUNT(*) FILTER (WHERE fee_status = '1st Installment Completed') as first_installment,
-            COUNT(*) FILTER (WHERE fee_status = 'PTE Fee Paid') as pte_paid,
-            COUNT(*) FILTER (WHERE processing_staff_id = $2 OR assigned_staff_id = $2) as with_sneha,
-            COUNT(*) FILTER (WHERE processing_staff_id = $3) as with_kripa
+            COUNT(*) FILTER (WHERE fee_status = 'Payment Pending')::int as payment_pending,
+            COUNT(*) FILTER (WHERE fee_status = '1st Installment Completed')::int as first_installment,
+            COUNT(*) FILTER (WHERE fee_status = 'PTE Fee Paid')::int as pte_paid,
+            COUNT(*) FILTER (WHERE processing_staff_id = $2 OR assigned_staff_id = $2)::int as with_sneha,
+            COUNT(*) FILTER (WHERE processing_staff_id = $3)::int as with_kripa
           FROM clients WHERE assigned_staff_id = $1 OR processing_staff_id = $1`,
           [userId, snehaUserId || -1, kripaUserId || -1]
         );
         const r = countsResult.rows[0];
         clientsByStatusCounts = {
-          paymentPending: parseInt(r.payment_pending) || 0,
-          firstInstallment: parseInt(r.first_installment) || 0,
-          ptePaid: parseInt(r.pte_paid) || 0,
-          withSneha: parseInt(r.with_sneha) || 0,
-          withKripa: parseInt(r.with_kripa) || 0,
+          paymentPending: r.payment_pending || 0,
+          firstInstallment: r.first_installment || 0,
+          ptePaid: r.pte_paid || 0,
+          withSneha: r.with_sneha || 0,
+          withKripa: r.with_kripa || 0,
         };
-      } catch (e) { console.error('Error computing clientsByStatus counts:', e); }
+      } catch (e) {}
 
-      metrics.totalClients = restrictedClients.length;
+      metrics.totalClients = totalClientsCount;
       metrics.clientsByStatus = {
-        'Total Clients': restrictedClients.length,
+        'Total Clients': totalClientsCount,
         'With Sneha': clientsByStatusCounts.withSneha,
         'With Kripa': clientsByStatusCounts.withKripa,
         'Payment Pending': clientsByStatusCounts.paymentPending,
@@ -696,56 +797,7 @@ router.get('/', authenticate, async (req, res) => {
         limit: 10
       });
 
-      // OPTIMIZED: Direct SQL query for unattended leads instead of fetching 500 leads into memory
-      let unattendedLeads = [];
-      try {
-        const unattendedResult = await db.query(
-          `SELECT id, name, phone_number, phone_country_code, email, status, priority, follow_up_date, follow_up_status
-           FROM leads
-           WHERE deleted_at IS NULL
-             AND assigned_staff_id = $1
-             AND follow_up_date IS NOT NULL
-             AND follow_up_date::date < CURRENT_DATE
-             AND status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed', 'Wrong Number', 'Not Interested', 'Not Eligible', 'Not Attending', 'Converted')
-             AND COALESCE(NULLIF(TRIM(LOWER(follow_up_status)), ''), 'pending') NOT IN ('completed', 'skipped')
-           ORDER BY follow_up_date ASC`,
-          [userId]
-        );
-        unattendedLeads = unattendedResult.rows.map(mapUnattendedLeadForApi);
-      } catch (e) {
-        console.error('Error fetching unattended leads:', e);
-      }
 
-      // Augment metrics with old-style fields for frontend compatibility
-      metrics.newLeads =
-        (metrics.leadsByStatus?.['New'] || 0) + (metrics.leadsByStatus?.['Unassigned'] || 0);
-      metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
-                              (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
-                              (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
-                              (metrics.leadsByStatus?.['Follow-up 3'] || 0);
-      metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
-      metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
-      try {
-        const directRes = await db.query(
-          `SELECT COUNT(*)::int AS c FROM leads
-           WHERE deleted_at IS NULL AND assigned_staff_id = $1
-             AND excel_row_data IS NULL
-             AND (source IS NULL OR TRIM(source) NOT ILIKE '%bulk import%')`,
-          [userId]
-        );
-        metrics.manualLeads = directRes.rows[0]?.c ?? 0;
-      } catch (e) {
-        console.error('restricted dashboard manualLeads:', e);
-        metrics.manualLeads = 0;
-      }
-
-      if (req.query.metricsOnly === 'true') {
-        return res.json({
-          metrics,
-          unattendedLeads,
-          unattendedCount: unattendedLeads.length,
-        });
-      }
 
       // Compute "Assigned By Me" for this staff member too
       let staffAssignedByMe = [];
@@ -787,6 +839,31 @@ router.get('/', authenticate, async (req, res) => {
         include_unassigned: role === 'SALES_TEAM_HEAD' // Allows team leaders to see unassigned leads
       });
 
+      // Ensure compatibility with frontend expected properties
+      metrics.newLeads =
+        (metrics.leadsByStatus?.['New'] || 0) + (metrics.leadsByStatus?.['Unassigned'] || 0);
+      metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
+                              (metrics.leadsByStatus?.['Follow-up 3'] || 0);
+      metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
+      metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
+      metrics.todayFollowups = metrics.todayFollowups || 0;
+      metrics.dueFollowups = metrics.dueFollowups || 0;
+
+      if (req.query.metricsOnly === 'true') {
+        try {
+          if (role === 'SALES_TEAM_HEAD' && accessibleIds && accessibleIds.length > 0) {
+            const cRes = await db.query(`SELECT COUNT(*)::int as c FROM clients WHERE assigned_staff_id IS NULL OR assigned_staff_id = ANY($1)`, [accessibleIds]);
+            metrics.totalClients = cRes.rows[0].c;
+          } else {
+            const cRes = await db.query(`SELECT COUNT(*)::int as c FROM clients`);
+            metrics.totalClients = cRes.rows[0].c;
+          }
+        } catch(e) { metrics.totalClients = 0; }
+        return res.json({ metrics });
+      }
+
       // Get staff performance accurately across whole DB
       const staffPerformance = await db.getStaffPerformance(accessibleIds);
 
@@ -804,18 +881,6 @@ router.get('/', authenticate, async (req, res) => {
 
       // Add totalClients to metrics
       metrics.totalClients = allClients.length;
-
-      // Ensure compatibility with frontend expected properties
-      metrics.newLeads =
-        (metrics.leadsByStatus?.['New'] || 0) + (metrics.leadsByStatus?.['Unassigned'] || 0);
-      metrics.followupLeads = (metrics.leadsByStatus?.['Follow-up'] || 0) +
-                              (metrics.leadsByStatus?.['Follow-up 1'] || 0) +
-                              (metrics.leadsByStatus?.['Follow-up 2'] || 0) +
-                              (metrics.leadsByStatus?.['Follow-up 3'] || 0);
-      metrics.processingLeads = metrics.leadsByStatus?.['Prospect'] || 0;
-      metrics.convertedLeads = metrics.leadsByStatus?.['Pending Lead'] || 0;
-      metrics.todayFollowups = metrics.todayFollowups || 0;
-      metrics.dueFollowups = metrics.dueFollowups || 0;
 
       // OPTIMIZED: Single SQL aggregate query replaces fetching ALL attendance records into memory
       let attendanceOverview = [];
@@ -899,11 +964,6 @@ router.get('/', authenticate, async (req, res) => {
             updated_at: client.updated_at,
           };
         });
-
-      if (req.query.metricsOnly === 'true') {
-        return res.json({ metrics });
-      }
-
       res.json({
         role: role,
         metrics,
