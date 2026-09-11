@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import API_BASE_URL from '../config/api';
@@ -9,6 +10,7 @@ const UserManagement = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formData, setFormData] = useState({
@@ -34,7 +36,7 @@ const UserManagement = () => {
       setUsers(response.data);
     } catch (error) {
       console.error('Error fetching users:', error);
-      alert('Error loading users');
+      toast.error('Error loading users');
     } finally {
       setLoading(false);
     }
@@ -50,6 +52,8 @@ const UserManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSaving) return;
+    setIsSaving(true);
     setError('');
 
     if (!formData.name || !formData.email) {
@@ -81,6 +85,8 @@ const UserManagement = () => {
       fetchUsers();
     } catch (error) {
       setError(error.response?.data?.error || 'Error saving user');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -100,7 +106,7 @@ const UserManagement = () => {
 
   const handleDelete = async (userId, userName) => {
     if (userId === user.id) {
-      alert('You cannot delete your own account');
+      toast.error('You cannot delete your own account');
       return;
     }
 
@@ -112,7 +118,7 @@ const UserManagement = () => {
       await axios.delete(`${API_BASE_URL}/api/users/${userId}`);
       fetchUsers();
     } catch (error) {
-      alert(error.response?.data?.error || 'Error deleting user');
+      toast.error(error.response?.data?.error || 'Error deleting user');
     }
   };
 
@@ -138,10 +144,10 @@ const UserManagement = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      alert('CSV file downloaded! You can import this file into Google Sheets by:\n1. Opening Google Sheets\n2. File > Import\n3. Upload the CSV file');
+      toast.success('CSV file downloaded! You can import this file into Google Sheets by:\n1. Opening Google Sheets\n2. File > Import\n3. Upload the CSV file', { duration: 6000 });
     } catch (error) {
       console.error('Export error:', error);
-      alert('Error exporting users. Please try again.');
+      toast.error('Error exporting users. Please try again.');
     }
   };
 
@@ -258,8 +264,8 @@ const UserManagement = () => {
                 <button type="button" className="btn-cancel" onClick={handleCancel}>
                   Cancel
                 </button>
-                <button type="submit" className="btn-save">
-                  <FiSave /> {editingUser ? 'Update User' : 'Create User'}
+                <button type="submit" className="btn-save" disabled={isSaving}>
+                  <FiSave /> {isSaving ? 'Saving...' : (editingUser ? 'Update User' : 'Create User')}
                 </button>
               </div>
             </form>
