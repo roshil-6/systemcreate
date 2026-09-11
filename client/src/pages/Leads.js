@@ -29,10 +29,8 @@ const Leads = () => {
   const [bulkAssignStaffId, setBulkAssignStaffId] = useState('');
   const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
-  const searchInputRef = useRef(searchParams.get('search') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [phoneSearchInput, setPhoneSearchInput] = useState(searchParams.get('phone') || '');
-  const phoneSearchInputRef = useRef(searchParams.get('phone') || '');
   const [phoneSearch, setPhoneSearch] = useState(searchParams.get('phone') || '');
   const [statusFilter, setStatusFilter] = useState(() => {
     // Check if lead_source_type is 'direct' - treat as Manual Lead filter
@@ -560,15 +558,19 @@ const Leads = () => {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setSearch(searchInputRef.current.trim());
-    setPhoneSearch(phoneSearchInputRef.current.trim());
+    setSearch(searchInput.trim());
+    setPhoneSearch(phoneSearchInput.trim());
     navigate(`/leads?${buildLeadsParams().toString()}`);
     setTopbarPopover(null);
   };
 
-  const handleSearchInputChange = (e) => { searchInputRef.current = e.target.value; };
+  const handleSearchInputChange = (e) => {
+    setSearchInput(e.target.value);
+  };
 
-  const handlePhoneSearchInputChange = (e) => { phoneSearchInputRef.current = e.target.value; };
+  const handlePhoneSearchInputChange = (e) => {
+    setPhoneSearchInput(e.target.value);
+  };
 
   const handleStatusFilter = (status) => {
     setStatusFilter(status);
@@ -2277,7 +2279,8 @@ const Leads = () => {
                   <input
                     type="text"
                     placeholder="Name / email contains…"
-                    defaultValue={searchInputRef.current} onChange={handleSearchInputChange}
+                    value={searchInput}
+                    onChange={handleSearchInputChange}
                     aria-label="Search by name or email"
                   />
                 </div>
@@ -2286,7 +2289,8 @@ const Leads = () => {
                   <input
                     type="text"
                     placeholder="Phone contains…"
-                    defaultValue={phoneSearchInputRef.current} onChange={handlePhoneSearchInputChange}
+                    value={phoneSearchInput}
+                    onChange={handlePhoneSearchInputChange}
                     aria-label="Search by phone"
                   />
                 </div>
@@ -2446,14 +2450,15 @@ const Leads = () => {
               <input
                 type="text"
                 className="leads-col-menu__input"
-                defaultValue={phoneSearchInputRef.current} onChange={handlePhoneSearchInputChange}
+                value={phoneSearchInput}
+                onChange={handlePhoneSearchInputChange}
                 placeholder="Digits or part of number"
               />
               <button
                 type="button"
                 className="leads-col-menu__apply"
                 onClick={() => {
-                  setPhoneSearch(phoneSearchInputRef.current.trim());
+                  setPhoneSearch(phoneSearchInput.trim());
                   navigate(`/leads?${buildLeadsParamsWith().toString()}`);
                   closeColumnMenu();
                 }}
@@ -2468,14 +2473,15 @@ const Leads = () => {
               <input
                 type="text"
                 className="leads-col-menu__input"
-                defaultValue={searchInputRef.current} onChange={handleSearchInputChange}
+                value={searchInput}
+                onChange={handleSearchInputChange}
                 placeholder="Text to find"
               />
               <button
                 type="button"
                 className="leads-col-menu__apply"
                 onClick={() => {
-                  setSearch(searchInputRef.current.trim());
+                  setSearch(searchInput.trim());
                   navigate(`/leads?${buildLeadsParamsWith().toString()}`);
                   closeColumnMenu();
                 }}

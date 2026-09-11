@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -14,6 +15,7 @@ const SnehaDashboard = ({ viewingStaffId = null }) => {
   const [activeTab, setActiveTab] = useState('processing'); // 'processing' | 'leads'
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [editData, setEditData] = useState({});
   const [kripaUser, setKripaUser] = useState(null);
@@ -107,23 +109,29 @@ const SnehaDashboard = ({ viewingStaffId = null }) => {
   };
 
   const handleSave = async (clientId) => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       await axios.put(`${API_BASE_URL}/api/clients/${clientId}`, editData);
       setEditingClient(null);
       setEditData({});
       fetchClients();
-      alert('Client updated successfully!');
+      toast.success('Client updated successfully!');
     } catch (error) {
       console.error('Error updating client:', error);
-      alert(error.response?.data?.error || 'Error updating client');
+      toast.error(error.response?.data?.error || 'Error updating client');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleAssignToKripa = async (clientId) => {
     if (!kripaUser) {
-      alert('Kripa user not found');
+      toast.error('Kripa user not found');
       return;
     }
+    if (isSaving) return;
+    setIsSaving(true);
 
     try {
       console.log('📤 Sneha assigning client', clientId, 'to Kripa (ID:', kripaUser.id, ')');
@@ -136,12 +144,14 @@ const SnehaDashboard = ({ viewingStaffId = null }) => {
       console.log('✅ Assignment response:', response.data);
       console.log('✅ Client processing_staff_id after update:', response.data.processing_staff_id);
 
-      alert('Client assigned to Kripa successfully!');
+      toast.success('Client assigned to Kripa successfully!');
       fetchClients();
     } catch (error) {
       console.error('❌ Error assigning to Kripa:', error);
       console.error('Error response:', error.response?.data);
-      alert(error.response?.data?.error || 'Error assigning client');
+      toast.error(error.response?.data?.error || 'Error assigning client');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -326,8 +336,9 @@ const SnehaDashboard = ({ viewingStaffId = null }) => {
                         <button
                           className="btn-save-cv"
                           onClick={() => handleSave(client.id)}
+                          disabled={isSaving}
                         >
-                          <FiSave /> Save
+                          <FiSave /> {isSaving ? 'Saving...' : 'Save'}
                         </button>
                         <button
                           className="btn-cancel-cv"
@@ -381,9 +392,9 @@ const SnehaDashboard = ({ viewingStaffId = null }) => {
                         <button
                           className="btn-assign-kripa"
                           onClick={() => handleAssignToKripa(client.id)}
-                          disabled={!kripaUser}
+                          disabled={!kripaUser || isSaving}
                         >
-                          <FiSend /> Assign to Kripa
+                          <FiSend /> {isSaving ? 'Assigning...' : 'Assign to Kripa'}
                         </button>
                       </>
                     )}

@@ -15,6 +15,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
   const [activeTab, setActiveTab] = useState('processing'); // 'processing' | 'leads'
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [editData, setEditData] = useState({});
 
@@ -135,6 +136,8 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
   };
 
   const handleSave = async (clientId) => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       await axios.put(`${API_BASE_URL}/api/clients/${clientId}`, editData);
       setEditingClient(null);
@@ -144,10 +147,14 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
     } catch (error) {
       console.error('Error updating client:', error);
       toast.error(error.response?.data?.error || 'Error updating client');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const handleProcessingAction = async (clientId, action) => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       const client = clients.find(c => c.id === clientId);
       let existingHistory = client.completed_actions;
@@ -192,11 +199,13 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
       }
 
       await axios.put(`${API_BASE_URL}/api/clients/${clientId}`, updates);
-      // No alert - silent save
+      toast.success('Action saved successfully');
       fetchClients();
     } catch (error) {
       console.error('Error processing action:', error);
-      // No alert on error either - silent fail
+      toast.error('Failed to save action');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -371,8 +380,9 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                           <button
                             className="btn-save-task"
                             onClick={() => handleSave(client.id)}
+                            disabled={isSaving}
                           >
-                            <FiSave /> Save Changes
+                            <FiSave /> {isSaving ? 'Saving...' : 'Save Changes'}
                           </button>
                           <button
                             className="btn-cancel-task"
@@ -434,8 +444,9 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                           <button
                             className="btn-save-task"
                             onClick={() => handleSave(client.id)}
+                            disabled={isSaving}
                           >
-                            <FiSave /> Save Changes
+                            <FiSave /> {isSaving ? 'Saving...' : 'Save Changes'}
                           </button>
                           <button
                             className="btn-cancel-task"
@@ -490,6 +501,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                           <button
                             className={`btn-processing-action ${isHandOverCompleted ? 'completed' : ''}`}
                             onClick={() => handleProcessingAction(client.id, 'hand_over_to_australia')}
+                            disabled={isHandOverCompleted || isSaving}
                           >
                             {isHandOverCompleted ? (
                               <>
@@ -509,6 +521,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                           <button
                             className={`btn-processing-action ${isPaymentDone ? 'completed' : ''}`}
                             onClick={() => handleProcessingAction(client.id, 'pending_payment_done')}
+                            disabled={isPaymentDone || isSaving}
                           >
                             {isPaymentDone ? (
                               <>
@@ -528,6 +541,7 @@ const KripaDashboard = ({ viewingStaffId = null }) => {
                           <button
                             className={`btn-processing-action ${isAgreementSubmitted ? 'completed' : ''}`}
                             onClick={() => handleProcessingAction(client.id, 'service_agreement_submitted')}
+                            disabled={isAgreementSubmitted || isSaving}
                           >
                             {isAgreementSubmitted ? (
                               <>

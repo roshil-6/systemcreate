@@ -10,6 +10,7 @@ const EmailTemplates = () => {
   const { user } = useAuth();
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [testEmail, setTestEmail] = useState('');
@@ -45,6 +46,8 @@ const EmailTemplates = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSaving) return;
+    setIsSaving(true);
     try {
       const token = localStorage.getItem('token');
       
@@ -70,6 +73,8 @@ const EmailTemplates = () => {
     } catch (error) {
       console.error('Error saving template:', error);
       toast.error(error.response?.data?.error || 'Error saving template');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -204,8 +209,8 @@ const EmailTemplates = () => {
             </div>
 
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
-                {editingTemplate ? 'Update Template' : 'Create Template'}
+              <button type="submit" className="btn-primary" disabled={isSaving}>
+                {isSaving ? 'Saving...' : (editingTemplate ? 'Update Template' : 'Create Template')}
               </button>
               <button
                 type="button"
