@@ -26,7 +26,7 @@ try {
 const poolConfig = {
   connectionString: connectionString,
   application_name: 'CRM_Server_Render',
-  max: process.env.NODE_ENV === 'production' ? 2 : 20, // Increased for local dev speed
+  max: process.env.NODE_ENV === 'production' ? 5 : 20, // 5 connections handles concurrent users without overloading Render free tier
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000, // Faster failure leads to faster retries
 
@@ -1248,6 +1248,57 @@ const database = {
     await query(`
       ALTER TABLE users ADD COLUMN IF NOT EXISTS assignable_for_leads BOOLEAN DEFAULT FALSE;
     `);
+
+    // -----------------------------------------------------------------------
+    // PERFORMANCE: Create all missing indexes.
+    // Using CONCURRENTLY so existing queries aren't blocked during index build.
+    // IF NOT EXISTS prevents re-creation on subsequent restarts.
+    // -----------------------------------------------------------------------
+    const indexStatements = [
+      // leads table — most critical, touched by every page load
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_deleted_at
+         ON leads(deleted_at)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_assigned_deleted
+         ON leads(assigned_staff_id, deleted_at)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_status_deleted
+         ON leads(status, deleted_at)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_created_at
+         ON leads(created_at DESC)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_updated_at
+         ON leads(updated_at DESC)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_follow_up_date
+         ON leads(follow_up_date) WHERE deleted_at IS NULL`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_leads_email_lower
+         ON leads(LOWER(TRIM(email))) WHERE deleted_at IS NULL`,
+      // Composite for the viewType='new'/'follow_up' EXISTS subquery on comments
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_comments_lead_id
+         ON comments(lead_id)`,
+      // Notifications — used in lead access checks and dashboard assignedByMe
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_lead_id
+         ON notifications(lead_id)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_user_id
+         ON notifications(user_id)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notifications_type_lead
+         ON notifications(type, lead_id) WHERE type = 'lead_assigned'`,
+      // Clients — used in dashboard and staff detail views
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_clients_assigned_staff_id
+         ON clients(assigned_staff_id)`,
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_clients_processing_staff_id
+         ON clients(processing_staff_id)`,
+    ];
+
+    for (const stmt of indexStatements) {
+      try {
+        // CONCURRENTLY cannot run inside a transaction — use pool directly
+        await pool.query(stmt);
+      } catch (err) {
+        // Non-fatal: index may already exist or DB may not support CONCURRENTLY
+        if (!err.message.includes('already exists')) {
+          console.warn(`⚠️ Index creation skipped: ${err.message.substring(0, 100)}`);
+        }
+      }
+    }
+    console.log('✅ Database indexes verified/created.');
   },
 
   // Cleanup
@@ -1306,45 +1357,72 @@ const database = {
   },
 
   getStaffPerformance: async (accessibleIds = null) => {
-    let whereClause = `WHERE (role != 'ADMIN' OR assignable_for_leads = TRUE OR email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com', 'sreelakshmi@toniosenora.com')) AND email LIKE '%@toniosenora.com'`; // Real staff + assignable admins
-
+    // -----------------------------------------------------------------------
+    // PERFORMANCE FIX: Previously used 7 correlated subqueries per staff member
+    // (O(N×7) DB calls). Now uses a single aggregated JOIN query — O(1).
+    // -----------------------------------------------------------------------
     const params = [];
+    let staffWhere = `(u.role != 'ADMIN' OR u.assignable_for_leads = TRUE OR u.email IN ('sneha@toniosenora.com', 'kripa@toniosenora.com', 'sreelakshmi@toniosenora.com')) AND u.email LIKE '%@toniosenora.com'`;
+
     if (accessibleIds) {
-      whereClause += ' AND id = ANY($1)';
       params.push(accessibleIds);
+      staffWhere += ` AND u.id = ANY($${params.length})`;
     }
 
     const result = await query(`
-      SELECT 
+      SELECT
         u.id, u.name, u.email,
-        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.deleted_at IS NULL) as total_leads,
-        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'New' AND l.deleted_at IS NULL) as new_leads,
-        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Follow-up' AND l.deleted_at IS NULL) as followup_leads,
-        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Prospect' AND l.deleted_at IS NULL) as prospect_leads,
-        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.status = 'Pending Lead' AND l.deleted_at IS NULL) as pending_leads,
-        (SELECT COUNT(*) FROM leads l WHERE l.assigned_staff_id = u.id AND l.deleted_at IS NULL
-          AND l.excel_row_data IS NULL AND (l.source IS NULL OR TRIM(l.source) NOT ILIKE '%bulk import%')) as direct_leads,
-        (SELECT COUNT(*) FROM clients c WHERE c.assigned_staff_id = u.id AND c.processing_staff_id IS NOT NULL) as clients_in_processing,
-        (SELECT COUNT(*) FROM leads l2 WHERE l2.assigned_staff_id = u.id AND l2.deleted_at IS NULL
-          AND l2.follow_up_date IS NOT NULL
-          AND l2.follow_up_date::date < CURRENT_DATE
-          AND l2.status NOT IN ('Pending Lead', 'Closed', 'Closed / Rejected', 'Registration Completed', 'Wrong Number', 'Not Interested', 'Not Eligible', 'Not Attending', 'Converted')
-          AND COALESCE(NULLIF(TRIM(LOWER(l2.follow_up_status)), ''), 'pending') NOT IN ('completed', 'skipped')
-        ) as unattended_leads
+        -- All lead counts in one pass using FILTER — avoids correlated subqueries
+        COUNT(l.id) FILTER (
+          WHERE l.deleted_at IS NULL
+        ) AS total_leads,
+        COUNT(l.id) FILTER (
+          WHERE l.deleted_at IS NULL AND l.status = 'New'
+        ) AS new_leads,
+        COUNT(l.id) FILTER (
+          WHERE l.deleted_at IS NULL AND l.status = 'Follow-up'
+        ) AS followup_leads,
+        COUNT(l.id) FILTER (
+          WHERE l.deleted_at IS NULL AND l.status = 'Prospect'
+        ) AS prospect_leads,
+        COUNT(l.id) FILTER (
+          WHERE l.deleted_at IS NULL AND l.status = 'Pending Lead'
+        ) AS pending_leads,
+        COUNT(l.id) FILTER (
+          WHERE l.deleted_at IS NULL
+            AND l.excel_row_data IS NULL
+            AND (l.source IS NULL OR TRIM(l.source) NOT ILIKE '%bulk import%')
+        ) AS direct_leads,
+        COUNT(l.id) FILTER (
+          WHERE l.deleted_at IS NULL
+            AND l.follow_up_date IS NOT NULL
+            AND l.follow_up_date::date < CURRENT_DATE
+            AND l.status NOT IN ('Pending Lead','Closed','Closed / Rejected','Registration Completed','Wrong Number','Not Interested','Not Eligible','Not Attending','Converted')
+            AND COALESCE(NULLIF(TRIM(LOWER(l.follow_up_status)),''),'pending') NOT IN ('completed','skipped')
+        ) AS unattended_leads,
+        -- Clients in processing via a lateral subquery (one pass per user, not N subqueries)
+        COALESCE(cp.clients_in_processing, 0) AS clients_in_processing
       FROM users u
-      ${whereClause}
+      LEFT JOIN leads l ON l.assigned_staff_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*) AS clients_in_processing
+        FROM clients c
+        WHERE c.assigned_staff_id = u.id AND c.processing_staff_id IS NOT NULL
+      ) cp ON TRUE
+      WHERE ${staffWhere}
+      GROUP BY u.id, u.name, u.email, cp.clients_in_processing
       ORDER BY total_leads DESC, u.name ASC
     `, params);
 
     return result.rows.map(row => ({
       ...row,
-      total_leads: parseInt(row.total_leads),
-      new_leads: parseInt(row.new_leads),
-      followup_leads: parseInt(row.followup_leads),
-      prospect_leads: parseInt(row.prospect_leads),
-      pending_leads: parseInt(row.pending_leads),
-      direct_leads: parseInt(row.direct_leads),
-      clients_in_processing: parseInt(row.clients_in_processing),
+      total_leads: parseInt(row.total_leads || 0),
+      new_leads: parseInt(row.new_leads || 0),
+      followup_leads: parseInt(row.followup_leads || 0),
+      prospect_leads: parseInt(row.prospect_leads || 0),
+      pending_leads: parseInt(row.pending_leads || 0),
+      direct_leads: parseInt(row.direct_leads || 0),
+      clients_in_processing: parseInt(row.clients_in_processing || 0),
       unattended_leads: parseInt(row.unattended_leads || 0)
     }));
   },

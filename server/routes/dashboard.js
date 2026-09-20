@@ -427,8 +427,9 @@ router.get('/staff/:id', authenticate, async (req, res) => {
         });
       }
 
-      // Get leads list (dashboard needs more than default page size; match unattended scan breadth)
-      const staffLeads = await db.getLeads({ assigned_staff_id: staffId, limit: 500 });
+      // PERFORMANCE FIX: Only fetch 20 leads — unattended leads are already
+      // fetched by their own targeted SQL above. 500 was wasteful.
+      const staffLeads = await db.getLeads({ assigned_staff_id: staffId, limit: 20 });
 
       // Get clients converted by this staff member (assigned_staff_id = staffId)
       const staffClients = await db.getClients({ assigned_staff_id: staffId });
@@ -876,7 +877,10 @@ router.get('/', authenticate, async (req, res) => {
           [accessibleIds]
         )).rows;
       } else {
-        allClients = await db.getClients();
+        // PERFORMANCE FIX: Sort + limit in SQL instead of fetching entire table into memory
+        allClients = (await db.query(
+          `SELECT * FROM clients ORDER BY updated_at DESC, created_at DESC LIMIT 200`
+        )).rows;
       }
 
       // Add totalClients to metrics

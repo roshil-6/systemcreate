@@ -531,16 +531,39 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
     const unchangedLeadIds = [];
     const notFoundLeadIds = [];
 
-    // Process leads sequentially to avoid race conditions
-    for (const leadIdRaw of leadIds) {
-      const leadId = Number(leadIdRaw);
-      if (Number.isNaN(leadId)) {
-        notFoundLeadIds.push(leadIdRaw);
-        continue;
-      }
+    // -----------------------------------------------------------------------
+    // PERFORMANCE FIX: Pre-fetch ALL requested leads in ONE query instead of
+    // one db.getLeads() call per lead inside the loop (was O(N) DB round-trips).
+    // -----------------------------------------------------------------------
+    const validLeadIdInts = leadIds.map(Number).filter(n => !Number.isNaN(n));
+    const invalidLeadIds = leadIds.filter(id => Number.isNaN(Number(id)));
+    invalidLeadIds.forEach(id => notFoundLeadIds.push(id));
 
-      const leads = await db.getLeads({ id: leadId });
-      const lead = leads[0];
+    let allRequestedLeads = [];
+    if (validLeadIdInts.length > 0) {
+      const batchResult = await db.query(
+        `SELECT id, name, status, assigned_staff_id FROM leads WHERE id = ANY($1) AND deleted_at IS NULL`,
+        [validLeadIdInts]
+      );
+      allRequestedLeads = batchResult.rows;
+    }
+    const leadMap = new Map(allRequestedLeads.map(l => [Number(l.id), l]));
+
+    // Fetch team members once (outside loop) for SALES_TEAM_HEAD role
+    let teamMemberIds = null;
+    if (role === 'SALES_TEAM_HEAD') {
+      const teamMembers = await db.getUsers({ managed_by: userId });
+      teamMemberIds = teamMembers.map(u => Number(u.id));
+    }
+
+    // Resolve the assigned staff user once before the loop (instead of once per success)
+    const assignedUsers = await db.getUsers({ id: staffId });
+    const assignedUser = assignedUsers[0];
+
+    for (const leadIdRaw of validLeadIdInts) {
+      const leadId = Number(leadIdRaw);
+
+      const lead = leadMap.get(leadId);
       if (!lead) {
         notFoundLeadIds.push(leadId);
         continue;
@@ -554,11 +577,8 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
           continue;
         }
       } else if (role === 'SALES_TEAM_HEAD') {
-        // Sales team head can only transfer their own or their team's leads
         const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
         if (leadOwnerId !== userId) {
-          const teamMembers = await db.getUsers({ managed_by: userId });
-          const teamMemberIds = teamMembers.map(u => u.id);
           if (!leadOwnerId || !teamMemberIds.includes(leadOwnerId)) {
             notFoundLeadIds.push(leadId);
             continue;
@@ -580,17 +600,14 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
 
       await db.updateLead(leadId, updates);
       updatedLeadIds.push(leadId);
-      const assignedUsers = await db.getUsers({ id: staffId });
-      const assignedUser = assignedUsers[0];
       if (assignedUser) {
-        const notification = await db.createNotification({
+        await db.createNotification({
           user_id: staffId,
           lead_id: leadId,
           type: 'lead_assigned',
           message: `Lead "${lead.name}" has been assigned to you`,
           created_by: userId,
         });
-        console.log(`✅ Bulk assign notification created for user ${staffId}:`, notification);
       }
     }
 
