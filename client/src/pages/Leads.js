@@ -1175,6 +1175,7 @@ const Leads = () => {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'HR';
   const isHr = user?.role === 'HR';
   const canManageLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM' || user?.role === 'PROCESSING' || user?.role === 'STAFF' || user?.role === 'HR';
+  const canReassignLeads = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM';
   /** HR now gets the org-wide staff scope filter in UI if they have admin rights */
   const showAssignedStaffFilter = canManageLeads;
   const allSelected = leads.length > 0 && selectedLeadIds.length === leads.length;
@@ -1439,25 +1440,29 @@ const Leads = () => {
             >
               <FiEdit /> Edit Details
             </button>
-            <select
-              className="bulk-assign-select"
-              value={bulkAssignStaffId}
-              onChange={(e) => setBulkAssignStaffId(e.target.value)}
-            >
-              <option value="">{isAdmin ? 'Select staff to assign...' : 'Select staff to transfer to...'}</option>
-              {staffList.map((staff) => (
-                <option key={staff.id} value={staff.id}>
-                  {staff.name}
-                </option>
-              ))}
-            </select>
-            <button
-              className="bulk-assign-button"
-              onClick={handleBulkAssign}
-              disabled={!bulkAssignStaffId || bulkAssignLoading}
-            >
-              {bulkAssignLoading ? (isAdmin ? 'Assigning...' : 'Transferring...') : (isAdmin ? 'Assign Selected' : 'Transfer Selected')}
-            </button>
+            {canReassignLeads && (
+              <>
+                <select
+                  className="bulk-assign-select"
+                  value={bulkAssignStaffId}
+                  onChange={(e) => setBulkAssignStaffId(e.target.value)}
+                >
+                  <option value="">{isAdmin ? 'Select staff to assign...' : 'Select staff to transfer to...'}</option>
+                  {staffList.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="bulk-assign-button"
+                  onClick={handleBulkAssign}
+                  disabled={!bulkAssignStaffId || bulkAssignLoading}
+                >
+                  {bulkAssignLoading ? (isAdmin ? 'Assigning...' : 'Transferring...') : (isAdmin ? 'Assign Selected' : 'Transfer Selected')}
+                </button>
+              </>
+            )}
             <button
               className="bulk-delete-button"
               onClick={handleBulkDelete}
@@ -2066,7 +2071,7 @@ const Leads = () => {
                   </td>
                   <td className="leads-actions-cell">
                     <div className="action-buttons-row">
-                      {canManageLeads && (
+                      {canReassignLeads && (
                         <button
                           className="btn-assign"
                           onClick={(e) => {
@@ -2127,7 +2132,7 @@ const Leads = () => {
                         </button>
                       )}
                     </div>
-                    {canManageLeads && assigningLeadId === lead.id && (
+                    {canReassignLeads && assigningLeadId === lead.id && (
                       <div className="quick-assign-dropdown">
                         <select
                           className="quick-assign-select"

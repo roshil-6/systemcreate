@@ -42,13 +42,6 @@ const LeadDetail = () => {
   });
 
   useEffect(() => {
-    const canManageAssignment = user?.role === 'ADMIN'
-      || user?.role === 'SALES_TEAM_HEAD'
-      || user?.role === 'STAFF'
-      || user?.role === 'SALES_TEAM'
-      || user?.role === 'PROCESSING'
-      || user?.role === 'HR';
-
     if (id === 'new') {
       setEditing(true);
       setLead({});
@@ -446,7 +439,8 @@ const LeadDetail = () => {
 
   const canEditFollowUpStatus = !isNew && (isManager || isOwner || isUnassigned || canEditAsCreator);
 
-  const canManageAssignment = isManager || isOwner || isUnassigned;
+  const canReassignRole = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM';
+  const canManageAssignment = canReassignRole && (isManager || isOwner || isUnassigned);
 
   return (
     <div className="lead-detail">
