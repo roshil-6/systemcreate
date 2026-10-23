@@ -41,6 +41,14 @@ const LeadDetail = () => {
     registration_fee_paid: '',
   });
 
+  // Initialize permissions before effects and loading returns so every render can use them.
+  const sameUserId = (a, b) => a != null && b != null && String(a) === String(b);
+  const isOwner = sameUserId(lead?.assigned_staff_id, user?.id);
+  const isUnassigned = lead?.assigned_staff_id === null || lead?.assigned_staff_id === undefined;
+  const isManager = user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD';
+  const canReassignRole = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM';
+  const canManageAssignment = canReassignRole && (isManager || isOwner || isUnassigned);
+
   useEffect(() => {
     if (id === 'new') {
       setEditing(true);
@@ -422,12 +430,8 @@ const LeadDetail = () => {
 
   const canEdit = editing || id === 'new';
 
-  const sameUserId = (a, b) => a != null && b != null && String(a) === String(b);
 
-  const isOwner = sameUserId(lead?.assigned_staff_id, user?.id);
   const isCreator = sameUserId(lead?.created_by, user?.id);
-  const isUnassigned = lead?.assigned_staff_id === null || lead?.assigned_staff_id === undefined;
-  const isManager = user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD';
 
   const salesLikeRoles = ['SALES_TEAM', 'STAFF', 'PROCESSING', 'HR'];
   const canEditAsCreator = isCreator && salesLikeRoles.includes(user?.role);
@@ -439,8 +443,6 @@ const LeadDetail = () => {
 
   const canEditFollowUpStatus = !isNew && (isManager || isOwner || isUnassigned || canEditAsCreator);
 
-  const canReassignRole = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM';
-  const canManageAssignment = canReassignRole && (isManager || isOwner || isUnassigned);
 
   return (
     <div className="lead-detail">
