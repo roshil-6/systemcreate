@@ -46,7 +46,7 @@ const LeadDetail = () => {
   const isOwner = sameUserId(lead?.assigned_staff_id, user?.id);
   const isUnassigned = lead?.assigned_staff_id === null || lead?.assigned_staff_id === undefined;
   const isManager = user?.role === 'ADMIN' || user?.role === 'HR' || user?.role === 'SALES_TEAM_HEAD';
-  const canReassignRole = user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD' || user?.role === 'SALES_TEAM';
+  const canReassignRole = user?.role === 'ADMIN' || user?.role === 'HR';
   const canManageAssignment = canReassignRole && (isManager || isOwner || isUnassigned);
 
   useEffect(() => {
@@ -910,7 +910,7 @@ const LeadDetail = () => {
                     onChange={user?.role === 'ADMIN' ? handleHeaderFieldChange : handleChange}
                     disabled={user?.role === 'ADMIN' ? false : !canEdit}
                   >
-                    {(user?.role === 'ADMIN' || user?.role === 'SALES_TEAM_HEAD') && (
+                    {(user?.role === 'ADMIN' || user?.role === 'HR') && (
                       <option value="">Unassigned</option>
                     )}
                     {staffList.map((staff) => (

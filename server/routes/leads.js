@@ -449,24 +449,12 @@ router.get('/staff/list', authenticate, async (req, res) => {
       u.email && u.email.endsWith('@toniosenora.com') &&
       (u.role !== 'ADMIN' || isAssignableLeadTarget(u));
 
-    // Admin can assign to any real staff
-    if (role === 'ADMIN') {
+    // Admin and HR can assign to any real staff
+    if (role === 'ADMIN' || role === 'HR') {
       const allUsers = await db.getUsers();
       users = allUsers.filter(isRealStaff);
     }
-    // Sales Team Head can assign to self + team
-    else if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      users = [req.user, ...teamMembers].filter(isRealStaff);
-    }
-    // Sales Team can transfer their leads to other staff members
-    else if (role === 'SALES_TEAM') {
-      users.push(req.user);
-      const allStaff = await db.getUsers();
-      const otherStaff = allStaff.filter(u => isRealStaff(u) && u.id !== userId);
-      users = [...users, ...otherStaff];
-    }
-    // Other roles (STAFF, PROCESSING, HR) are not permitted to re-assign leads
+    // Other roles cannot reassign leads.
     else {
       users = [];
     }
@@ -482,18 +470,18 @@ router.get('/staff/list', authenticate, async (req, res) => {
   }
 });
 
-// Bulk assign leads (Admin, sales team head, and sales team for their own leads)
+// Bulk assign leads (Admin and HR)
 router.post('/bulk-assign', authenticate, async (req, res) => {
   try {
     const role = req.user.role;
     const userId = req.user.id;
     const { leadIds, assigned_staff_id } = req.body;
 
-    // Only allow ADMIN, SALES_TEAM_HEAD, and SALES_TEAM to re-assign/transfer leads
-    const canBulkAssign = role === 'ADMIN' || role === 'SALES_TEAM_HEAD' || role === 'SALES_TEAM';
+    // Only allow ADMIN and HR to reassign leads
+    const canBulkAssign = role === 'ADMIN' || role === 'HR';
 
     if (!canBulkAssign) {
-      return res.status(403).json({ error: 'Access denied: only Admins and Sales team can reassign leads' });
+      return res.status(403).json({ error: 'Access denied: only Admins and HR can reassign leads' });
     }
 
     if (!Array.isArray(leadIds) || leadIds.length === 0) {
@@ -512,23 +500,6 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
     const staffUser = staffUsers[0];
     if (!staffUser || (staffUser.role === 'ADMIN' && !isAssignableLeadTarget(staffUser))) {
       return res.status(400).json({ error: 'Invalid staff member' });
-    }
-
-    // For non-admin roles, check if they can assign to the target staff
-    if (role !== 'ADMIN') {
-      if (role === 'SALES_TEAM_HEAD') {
-        // Sales team head can assign to themselves or their team members
-        const teamMembers = await db.getUsers({ managed_by: userId, id: staffId });
-        if (staffId !== userId && teamMembers.length === 0) {
-          return res.status(403).json({ error: 'Can only assign to yourself or your team members' });
-        }
-      } else {
-        const targetStaffUsers = await db.getUsers({ id: staffId });
-        const targetStaff = targetStaffUsers[0];
-        if (!targetStaff || (targetStaff.role === 'ADMIN' && !isAssignableLeadTarget(targetStaff))) {
-          return res.status(403).json({ error: 'Can only transfer to staff members' });
-        }
-      }
     }
 
     const updatedLeadIds = [];
@@ -553,13 +524,6 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
     }
     const leadMap = new Map(allRequestedLeads.map(l => [Number(l.id), l]));
 
-    // Fetch team members once (outside loop) for SALES_TEAM_HEAD role
-    let teamMemberIds = null;
-    if (role === 'SALES_TEAM_HEAD') {
-      const teamMembers = await db.getUsers({ managed_by: userId });
-      teamMemberIds = teamMembers.map(u => Number(u.id));
-    }
-
     // Resolve the assigned staff user once before the loop (instead of once per success)
     const assignedUsers = await db.getUsers({ id: staffId });
     const assignedUser = assignedUsers[0];
@@ -571,23 +535,6 @@ router.post('/bulk-assign', authenticate, async (req, res) => {
       if (!lead) {
         notFoundLeadIds.push(leadId);
         continue;
-      }
-
-      // For non-admin roles, verify they own the lead
-      if (role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD') {
-        const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
-        if (leadOwnerId !== userId) {
-          notFoundLeadIds.push(leadId);
-          continue;
-        }
-      } else if (role === 'SALES_TEAM_HEAD') {
-        const leadOwnerId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
-        if (leadOwnerId !== userId) {
-          if (!leadOwnerId || !teamMemberIds.includes(leadOwnerId)) {
-            notFoundLeadIds.push(leadId);
-            continue;
-          }
-        }
       }
 
       const existingLeadStaffId = lead.assigned_staff_id ? Number(lead.assigned_staff_id) : null;
@@ -1496,74 +1443,29 @@ router.put('/:id', authenticate, async (req, res) => {
     if (source !== undefined) updates.source = source;
     if (ielts_score !== undefined) updates.ielts_score = ielts_score;
 
-    const canReassign = role === 'ADMIN' || role === 'SALES_TEAM_HEAD' || role === 'SALES_TEAM';
-    if (assigned_staff_id !== undefined) {
+    const canReassign = role === 'ADMIN' || role === 'HR';
+    // Full-form saves may include the current assignee without changing it.
+    const assignmentChanged = assigned_staff_id !== undefined &&
+      (assigned_staff_id === null || assigned_staff_id === '' ? null : Number(assigned_staff_id)) !==
+      (existingLead.assigned_staff_id == null ? null : Number(existingLead.assigned_staff_id));
+    if (assignmentChanged) {
       if (!canReassign) {
-        return res.status(403).json({ error: 'Not allowed to change lead assignment. Only Admins and Sales team can reassign leads.' });
+        return res.status(403).json({ error: 'Not allowed to change lead assignment. Only Admins and HR can reassign leads.' });
       }
 
       const normalizedStaffId = assigned_staff_id !== null && assigned_staff_id !== ''
         ? Number(assigned_staff_id)
         : null;
 
-      if (normalizedStaffId && Number.isNaN(normalizedStaffId)) {
+      if (Number.isNaN(normalizedStaffId)) {
         return res.status(400).json({ error: 'Invalid staff member' });
       }
 
-      if (!normalizedStaffId) {
-        if (role !== 'ADMIN' && role !== 'SALES_TEAM_HEAD') {
-          return res.status(400).json({ error: 'Only admin can unassign leads' });
-        }
-      } else {
+      if (normalizedStaffId) {
         const targetUsers = await db.getUsers({ id: normalizedStaffId });
         const targetUser = targetUsers[0];
         if (!targetUser || (targetUser.role === 'ADMIN' && !isAssignableLeadTarget(targetUser))) {
           return res.status(400).json({ error: 'Invalid staff member' });
-        }
-
-        // For non-admin roles, verify permissions
-        if (role !== 'ADMIN') {
-          const leadOwnerId = existingLead.assigned_staff_id ? Number(existingLead.assigned_staff_id) : null;
-
-          // Case 1: Lead is currently Unassigned - Allow claiming
-          if (leadOwnerId === null) {
-            // Sales can only claim to themselves
-            if (role === 'SALES_TEAM' && normalizedStaffId !== userId) {
-              return res.status(403).json({ error: 'You can only claim leads for yourself' });
-            }
-            // Sales Head can claim for self or team (checked below in team logic, or implicitly allowed if target is self)
-            if (role === 'SALES_TEAM_HEAD' && normalizedStaffId !== userId) {
-              const teamMembers = await db.getUsers({ managed_by: userId, id: normalizedStaffId });
-              if (teamMembers.length === 0) {
-                return res.status(403).json({ error: 'Can only assign to yourself or your team' });
-              }
-            }
-          }
-          // Case 2: Lead is already assigned - Transfer rules
-          else {
-            if (role === 'SALES_TEAM_HEAD') {
-              // Sales team head can transfer their own or their team's leads
-              if (leadOwnerId !== userId) {
-                const teamMembers = await db.getUsers({ managed_by: userId });
-                const teamMemberIds = teamMembers.map(u => u.id);
-                if (!leadOwnerId || !teamMemberIds.includes(leadOwnerId)) {
-                  return res.status(403).json({ error: 'You can only transfer leads assigned to you or your team' });
-                }
-              }
-              // Sales team head can transfer to themselves or team members
-              if (normalizedStaffId !== userId) {
-                const teamMembers = await db.getUsers({ managed_by: userId, id: normalizedStaffId });
-                if (teamMembers.length === 0) {
-                  return res.status(400).json({ error: 'Can only transfer to yourself or your team members' });
-                }
-              }
-            } else if (role === 'SALES_TEAM') {
-              // Sales team can only transfer leads assigned to them
-              if (leadOwnerId !== userId) {
-                return res.status(403).json({ error: 'You can only transfer leads assigned to you' });
-              }
-            }
-          }
         }
       }
 
