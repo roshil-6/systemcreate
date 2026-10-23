@@ -44,4 +44,14 @@ describe('Lead detail initialization', () => {
       expect.stringContaining('/api/leads/staff/list'), expect.any(Object)
     );
   });
+
+  test.each([
+    ['ADMIN', true], ['HR', true], ['SALES_TEAM_HEAD', false],
+    ['SALES_TEAM', false], ['STAFF', false], ['PROCESSING', false],
+  ])('%s assignment control visibility is %s', async (role, allowed) => {
+    useAuth.mockReturnValue({ user: { id: 7, role } });
+    useParams.mockReturnValue({ id: '105378' });
+    await act(async () => root.render(<LeadDetail />));
+    expect(Boolean(container.querySelector('select[name="assigned_staff_id"]'))).toBe(allowed);
+  });
 });
