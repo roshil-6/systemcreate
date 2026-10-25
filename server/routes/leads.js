@@ -1975,14 +1975,12 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
       return isNaN(d.getTime()) ? null : d.toISOString();
     }
 
+    const seenInThisImport = new Set();
     for (const sheet of sheetsData) {
       const { headerValues, dataRows, sheetName } = sheet;
       console.log(`📂 Processing Sheet: ${sheetName}`);
       console.log(`📋 Raw Headers: [${headerValues.join(' | ')}]`);
       results.total += dataRows.length;
-
-      // Track phones seen in THIS import file to catch within-file duplicates
-      const seenInThisImport = new Set();
 
       const colIdx = {};
       Object.keys(columnMapping).forEach(f => colIdx[f] = -1);
@@ -2057,15 +2055,15 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           let mappedCC = g(colIdx.phone_country_code).replace(/[^\d+]/g, '');
           if (mappedCC && !mappedCC.startsWith('+')) mappedCC = '+' + mappedCC;
 
-          // IDENTIFY PHONE CANDIDATES: Collect all unique numeric strings from the entire row
+          // Use contact columns when mapped. IDs and dates elsewhere in a row are not phones.
           const rowCandidates = [];
-          for (let j = 0; j < row.length; j++) {
-            const val = String(row[j] || '').trim();
-            const lowVal = val.toLowerCase();
+          const contactIndices = [colIdx.phone_number, colIdx.secondary_phone_number, colIdx.whatsapp_number]
+            .filter(idx => idx !== -1);
+          const candidateValues = contactIndices.length ? contactIndices.map(g) : row;
+          for (const value of candidateValues) {
+            const val = String(value || '').trim();
             const cleaned = val.replace(/\D/g, '');
-            const isGarbage = ['yrs', 'age', 'qualification', 'score', 'date', 'interest', 'course', 'exp'].some(k => lowVal.includes(k));
-            // Collect plausible phone-like strings (7–16 digits), aligned with create/check-duplicate rules
-            if (cleaned.length >= 7 && cleaned.length <= 16 && !isGarbage) {
+            if (cleaned.length >= 7 && cleaned.length <= 16) {
               const fullVal = val.replace(/[^\d+]/g, '');
               if (!rowCandidates.includes(fullVal)) rowCandidates.push(fullVal);
             }
@@ -2143,10 +2141,11 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             if (i < 3) console.log(`   📝 Raw Data: [${row.slice(0, 10).join(' | ')}${row.length > 10 ? ' ...' : ''}]`);
           }
 
-          if (!phone && rowCandidates.length > 0) {
-            // All candidates are already in CRM
+          const duplicatePhone = rowCandidates.find(crmHasPhoneDigits);
+          if (duplicatePhone) {
+            // A matching primary, alternate, or WhatsApp number makes the entire row a duplicate.
             results.skipped++;
-            const existingLead = await findExistingLeadInfo(rowCandidates[0], null);
+            const existingLead = await findExistingLeadInfo(duplicatePhone, null);
             const skipDetail = {
               row: i + 1,
               sheet: sheetName,
@@ -2277,22 +2276,18 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           const now = new Date().toISOString();
           const fileComment = g(colIdx.comment);
 
-          // ADD TO SETS TO PREVENT INTRA-CSV DUPLICATES
+          // Track every contact across all sheets, including international/local variants.
           if (email) {
             existingEmails.add(email);
             seenInThisImport.add('email:' + email);
           }
-          if (phone) {
-            const normalizedPhone = phone.replace(/\D/g, '');
-            existingPhones.add(normalizedPhone);
-            if (normalizedPhone.length >= 10) existingPhones.add(normalizedPhone.slice(-10));
-            seenInThisImport.add('phone:' + normalizedPhone);
-          }
-          if (secPhone) {
-            const normalizedSec = secPhone.replace(/\D/g, '');
-            existingPhones.add(normalizedSec);
-            if (normalizedSec.length >= 10) existingPhones.add(normalizedSec.slice(-10));
-            seenInThisImport.add('phone:' + normalizedSec);
+          for (const number of [phone, secPhone, g(colIdx.whatsapp_number),
+            phoneCountryCode + phone, phoneCountryCode + g(colIdx.whatsapp_number)]) {
+            const digits = String(number || '').replace(/\D/g, '');
+            if (digits.length < 7) continue;
+            existingPhones.add(digits);
+            if (digits.length >= 10) existingPhones.add(digits.slice(-10));
+            seenInThisImport.add('phone:' + digits);
           }
 
           // Build raw Excel row as key-value object for all original columns
@@ -2304,6 +2299,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           });
 
           validLeads.push({
+            importRow: i + 1, importSheet: sheetName,
             name, phone_number: phone, phone_country_code: phoneCountryCode,
             whatsapp_number: g(colIdx.whatsapp_number) || null,
             whatsapp_country_code: normalizeDialCode(phoneCountryCode),
@@ -2327,6 +2323,50 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
+        // Serialize import commits and refresh contacts after waiting for another upload.
+        await client.query('SELECT pg_advisory_xact_lock(724018)');
+        const currentContacts = await client.query(`
+          SELECT id, name, status, phone_number, phone_country_code, whatsapp_number,
+                 whatsapp_country_code, secondary_phone_number, email
+          FROM leads WHERE deleted_at IS NULL
+        `);
+        const phoneIndex = new Map();
+        const emailIndex = new Map();
+        const phoneKeys = (lead) => {
+          const numbers = [lead.phone_number, lead.whatsapp_number, lead.secondary_phone_number,
+            String(lead.phone_country_code || '') + String(lead.phone_number || ''),
+            String(lead.whatsapp_country_code || '') + String(lead.whatsapp_number || '')];
+          return numbers.flatMap(number => {
+            const digits = String(number || '').replace(/\D/g, '');
+            return digits.length < 7 ? [] : digits.length >= 10 ? [digits, digits.slice(-10)] : [digits];
+          });
+        };
+        const indexContact = (lead) => {
+          phoneKeys(lead).forEach(key => phoneIndex.set(key, lead));
+          if (lead.email) emailIndex.set(String(lead.email).trim().toLowerCase(), lead);
+        };
+        currentContacts.rows.forEach(indexContact);
+        const acceptedLeads = [];
+        for (const lead of validLeads) {
+          const match = phoneKeys(lead).map(key => phoneIndex.get(key)).find(Boolean)
+            || (lead.email && emailIndex.get(lead.email.trim().toLowerCase()));
+          if (match) {
+            results.skipped++;
+            const detail = {
+              row: lead.importRow, sheet: lead.importSheet, name: lead.name,
+              phone_number: lead.phone_number, email: lead.email,
+              message: 'Skipped: Contact already exists', skip_reason: 'Duplicate Contact',
+              existing_lead_id: match.id || null, existing_lead_name: match.name,
+              existing_lead_status: match.status, raw_data: JSON.parse(lead.excel_row_data || '{}'),
+            };
+            results.skippedLeadsDetails.push(detail);
+            if (results.skippedRows.length < 100) results.skippedRows.push(detail);
+          } else {
+            acceptedLeads.push(lead);
+            indexContact(lead);
+          }
+        }
+        validLeads.splice(0, validLeads.length, ...acceptedLeads);
         const BATCH_SIZE = 1000; // Increased batch size for much faster imports
         for (let i = 0; i < validLeads.length; i += BATCH_SIZE) {
           const batch = validLeads.slice(i, i + BATCH_SIZE);
@@ -2335,7 +2375,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
           let pIdx = 1;
           batch.forEach(l => {
             const vals = [
-              l.name, l.phone_number, l.phone_country_code, l.whatsapp_number, l.email,
+              l.name, l.phone_number, l.phone_country_code, l.whatsapp_number, l.whatsapp_country_code, l.email,
               l.country, l.program, l.occupation, l.qualification, l.year_of_experience,
               l.status, l.priority, l.comment,
               l.follow_up_date, l.follow_up_status, l.assigned_staff_id, l.source, l.ielts_score,
@@ -2346,7 +2386,7 @@ router.post('/bulk-import', authenticate, upload.single('file'), async (req, res
             placeholders.push(`(${rowP.join(', ')})`);
           });
           const query = `INSERT INTO leads (
-            name, phone_number, phone_country_code, whatsapp_number, email,
+            name, phone_number, phone_country_code, whatsapp_number, whatsapp_country_code, email,
             country, program, occupation, qualification, year_of_experience,
             status, priority, comment,
             follow_up_date, follow_up_status, assigned_staff_id, source, ielts_score,

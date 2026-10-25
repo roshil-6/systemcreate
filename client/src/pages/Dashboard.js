@@ -619,7 +619,7 @@ const Dashboard = () => {
           <FiAlertTriangle size={24} style={{ color: '#b91c1c', flexShrink: 0, marginTop: '2px' }} aria-hidden />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: '17px', fontWeight: 700, color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              Unattended follow-ups
+              Unreachable follow-ups
               <span
                 style={{
                   background: '#b91c1c',
@@ -1460,7 +1460,7 @@ const Dashboard = () => {
                         >
                           <FiAlertTriangle size={18} style={{ flexShrink: 0 }} aria-hidden />
                           <span>
-                            {staff.unattended_leads} unattended follow-up{staff.unattended_leads !== 1 ? 's' : ''} — open dashboard to review
+                            {staff.unattended_leads} unreachable follow-up{staff.unattended_leads !== 1 ? 's' : ''} — open dashboard to review
                           </span>
                         </div>
                       )}
@@ -2285,7 +2285,7 @@ const Dashboard = () => {
                       <th>Total Leads</th>
                       <th>Direct leads</th>
                       <th>In Processing</th>
-                      <th>Unattended</th>
+                      <th>Unreachable</th>
                     </tr>
                   </thead>
                   <tbody>
