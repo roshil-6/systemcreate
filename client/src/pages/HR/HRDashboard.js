@@ -1,3 +1,4 @@
+import { leadStatusLabel } from '../../utils/leadStatus';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -179,7 +180,7 @@ const HRDashboard = () => {
                         <div className="lead-stat-value">{leadStats.new}</div>
                         <div className="lead-stat-label">New / Unassigned</div>
                     </button>
-                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #8b5cf6' }} onClick={() => openMyLeads('Contacted')} title="Follow-up, Contacted, Not Responding, etc.">
+                    <button type="button" className="lead-stat-card" style={{ borderLeft: '4px solid #8b5cf6' }} onClick={() => openMyLeads('Contacted')} title="Follow-up, Contacted, Not Reachable, etc.">
                         <div className="lead-stat-value">{leadStats.contacted}</div>
                         <div className="lead-stat-label">Contacted</div>
                     </button>
@@ -221,7 +222,7 @@ const HRDashboard = () => {
                                         </td>
                                         <td>
                                             <span className={`lead-status-badge status-${(lead.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
-                                                {lead.status || 'N/A'}
+                                                {leadStatusLabel(lead.status) || 'N/A'}
                                             </span>
                                         </td>
                                         <td>

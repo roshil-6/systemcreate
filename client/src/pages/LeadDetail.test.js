@@ -54,4 +54,17 @@ describe('Lead detail initialization', () => {
     await act(async () => root.render(<LeadDetail />));
     expect(Boolean(container.querySelector('select[name="assigned_staff_id"]'))).toBe(allowed);
   });
+
+  test('existing Not Responding leads show the Not Reachable option without changing its stored value', async () => {
+    useParams.mockReturnValue({ id: '105378' });
+    axios.get.mockImplementation(async url => ({
+      data: url.endsWith('/comments') || url.endsWith('/staff/list')
+        ? [] : { id: 105378, name: 'Existing lead', status: 'Not Responding', assigned_staff_id: 7 },
+    }));
+    await act(async () => root.render(<LeadDetail />));
+    const select = container.querySelector('select[name="status"]');
+    expect(select.value).toBe('Not Responding');
+    expect(select.selectedOptions[0].textContent).toBe('Not Reachable');
+    expect(container.textContent).not.toContain('Not Responding');
+  });
 });
