@@ -1,3 +1,4 @@
+import { leadStatusLabel } from '../utils/leadStatus';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
@@ -1406,7 +1407,7 @@ const Leads = () => {
                     color: isActive ? (['Closed', 'Closed / Rejected'].includes(status) ? '#666' : '#333') : '#6b7280',
                   }}
                 >
-                  {status}
+                  {leadStatusLabel(status)}
                 </button>
               );
             })}
@@ -1505,7 +1506,7 @@ const Leads = () => {
               >
                 <option value="">-- Keep Current --</option>
                 {statusOptions.map((status) => (
-                  <option key={status} value={status}>{status}</option>
+                  <option key={status} value={status}>{leadStatusLabel(status)}</option>
                 ))}
               </select>
             </div>
@@ -1787,7 +1788,7 @@ const Leads = () => {
                             border: `1px solid ${getStatusTextColor(lead.status)}`,
                             fontWeight: 500, fontSize: '12px',
                           }}>
-                            {lead.status}
+                            {leadStatusLabel(lead.status)}
                           </span>
                         </td>
                         <td style={{ color: '#8B6914', fontWeight: lead.assigned_staff_name ? 600 : 400 }}>
@@ -1999,7 +2000,7 @@ const Leads = () => {
                         fontWeight: 500,
                       }}
                     >
-                      {lead.status}
+                      {leadStatusLabel(lead.status)}
                     </span>
                   </td>
                   <td>
@@ -2507,7 +2508,7 @@ const Leads = () => {
                     className={`leads-col-menu__chip ${statusFilter === st ? 'leads-col-menu__chip--on' : ''}`}
                     onClick={() => { handleStatusFilter(st); closeColumnMenu(); }}
                   >
-                    {st}
+                    {leadStatusLabel(st)}
                   </button>
                 ))}
               </div>

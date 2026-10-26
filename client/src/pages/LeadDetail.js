@@ -1,3 +1,4 @@
+import { leadStatusLabel } from '../utils/leadStatus';
 import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -155,7 +156,7 @@ const LeadDetail = () => {
       // CRITICAL: Check for duplicates before saving new lead
       // Note: Duplicate detection only checks phone number and email (not name)
       if (id === 'new' && duplicateWarning) {
-        toast.error(`Cannot create lead: A lead with this ${duplicateWarning.field === 'email' ? 'email' : 'phone number'} already exists.\n\nExisting Lead: ${duplicateWarning.name} (${duplicateWarning.status})\n\nPlease check the existing lead or modify the details.`, { duration: 5000 });
+        toast.error(`Cannot create lead: A lead with this ${duplicateWarning.field === 'email' ? 'email' : 'phone number'} already exists.\n\nExisting Lead: ${duplicateWarning.name} (${leadStatusLabel(duplicateWarning.status)})\n\nPlease check the existing lead or modify the details.`, { duration: 5000 });
         setIsSaving(false);
         return;
       }
@@ -695,7 +696,7 @@ const LeadDetail = () => {
                           This{' '}
                           {duplicateWarning.field === 'email' ? 'email' : 'phone number'} is already registered under{' '}
                           <strong>{duplicateWarning.name}</strong>
-                          <span className="duplicate-warning__status-badge">{duplicateWarning.status}</span>
+                          <span className="duplicate-warning__status-badge">{leadStatusLabel(duplicateWarning.status)}</span>
                         </div>
                         <div className="duplicate-warning__message">
                           Please check the existing lead before creating a new one to avoid duplicates.
@@ -892,7 +893,7 @@ const LeadDetail = () => {
                   <option value="Follow-up 2">Follow-up 2</option>
                   <option value="Follow-up 3">Follow-up 3</option>
                   <option value="Prospect">Prospect</option>
-                  <option value="Not Responding">Not Responding</option>
+                  <option value="Not Responding">Not Reachable</option>
                   <option value="Not Attended">Not Attended</option>
                   <option value="Not Eligible">Not Eligible</option>
                   <option value="Not Interested">Not Interested</option>

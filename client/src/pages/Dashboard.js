@@ -1,3 +1,4 @@
+import { leadStatusLabel } from '../utils/leadStatus';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams, Link } from 'react-router-dom';
@@ -696,7 +697,7 @@ const Dashboard = () => {
                           fontWeight: 500,
                         }}
                       >
-                        {lead.status}
+                        {leadStatusLabel(lead.status)}
                       </span>
                     </td>
                     <td>
@@ -879,10 +880,10 @@ const Dashboard = () => {
                   title={
                     status === 'Manual Lead'
                       ? 'View leads entered manually or not from bulk import (direct)'
-                      : `View ${status} leads`
+                      : `View ${leadStatusLabel(status)} leads`
                   }
                 >
-                  <span className="status-label" style={{ color: color.color }}>{status}</span>
+                  <span className="status-label" style={{ color: color.color }}>{leadStatusLabel(status)}</span>
                   <span className="status-count" style={{ color: color.color }}>{count}</span>
                 </div>
               );
@@ -939,9 +940,9 @@ const Dashboard = () => {
                 className="status-item"
                 style={notRespondingColor}
                 onClick={() => handleStatusClick('Not Responding')}
-                title="View Not Responding Leads"
+                title="View Not Reachable Leads"
               >
-                <span className="status-label" style={{ color: notRespondingColor.color }}>Not Responding</span>
+                <span className="status-label" style={{ color: notRespondingColor.color }}>Not Reachable</span>
                 <span className="status-count" style={{ color: notRespondingColor.color }}>{data.metrics.notRespondingLeads || 0}</span>
               </div>
               <div
@@ -1163,7 +1164,7 @@ const Dashboard = () => {
                             fontWeight: 600,
                             border: `1px solid ${getStatusColor(lead.status)}30`
                           }}>
-                            {lead.status}
+                            {leadStatusLabel(lead.status)}
                           </span>
                         </td>
                         <td>
@@ -1517,7 +1518,7 @@ const Dashboard = () => {
                         <td>{lead.name}</td>
                         <td>
                           <span className={`status-badge status-${lead.status?.toLowerCase().replace(/\s+/g, '-')}`}>
-                            {lead.status}
+                            {leadStatusLabel(lead.status)}
                           </span>
                         </td>
                         <td>{new Date(lead.created_at).toLocaleDateString()}</td>
@@ -1774,7 +1775,7 @@ const Dashboard = () => {
                             <td>{lead.name}</td>
                             <td>
                               <span className={`status-badge status-${lead.status?.toLowerCase().replace(/\s+/g, '-')}`}>
-                                {lead.status}
+                                {leadStatusLabel(lead.status)}
                               </span>
                             </td>
                             <td>{new Date(lead.updated_at || lead.created_at).toLocaleDateString()}</td>
@@ -1913,7 +1914,7 @@ const Dashboard = () => {
           <div className="status-grid">
             {Object.entries(data.metrics?.leadsByStatus || {}).map(([status, count]) => (
               <div key={status} className="status-item">
-                <span className="status-label">{status}</span>
+                <span className="status-label">{leadStatusLabel(status)}</span>
                 <span className="status-count">{count}</span>
               </div>
             ))}
@@ -1929,7 +1930,7 @@ const Dashboard = () => {
             <div className="status-grid">
               {Object.entries(data.metrics?.clientsByStatus || {}).map(([status, count]) => (
                 <div key={status} className="status-item">
-                  <span className="status-label">{status}</span>
+                  <span className="status-label">{leadStatusLabel(status)}</span>
                   <span className="status-count">{count}</span>
                 </div>
               ))}
@@ -2031,7 +2032,7 @@ const Dashboard = () => {
                             fontWeight: 500,
                           }}
                         >
-                          {lead.status}
+                          {leadStatusLabel(lead.status)}
                         </span>
                       </td>
                       <td>
